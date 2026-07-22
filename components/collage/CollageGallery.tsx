@@ -78,7 +78,7 @@ function applyRest(el: HTMLElement, rest: RestPose, animate: boolean) {
     rotate: rest.rotate,
     opacity: rest.opacity,
     zIndex: rest.zIndex,
-    filter: "saturate(0.92) contrast(0.96) brightness(0.94)",
+    filter: "saturate(0.95) contrast(0.98) brightness(0.98)",
   });
 
   if (animate) {
@@ -254,7 +254,7 @@ export default function CollageGallery({
             rotate: newRest.rotate,
             opacity: newRest.opacity,
             zIndex: newRest.zIndex,
-            filter: "saturate(0.92) contrast(0.96) brightness(0.94)",
+            filter: "saturate(0.95) contrast(0.98) brightness(0.98)",
           }),
           duration: ANIM_OUT,
           ease: "power2.in",

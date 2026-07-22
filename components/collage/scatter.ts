@@ -137,7 +137,7 @@ export function restPoseFor(photoIndex: number, seed: number) {
     top: 12 + hash(s, 2) * 76,
     width: 50 + hash(s, 3) * 32,
     rotate: -30 + hash(s, 4) * 60,
-    opacity: 0.62 + hash(s, 5) * 0.12,
+    opacity: 0.82 + hash(s, 5) * 0.1,
     zIndex: 12 + Math.floor(hash(s, 6) * 6),
     driftX: 4 + hash(s, 7) * 10,
     driftY: 3 + hash(s, 8) * 10,
