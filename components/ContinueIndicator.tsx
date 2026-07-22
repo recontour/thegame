@@ -36,7 +36,7 @@ export default function ContinueIndicator({ visible }: ContinueIndicatorProps) {
             fontWeight: 400,
           }}
         >
-          Scroll
+          Flick
         </span>
         <span
           style={{

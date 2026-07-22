@@ -1,13 +1,15 @@
 /**
  * Gallery series definitions.
- * Add new photos or entire series here — Scene/Gallery stay unchanged.
- *
- * Prefer space-free filenames under /public for mobile Safari reliability.
+ * `src` = full-resolution (centered hero)
+ * `thumb` = lightweight collage background piece
  */
 
 export type Photo = {
   id: string;
+  /** Full-resolution image for the focused center frame */
   src: string;
+  /** Thumbnail for collage background mess */
+  thumb: string;
   alt?: string;
 };
 
@@ -20,23 +22,21 @@ export type Series = {
 /** Landing still (separate from gallery series). */
 export const LANDING_HERO_SRC = "/hero.webp";
 
+function photo(n: number): Photo {
+  return {
+    id: `p${n}`,
+    src: `/photos/${n}.webp`,
+    thumb: `/photos/thumbs/${n}.webp`,
+  };
+}
+
 /**
  * Default series — first 8 frames from /public/photos.
- * Uses numeric filenames (copied from "1 (n).webp") for mobile-safe URLs.
  */
 export const defaultSeries: Series = {
   id: "series-1",
   title: "Series I",
-  photos: [
-    { id: "p1", src: "/photos/1.webp" },
-    { id: "p2", src: "/photos/2.webp" },
-    { id: "p3", src: "/photos/3.webp" },
-    { id: "p4", src: "/photos/4.webp" },
-    { id: "p5", src: "/photos/5.webp" },
-    { id: "p6", src: "/photos/6.webp" },
-    { id: "p7", src: "/photos/7.webp" },
-    { id: "p8", src: "/photos/8.webp" },
-  ],
+  photos: [1, 2, 3, 4, 5, 6, 7, 8].map(photo),
 };
 
 /** Registry for future multi-series support. */

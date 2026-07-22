@@ -5,8 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import Hero from "@/components/Hero";
 import ContinueIndicator from "@/components/ContinueIndicator";
 import EntryGate from "@/components/EntryGate";
-import ScrollGallery from "@/components/gallery/ScrollGallery";
-import ScrollProgress from "@/components/gallery/ScrollProgress";
+import CollageGallery from "@/components/collage/CollageGallery";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 import { useGallerySwipe } from "@/components/gallery/useGallerySwipe";
 import {
@@ -36,8 +35,7 @@ function useDebugFlag() {
 }
 
 /**
- * Experience shell:
- * black void → tap → hero emerge → scroll journey through the series.
+ * black void → tap → hero emerge → chaotic collage gallery.
  */
 export default function Scene() {
   const debug = useDebugFlag();
@@ -49,10 +47,8 @@ export default function Scene() {
 
   const [heroVisible, setHeroVisible] = useState(false);
   const [revealed, setRevealed] = useState(false);
-  const [seriesReady, setSeriesReady] = useState(false);
-  const [seriesProgress, setSeriesProgress] = useState({ loaded: 0, total: 8 });
-  const [scrollProgress, setScrollProgress] = useState(0);
   const [phase, setPhase] = useState<Phase>("landing");
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
   const [heroStatus, setHeroStatus] = useState("hero:waiting-gesture");
   const [webglError, setWebglError] = useState<string | null>(null);
@@ -60,30 +56,26 @@ export default function Scene() {
 
   const handleEnter = useCallback(() => {
     if (started) return;
-    console.log("[Scene] user gesture → mounting Canvas", {
-      mobile: isMobileDevice(),
-      dpr,
-    });
     setStarted(true);
     setGateDismissing(true);
     window.setTimeout(() => setGateMounted(false), GATE_FADE_MS);
-  }, [started, dpr]);
+  }, [started]);
 
   const handleRevealed = useCallback(() => setRevealed(true), []);
-  const handleHeroVisible = useCallback(() => setHeroVisible(true), []);
-  const handleSeriesReady = useCallback(() => setSeriesReady(true), []);
-  const handleSeriesProgress = useCallback((loaded: number, total: number) => {
-    setSeriesProgress({ loaded, total });
-  }, []);
-  const handleScrollProgress = useCallback((p: number) => {
-    setScrollProgress(p);
+  const handleHeroVisible = useCallback(() => {
+    setHeroVisible(true);
+    // Warm collage thumbs while hero still holds the frame
+    defaultSeries.photos.forEach((p) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = p.thumb;
+    });
   }, []);
   const handleHeroStatus = useCallback((s: string) => setHeroStatus(s), []);
 
   const enterGallery = useCallback(() => {
     if (enteredGalleryRef.current || !revealed) return;
     enteredGalleryRef.current = true;
-    console.log("[Scene] enter scroll gallery");
     setPhase("gallery");
   }, [revealed]);
 
@@ -93,17 +85,14 @@ export default function Scene() {
     return () => window.clearTimeout(id);
   }, [started, revealed, phase, enterGallery]);
 
-  // Vertical intent after hero also enters the void (swipe / scroll metaphor)
   useGallerySwipe({
     enabled: started && revealed && phase === "landing",
     onSwipeLeft: enterGallery,
     onSwipeRight: enterGallery,
   });
 
-  // First downward wheel/touch after reveal also enters
   useEffect(() => {
     if (!started || !revealed || phase !== "landing") return;
-
     const enter = () => enterGallery();
     const onWheel = (e: WheelEvent) => {
       if (e.deltaY > 8) enter();
@@ -116,7 +105,6 @@ export default function Scene() {
       const y = e.touches[0]?.clientY;
       if (y0 != null && y != null && y0 - y > 36) enter();
     };
-
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
@@ -128,12 +116,11 @@ export default function Scene() {
   }, [started, revealed, phase, enterGallery]);
 
   const showLandingUi = started && revealed && phase === "landing";
-  const showGalleryUi = started && phase === "gallery" && seriesReady;
   const showBootHud =
     debug ||
     webglError ||
     heroStatus.includes("error") ||
-    (started && !heroVisible);
+    (started && phase === "landing" && !heroVisible);
 
   return (
     <>
@@ -152,10 +139,10 @@ export default function Scene() {
           background: "#000000",
           touchAction: "none",
           overflow: "hidden",
-          transform: "translateZ(0)",
         }}
       >
-        {started && (
+        {/* WebGL only for landing hero — frees GPU once collage takes over */}
+        {started && phase === "landing" && (
           <WebGLErrorBoundary onError={setWebglError}>
             <Canvas
               style={{
@@ -165,7 +152,6 @@ export default function Scene() {
                 height: "100%",
                 display: "block",
                 background: "#000000",
-                outline: "none",
                 touchAction: "none",
               }}
               gl={{
@@ -177,60 +163,59 @@ export default function Scene() {
                 failIfMajorPerformanceCaveat: false,
               }}
               dpr={dpr}
-              camera={{
-                position: [0, 0, 5],
-                fov: 50,
-                near: 0.1,
-                far: 80,
-              }}
+              camera={{ position: [0, 0, 5], fov: 50, near: 0.1, far: 80 }}
               resize={{ scroll: false, debounce: 0 }}
               onCreated={({ gl }) => {
                 gl.setClearColor("#000000", 1);
-                gl.domElement.style.touchAction = "none";
-                gl.domElement.addEventListener(
-                  "webglcontextlost",
-                  (e) => {
-                    e.preventDefault();
-                    setWebglError("WebGL context lost");
-                  },
-                  false,
-                );
                 setCanvasReady(true);
               }}
             >
               <color attach="background" args={["#000000"]} />
-              {/* No fog — keeps photographs clean and full contrast */}
-
-              {phase === "landing" && (
-                <Hero
-                  onRevealed={handleRevealed}
-                  onHeroVisible={handleHeroVisible}
-                  onStatus={handleHeroStatus}
-                />
-              )}
-
-              {/* Preload series after hero appears; activate scroll journey after handoff */}
-              {heroVisible && (
-                <ScrollGallery
-                  series={defaultSeries}
-                  active={phase === "gallery"}
-                  preload
-                  onReady={handleSeriesReady}
-                  onLoadProgress={handleSeriesProgress}
-                  onScrollProgress={handleScrollProgress}
-                />
-              )}
+              <Hero
+                onRevealed={handleRevealed}
+                onHeroVisible={handleHeroVisible}
+                onStatus={handleHeroStatus}
+              />
             </Canvas>
           </WebGLErrorBoundary>
         )}
       </div>
+
+      {phase === "gallery" && (
+        <CollageGallery
+          series={defaultSeries}
+          onIndexChange={setGalleryIndex}
+        />
+      )}
 
       {gateMounted && (
         <EntryGate onEnter={handleEnter} dismissing={gateDismissing} />
       )}
 
       <ContinueIndicator visible={showLandingUi} />
-      <ScrollProgress progress={scrollProgress} visible={showGalleryUi} />
+
+      {/* Quiet index — only in gallery, nearly invisible */}
+      {phase === "gallery" && (
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            top: 14,
+            right: 16,
+            zIndex: 40,
+            pointerEvents: "none",
+            fontFamily:
+              'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+            fontSize: 10,
+            letterSpacing: "0.2em",
+            color: "rgba(255,255,255,0.28)",
+          }}
+        >
+          {String(galleryIndex + 1).padStart(2, "0")}
+          <span style={{ opacity: 0.5 }}> / </span>
+          {String(defaultSeries.photos.length).padStart(2, "0")}
+        </div>
+      )}
 
       {showBootHud && (
         <div
@@ -243,20 +228,12 @@ export default function Scene() {
             fontFamily:
               'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
             fontSize: 10,
-            lineHeight: 1.45,
-            color: webglError ? "#ff8a8a" : "rgba(180, 255, 200, 0.7)",
+            color: webglError ? "#ff8a8a" : "rgba(180,255,200,0.7)",
             textShadow: "0 1px 2px #000",
-            whiteSpace: "pre-wrap",
           }}
         >
-          {[
-            `canvas:${canvasReady} hero:${heroVisible}`,
-            `phase:${phase} series ${seriesProgress.loaded}/${seriesProgress.total}`,
-            heroStatus,
-            webglError,
-          ]
-            .filter(Boolean)
-            .join("\n")}
+          {`canvas:${canvasReady} hero:${heroVisible} · ${heroStatus}`}
+          {webglError ? `\n${webglError}` : ""}
         </div>
       )}
     </>
