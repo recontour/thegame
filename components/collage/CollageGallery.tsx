@@ -17,56 +17,84 @@ type CollageGalleryProps = {
 
 const PROMOTED_WIDTH_VW = 95;
 const PROMOTED_MAX_PX = 1600;
-/** Snappy exit back into the mess */
 const ANIM_OUT = 0.22;
-/** Promote-in base / max (seconds) — slight natural variation */
 const ANIM_IN_MIN = 0.55;
 const ANIM_IN_MAX = 0.7;
 
-/** Cheap variation — no physics sim, free on mobile */
+type RestPose = Pick<
+  ScatterPiece,
+  "left" | "top" | "width" | "rotate" | "opacity" | "zIndex"
+>;
+
 function nextInDuration() {
   return ANIM_IN_MIN + Math.random() * (ANIM_IN_MAX - ANIM_IN_MIN);
 }
 
-function applyRest(
-  el: HTMLElement,
-  rest: Pick<
-    ScatterPiece,
-    | "left"
-    | "top"
-    | "width"
-    | "rotate"
-    | "opacity"
-    | "zIndex"
-  >,
-  animate: boolean,
-) {
-  const vars = {
-    left: `${rest.left}%`,
-    top: `${rest.top}%`,
-    width: `${rest.width}vw`,
-    xPercent: 0,
-    yPercent: 0,
+/**
+ * Shared layout model for rest + promoted:
+ * always center-anchored (xPercent/yPercent -50) so left/top/width
+ * interpolate without a mid-flight snap.
+ */
+function layoutVars(pose: {
+  left: number | string;
+  top: number | string;
+  width: string;
+  rotate: number;
+  opacity: number;
+  zIndex: number;
+  filter: string;
+  maxWidth?: string;
+  maxHeight?: string;
+}) {
+  return {
+    left: typeof pose.left === "number" ? `${pose.left}%` : pose.left,
+    top: typeof pose.top === "number" ? `${pose.top}%` : pose.top,
+    width: pose.width,
+    maxWidth: pose.maxWidth ?? "none",
+    maxHeight: pose.maxHeight ?? "none",
+    xPercent: -50,
+    yPercent: -50,
     x: 0,
     y: 0,
     scale: 1,
-    rotation: rest.rotate,
+    rotation: pose.rotate,
+    opacity: pose.opacity,
+    zIndex: pose.zIndex,
+    filter: pose.filter,
+    // Clear any CSS translate leftover from idle drift
+    translate: "none",
+  };
+}
+
+function applyRest(el: HTMLElement, rest: RestPose, animate: boolean) {
+  // Kill CSS idle animation before tweening so it can't fight GSAP
+  el.classList.add("is-settling");
+  el.classList.remove("is-promoted");
+
+  const vars = layoutVars({
+    left: rest.left,
+    top: rest.top,
+    width: `${rest.width}vw`,
+    rotate: rest.rotate,
     opacity: rest.opacity,
     zIndex: rest.zIndex,
     filter: "saturate(0.92) contrast(0.96) brightness(0.94)",
-  };
+  });
 
   if (animate) {
     return gsap.to(el, {
       ...vars,
       duration: ANIM_OUT,
-      // Accelerate into the mess — quick, decisive out
       ease: "power2.in",
       overwrite: "auto",
+      onComplete: () => {
+        el.classList.remove("is-settling");
+      },
     });
   }
 
   gsap.set(el, vars);
+  el.classList.remove("is-settling");
   return null;
 }
 
@@ -75,42 +103,38 @@ function applyPromoted(
   animate: boolean,
   duration = ANIM_IN_MIN,
 ) {
-  const vars = {
-    left: "50%",
-    top: "50%",
+  el.classList.add("is-settling", "is-promoted");
+
+  const vars = layoutVars({
+    left: 50,
+    top: 50,
     width: `${PROMOTED_WIDTH_VW}vw`,
     maxWidth: `${PROMOTED_MAX_PX}px`,
     maxHeight: "92dvh",
-    xPercent: -50,
-    yPercent: -50,
-    x: 0,
-    y: 0,
-    scale: 1,
-    rotation: 0,
+    rotate: 0,
     opacity: 1,
     zIndex: 50,
     filter: "none",
-  };
+  });
 
   if (animate) {
     return gsap.to(el, {
       ...vars,
       duration,
-      // Strong decelerate into place — feels physical without a physics engine
-      ease: "power4.out",
+      // Smooth settle — avoid power4 hard stop which can feel like a snap
+      ease: "power2.out",
       overwrite: "auto",
+      onComplete: () => {
+        el.classList.remove("is-settling");
+      },
     });
   }
 
   gsap.set(el, vars);
+  el.classList.remove("is-settling");
   return null;
 }
 
-/**
- * Unified living collage:
- * - Many tiles (thumbs reused) carpet the full background
- * - One primary tile per photo promotes from the mess to center
- */
 export default function CollageGallery({
   series,
   onIndexChange,
@@ -124,7 +148,6 @@ export default function CollageGallery({
     [count],
   );
 
-  /** piece array index of the primary tile for each photoIndex */
   const primaryPieceIndex = useMemo(() => {
     const map = new Array<number>(count).fill(-1);
     pieces.forEach((p, i) => {
@@ -146,7 +169,6 @@ export default function CollageGallery({
     restsRef.current = pieces;
   }, [pieces]);
 
-  // Mount: place all tiles, promote first primary from the mess
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       const els = pieceRefs.current;
@@ -161,16 +183,17 @@ export default function CollageGallery({
         gsap.fromTo(
           stage,
           { opacity: 0 },
-          { opacity: 1, duration: 0.4, ease: "power2.out" },
+          { opacity: 1, duration: 0.45, ease: "power2.out" },
         );
       }
 
       const primary0 = primaryPieceIndex[0];
       const first = primary0 >= 0 ? els[primary0] : null;
       if (first) {
-        gsap.delayedCall(0.12, () => applyPromoted(first, true));
-      } else {
-        console.warn("[collage] missing primary tile for photo 0");
+        // Promote from already-centered rest coords — smooth continuous path
+        gsap.delayedCall(0.15, () => {
+          applyPromoted(first, true, 0.62);
+        });
       }
     });
     return () => cancelAnimationFrame(id);
@@ -195,37 +218,90 @@ export default function CollageGallery({
       busy.current = true;
       seedRef.current += 1;
 
-      // Demote: land in a fresh scatter pose inside the carpet
+      // Freeze any CSS drift on both pieces before tweening
+      fromEl.classList.add("is-settling");
+      toEl.classList.add("is-settling");
+      // Clear CSS translate so GSAP starts from true visual position
+      gsap.set([fromEl, toEl], { translate: "none" });
+
       const newRest = {
         ...restsRef.current[fromPi],
-        ...restPoseFor(from, count, seedRef.current),
+        ...restPoseFor(from, seedRef.current),
       };
-      restsRef.current[fromPi] = newRest;
-      const outTween = applyRest(fromEl, newRest, true);
+      restsRef.current[fromPi] = newRest as ScatterPiece;
 
-      // Promote: rise from mess with decelerating settle (duration varies slightly)
       const inDuration = nextInDuration();
-      const inTween = gsap.delayedCall(0.05, () => {
-        applyPromoted(toEl, true, inDuration);
+
+      // One timeline — continuous, no mid-hand-off jump
+      const tl = gsap.timeline({
+        onComplete: () => {
+          indexRef.current = to;
+          setIndex(to);
+          busy.current = false;
+          fromEl.classList.remove("is-settling");
+          toEl.classList.remove("is-settling");
+        },
       });
 
-      const done = () => {
-        indexRef.current = to;
-        setIndex(to);
-        busy.current = false;
-      };
+      // Out: current leaves center into collage
+      tl.to(
+        fromEl,
+        {
+          ...layoutVars({
+            left: newRest.left,
+            top: newRest.top,
+            width: `${newRest.width}vw`,
+            rotate: newRest.rotate,
+            opacity: newRest.opacity,
+            zIndex: newRest.zIndex,
+            filter: "saturate(0.92) contrast(0.96) brightness(0.94)",
+          }),
+          duration: ANIM_OUT,
+          ease: "power2.in",
+          overwrite: "auto",
+        },
+        0,
+      );
 
-      // Unlock after the longer of out / (delay + in)
-      const total = Math.max(ANIM_OUT, 0.05 + inDuration) + 0.04;
-      gsap.delayedCall(total, done);
+      // In: next rises from its seat — starts slightly after out for crossfade feel
+      // but uses continuous tween from CURRENT computed state (no gsap.set teleport)
+      tl.to(
+        toEl,
+        {
+          ...layoutVars({
+            left: 50,
+            top: 50,
+            width: `${PROMOTED_WIDTH_VW}vw`,
+            maxWidth: `${PROMOTED_MAX_PX}px`,
+            maxHeight: "92dvh",
+            rotate: 0,
+            opacity: 1,
+            zIndex: 50,
+            filter: "none",
+          }),
+          duration: inDuration,
+          ease: "power2.out",
+          overwrite: "auto",
+        },
+        0.04,
+      );
 
-      gsap.delayedCall(total + 0.08, () => {
+      // Keep class in sync for drift CSS (fillers only use drift)
+      tl.call(
+        () => {
+          fromEl.classList.remove("is-promoted");
+          toEl.classList.add("is-promoted");
+        },
+        undefined,
+        0,
+      );
+
+      gsap.delayedCall(ANIM_OUT + inDuration + 0.12, () => {
         if (busy.current) {
           busy.current = false;
           indexRef.current = to;
           setIndex(to);
         }
-        inTween.kill();
       });
     },
     [count, primaryPieceIndex],
@@ -254,7 +330,6 @@ export default function CollageGallery({
         opacity: 0,
       }}
     >
-      {/* Full-bleed collage carpet */}
       <div
         style={{
           position: "absolute",
@@ -275,7 +350,11 @@ export default function CollageGallery({
                 pieceRefs.current[i] = el;
               }}
               className={
-                promoted ? "collage-piece is-promoted" : "collage-piece"
+                promoted
+                  ? "collage-piece is-promoted"
+                  : piece.isPrimary
+                    ? "collage-piece is-primary"
+                    : "collage-piece is-filler"
               }
               style={{
                 position: "absolute",
@@ -300,10 +379,6 @@ export default function CollageGallery({
                   if (el.src !== photo.src && !el.dataset.fallback) {
                     el.dataset.fallback = "1";
                     el.src = photo.src;
-                    console.warn(
-                      "[collage] thumb failed, using full-res",
-                      photo.thumb,
-                    );
                   }
                 }}
                 style={{
@@ -351,15 +426,18 @@ export default function CollageGallery({
 
       <style>{`
         @keyframes collageDrift {
-          0%, 100% { translate: 0 0; }
+          0%, 100% { translate: 0px 0px; }
           50% { translate: var(--dx, 8px) var(--dy, 6px); }
         }
-        .collage-piece:not(.is-promoted) {
+        /* Only non-primary fillers drift — primaries stay GSAP-clean (no snap) */
+        .collage-piece.is-filler:not(.is-settling) {
           animation: collageDrift var(--dur, 10s) ease-in-out infinite;
           animation-delay: var(--delay, 0s);
         }
-        .collage-piece.is-promoted {
-          animation: none;
+        .collage-piece.is-primary,
+        .collage-piece.is-promoted,
+        .collage-piece.is-settling {
+          animation: none !important;
         }
         @media (prefers-reduced-motion: reduce) {
           .collage-piece { animation: none !important; }

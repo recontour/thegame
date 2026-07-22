@@ -1,17 +1,13 @@
 export type ScatterPiece = {
-  /** Stable key for React */
   id: string;
-  /** Which series photo (thumb) this tile shows */
   photoIndex: number;
-  /** Only the primary tile for a photo can be promoted to center */
   isPrimary: boolean;
-  /** percent positions on the collage stage (can be <0 or >100 for bleed) */
+  /** Center of tile as % of stage (0–100, may bleed outside) */
   left: number;
   top: number;
   /** width as % of viewport width */
   width: number;
   rotate: number;
-  /** rest opacity in the mess */
   opacity: number;
   zIndex: number;
   driftX: number;
@@ -25,9 +21,8 @@ function hash(i: number, salt: number): number {
 }
 
 /**
- * Full-bleed carpet: many overlapping large tiles.
- * Reuses thumbs so 8 photos can cover the entire background.
- * First tile of each photoIndex is primary (promote/demote target).
+ * Full-bleed carpet of overlapping tiles.
+ * Positions are tile *centers* so promote/demote can share one transform model.
  */
 export function buildCollagePieces(
   photoCount: number,
@@ -35,10 +30,9 @@ export function buildCollagePieces(
 ): ScatterPiece[] {
   if (photoCount <= 0) return [];
 
-  // Dense grid — enough tiles to leave almost no black when overlapping
   const COLS = 5;
   const ROWS = 6;
-  const gridTotal = COLS * ROWS; // 30
+  const gridTotal = COLS * ROWS;
   const pieces: ScatterPiece[] = [];
   const primaryAssigned = new Set<number>();
 
@@ -54,22 +48,19 @@ export function buildCollagePieces(
     const cellW = 100 / COLS;
     const cellH = 100 / ROWS;
 
-    // Place in cell with bleed past edges + strong jitter for chaos
+    // Center of each cell + jitter (percent of stage)
     const left =
       col * cellW +
-      hash(s, 1) * cellW * 0.85 -
-      cellW * 0.45 -
-      14 +
-      hash(s, 2) * 6;
+      cellW * 0.5 +
+      (hash(s, 1) - 0.5) * cellW * 0.7 -
+      4;
     const top =
       row * cellH +
-      hash(s, 3) * cellH * 0.85 -
-      cellH * 0.45 -
-      16 +
-      hash(s, 4) * 6;
+      cellH * 0.5 +
+      (hash(s, 2) - 0.5) * cellH * 0.7 -
+      4;
 
-    // Big tiles so neighbors overlap heavily
-    const width = 48 + hash(s, 5) * 34; // ~48–82vw
+    const width = 48 + hash(s, 5) * 34;
 
     pieces.push({
       id: `g-${seed}-${i}`,
@@ -79,8 +70,7 @@ export function buildCollagePieces(
       top,
       width,
       rotate: -34 + hash(s, 6) * 68,
-      // More opaque mess (was ~0.42–0.50)
-      opacity: 0.62 + hash(s, 7) * 0.12, // 0.62–0.74
+      opacity: 0.62 + hash(s, 7) * 0.12,
       zIndex: isPrimary
         ? 12 + Math.floor(hash(s, 8) * 6)
         : 1 + Math.floor(hash(s, 8) * 10),
@@ -90,7 +80,6 @@ export function buildCollagePieces(
     });
   }
 
-  // Guarantee every photo has a primary (if photoCount > grid… unlikely)
   for (let p = 0; p < photoCount; p++) {
     if (primaryAssigned.has(p)) continue;
     const s = 9000 + p + seed;
@@ -98,8 +87,8 @@ export function buildCollagePieces(
       id: `primary-fallback-${p}-${seed}`,
       photoIndex: p,
       isPrimary: true,
-      left: hash(s, 1) * 70 - 5,
-      top: hash(s, 2) * 70 - 5,
+      left: 20 + hash(s, 1) * 60,
+      top: 20 + hash(s, 2) * 60,
       width: 55 + hash(s, 3) * 25,
       rotate: -20 + hash(s, 4) * 40,
       opacity: 0.66,
@@ -110,16 +99,15 @@ export function buildCollagePieces(
     });
   }
 
-  // Extra edge plugs so corners never open to pure black
   const plugs = [
-    { left: -18, top: -16 },
-    { left: 70, top: -18 },
-    { left: -20, top: 68 },
-    { left: 72, top: 70 },
-    { left: 28, top: -20 },
-    { left: 30, top: 78 },
-    { left: -22, top: 32 },
-    { left: 80, top: 34 },
+    { left: 8, top: 8 },
+    { left: 92, top: 6 },
+    { left: 6, top: 92 },
+    { left: 94, top: 94 },
+    { left: 50, top: 4 },
+    { left: 50, top: 96 },
+    { left: 3, top: 50 },
+    { left: 97, top: 50 },
   ];
   plugs.forEach((pad, k) => {
     const s = 5000 + k + seed * 3;
@@ -127,8 +115,8 @@ export function buildCollagePieces(
       id: `edge-${seed}-${k}`,
       photoIndex: k % photoCount,
       isPrimary: false,
-      left: pad.left + hash(s, 1) * 10,
-      top: pad.top + hash(s, 2) * 10,
+      left: pad.left + (hash(s, 1) - 0.5) * 8,
+      top: pad.top + (hash(s, 2) - 0.5) * 8,
       width: 58 + hash(s, 3) * 28,
       rotate: -40 + hash(s, 4) * 80,
       opacity: 0.64 + hash(s, 5) * 0.08,
@@ -142,19 +130,11 @@ export function buildCollagePieces(
   return pieces;
 }
 
-/** Fresh rest pose for a demoted primary tile */
-export function restPoseFor(
-  photoIndex: number,
-  photoCount: number,
-  seed: number,
-): Pick<
-  ScatterPiece,
-  "left" | "top" | "width" | "rotate" | "opacity" | "zIndex" | "driftX" | "driftY" | "driftDur"
-> {
+export function restPoseFor(photoIndex: number, seed: number) {
   const s = photoIndex * 23 + seed * 47;
   return {
-    left: hash(s, 1) * 78 - 12,
-    top: hash(s, 2) * 78 - 14,
+    left: 12 + hash(s, 1) * 76,
+    top: 12 + hash(s, 2) * 76,
     width: 50 + hash(s, 3) * 32,
     rotate: -30 + hash(s, 4) * 60,
     opacity: 0.62 + hash(s, 5) * 0.12,
