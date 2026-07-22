@@ -2,64 +2,83 @@
 
 import { useEffect, useState } from "react";
 import * as THREE from "three";
+import {
+  getMobileMaxTextureSize,
+  loadMobileSafeTexture,
+} from "@/components/gallery/loadMobileSafeTexture";
 
 export type TextureLoadState = {
   texture: THREE.Texture | null;
   status: "idle" | "loading" | "ready" | "error";
   error: string | null;
+  log: string;
 };
 
 /**
- * Manual texture load (no Suspense). Safe on mobile — surfaces errors instead of hanging.
+ * Mobile-safe texture load (no Suspense).
+ * Downscales on canvas, crossOrigin anonymous, explicit onLoad/onError logs.
  */
 export function useTextureLoader(src: string | null): TextureLoadState {
   const [state, setState] = useState<TextureLoadState>({
     texture: null,
     status: src ? "loading" : "idle",
     error: null,
+    log: src ? "queued" : "idle",
   });
 
   useEffect(() => {
     if (!src) {
-      setState({ texture: null, status: "idle", error: null });
+      setState({ texture: null, status: "idle", error: null, log: "idle" });
       return;
     }
 
     let cancelled = false;
     let owned: THREE.Texture | null = null;
-    const loader = new THREE.TextureLoader();
 
-    setState({ texture: null, status: "loading", error: null });
+    setState({
+      texture: null,
+      status: "loading",
+      error: null,
+      log: `loading ${src}`,
+    });
 
-    loader.load(
-      src,
-      (tex) => {
+    console.log("[useTextureLoader] start", src);
+
+    loadMobileSafeTexture(src, {
+      maxSize: getMobileMaxTextureSize(),
+      onLog: (entry) => {
+        if (cancelled) return;
+        setState((prev) => ({
+          ...prev,
+          log: `${entry.stage}${entry.detail ? `: ${entry.detail}` : ""}`,
+        }));
+      },
+    })
+      .then((tex) => {
         if (cancelled) {
           tex.dispose();
           return;
         }
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.wrapS = THREE.ClampToEdgeWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
-        tex.generateMipmaps = false;
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        tex.anisotropy = 1;
-        tex.needsUpdate = true;
         owned = tex;
-        setState({ texture: tex, status: "ready", error: null });
-      },
-      undefined,
-      (err) => {
+        console.log("[useTextureLoader] ready", src, tex);
+        setState({
+          texture: tex,
+          status: "ready",
+          error: null,
+          log: "ready",
+        });
+      })
+      .catch((err) => {
         if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : `Failed to load texture: ${src}`;
-        console.error("[texture]", src, err);
-        setState({ texture: null, status: "error", error: message });
-      },
-    );
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[useTextureLoader] error", src, err);
+        setState({
+          texture: null,
+          status: "error",
+          error: message,
+          log: `error: ${message}`,
+        });
+      });
 
     return () => {
       cancelled = true;

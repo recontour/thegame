@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import Hero from "@/components/Hero";
 import ContinueIndicator from "@/components/ContinueIndicator";
@@ -9,6 +9,7 @@ import Gallery from "@/components/gallery/Gallery";
 import GalleryProgress from "@/components/gallery/GalleryProgress";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 import { useGallerySwipe } from "@/components/gallery/useGallerySwipe";
+import { getMobileDpr, isMobileDevice } from "@/components/gallery/loadMobileSafeTexture";
 import { defaultSeries } from "@/data/series";
 
 type Phase = "landing" | "gallery";
@@ -16,7 +17,6 @@ type Phase = "landing" | "gallery";
 const AUTO_ENTER_MS = 2800;
 const GATE_FADE_MS = 900;
 
-/** Set true (or open with ?debug=1) to show on-screen diagnostics on mobile. */
 const DEBUG_DEFAULT = false;
 
 function useDebugFlag() {
@@ -34,17 +34,19 @@ function useDebugFlag() {
 
 /**
  * Mobile-safe shell:
- * 1) Pure black — no Canvas on first paint
- * 2) First user pointerdown → mount WebGL, load textures, start reveal
+ * 1) Pure black — no Canvas until first tap
+ * 2) Load ONLY the hero texture first
+ * 3) After hero is visible, allow gallery (series loads then)
  */
 export default function Scene() {
   const debug = useDebugFlag();
+  const dpr = useMemo(() => getMobileDpr(), []);
 
-  // WebGL must not mount until a user gesture (mobile stability)
   const [started, setStarted] = useState(false);
   const [gateMounted, setGateMounted] = useState(true);
   const [gateDismissing, setGateDismissing] = useState(false);
 
+  const [heroVisible, setHeroVisible] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [seriesReady, setSeriesReady] = useState(false);
   const [phase, setPhase] = useState<Phase>("landing");
@@ -57,34 +59,42 @@ export default function Scene() {
 
   const handleEnter = useCallback(() => {
     if (started) return;
-    console.log("[Scene] user gesture → mounting Canvas");
+    console.log("[Scene] user gesture → mounting Canvas", {
+      mobile: isMobileDevice(),
+      dpr,
+    });
     setStarted(true);
     setGateDismissing(true);
-    // Keep gate in DOM through the fade so the handoff stays black/cinematic
     window.setTimeout(() => {
       setGateMounted(false);
       console.log("[Scene] entry gate unmounted");
     }, GATE_FADE_MS);
-  }, [started]);
+  }, [started, dpr]);
 
   const handleRevealed = useCallback(() => setRevealed(true), []);
+  const handleHeroVisible = useCallback(() => {
+    console.log("[Scene] hero image visible — series may load later");
+    setHeroVisible(true);
+  }, []);
   const handleSeriesReady = useCallback(() => setSeriesReady(true), []);
   const handleHeroStatus = useCallback((s: string) => setHeroStatus(s), []);
 
   const enterGallery = useCallback(() => {
-    if (enteredGalleryRef.current || !seriesReady) return;
+    // Can enter once hero finished reveal; series loads on gallery mount
+    if (enteredGalleryRef.current || !revealed) return;
     enteredGalleryRef.current = true;
+    console.log("[Scene] enter gallery");
     setPhase("gallery");
-  }, [seriesReady]);
+  }, [revealed]);
 
   useEffect(() => {
-    if (!started || !revealed || !seriesReady || phase !== "landing") return;
+    if (!started || !revealed || phase !== "landing") return;
     const id = window.setTimeout(enterGallery, AUTO_ENTER_MS);
     return () => window.clearTimeout(id);
-  }, [started, revealed, seriesReady, phase, enterGallery]);
+  }, [started, revealed, phase, enterGallery]);
 
   useGallerySwipe({
-    enabled: started && revealed && seriesReady && phase === "landing",
+    enabled: started && revealed && phase === "landing",
     onSwipeLeft: enterGallery,
     onSwipeRight: enterGallery,
   });
@@ -92,7 +102,7 @@ export default function Scene() {
   useEffect(() => {
     const update = () => {
       setViewportLabel(
-        `${window.innerWidth}×${window.innerHeight} dpr=${window.devicePixelRatio}`,
+        `${window.innerWidth}×${window.innerHeight} dpr=${window.devicePixelRatio} mobile=${isMobileDevice()}`,
       );
     };
     update();
@@ -100,18 +110,17 @@ export default function Scene() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  useEffect(() => {
-    if (canvasReady) {
-      console.log("[Scene] Canvas ready", viewportLabel);
-    }
-  }, [canvasReady, viewportLabel]);
-
   const showLandingUi = started && revealed && phase === "landing";
   const showGalleryUi = started && phase === "gallery";
+  // Show status on real phones until hero is visibly loaded
+  const showBootHud =
+    debug ||
+    webglError ||
+    heroStatus.includes("error") ||
+    (started && !heroVisible);
 
   return (
     <>
-      {/* Always black full-screen base */}
       <div
         className="scene-root"
         style={{
@@ -130,7 +139,6 @@ export default function Scene() {
           transform: "translateZ(0)",
         }}
       >
-        {/* Canvas only after first user interaction — never on cold load */}
         {started && (
           <WebGLErrorBoundary onError={setWebglError}>
             <Canvas
@@ -145,14 +153,14 @@ export default function Scene() {
                 touchAction: "none",
               }}
               gl={{
-                antialias: true,
+                antialias: !isMobileDevice(),
                 alpha: false,
                 powerPreference: "default",
                 stencil: false,
                 depth: true,
                 failIfMajorPerformanceCaveat: false,
               }}
-              dpr={[1, 1.5]}
+              dpr={dpr}
               camera={{ position: [0, 0, 5], fov: 50, near: 0.1, far: 100 }}
               resize={{ scroll: false, debounce: 0 }}
               onCreated={({ gl, size }) => {
@@ -160,6 +168,7 @@ export default function Scene() {
                   w: size.width,
                   h: size.height,
                   dpr: gl.getPixelRatio(),
+                  maxTex: gl.capabilities?.maxTextureSize,
                 });
                 gl.setClearColor("#000000", 1);
                 gl.domElement.style.width = "100%";
@@ -183,16 +192,19 @@ export default function Scene() {
               }}
             >
               <color attach="background" args={["#000000"]} />
+              {/* Only hero while landing — no series textures yet */}
               {phase === "landing" && (
                 <Hero
                   onRevealed={handleRevealed}
+                  onHeroVisible={handleHeroVisible}
                   onStatus={handleHeroStatus}
                 />
               )}
-              {revealed && (
+              {/* Gallery mounts only after landing ends — loads its own textures then */}
+              {phase === "gallery" && (
                 <Gallery
                   series={defaultSeries}
-                  active={phase === "gallery"}
+                  active
                   onIndexChange={setGalleryIndex}
                   onReady={handleSeriesReady}
                 />
@@ -202,7 +214,6 @@ export default function Scene() {
         )}
       </div>
 
-      {/* Full-screen black gate — waits for first onPointerDown */}
       {gateMounted && (
         <EntryGate onEnter={handleEnter} dismissing={gateDismissing} />
       )}
@@ -214,27 +225,7 @@ export default function Scene() {
         visible={showGalleryUi}
       />
 
-      {/* Temporary: confirm gesture while WebGL boots */}
-      {started && !canvasReady && (
-        <div
-          style={{
-            position: "fixed",
-            top: 12,
-            left: 12,
-            zIndex: 45,
-            pointerEvents: "none",
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-            fontSize: 10,
-            color: "rgba(120, 255, 180, 0.7)",
-            textShadow: "0 1px 2px #000",
-          }}
-        >
-          gesture ok · waiting for WebGL…
-        </div>
-      )}
-
-      {(debug || webglError || heroStatus.includes("error")) && (
+      {showBootHud && (
         <div
           style={{
             position: "fixed",
@@ -247,18 +238,21 @@ export default function Scene() {
               'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
             fontSize: 10,
             lineHeight: 1.45,
-            color: webglError ? "#ff8a8a" : "rgba(255,255,255,0.55)",
+            color: webglError || heroStatus.includes("error")
+              ? "#ff8a8a"
+              : "rgba(180, 255, 200, 0.75)",
             textShadow: "0 1px 2px #000",
             whiteSpace: "pre-wrap",
           }}
         >
           {[
-            debug ? "DEBUG ON (?debug=1)" : "STATUS",
-            `started: ${started} | canvas: ${canvasReady ? "ready" : "—"}`,
-            `phase: ${phase} | revealed: ${revealed} | series: ${seriesReady}`,
+            "MOBILE TEXTURE BOOT",
+            `started:${started} canvas:${canvasReady} heroVisible:${heroVisible}`,
+            `phase:${phase} revealed:${revealed} series:${seriesReady}`,
             heroStatus,
             viewportLabel,
             webglError ? `webgl: ${webglError}` : null,
+            "dark-red plane = mesh ok / waiting for texture",
           ]
             .filter(Boolean)
             .join("\n")}

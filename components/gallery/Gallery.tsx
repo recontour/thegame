@@ -47,8 +47,17 @@ export default function Gallery({
   onReady,
 }: GalleryProps) {
   const count = series.photos.length;
-  const { textures, ready } = useSeriesTextures(series.photos);
+  // Only load series textures when gallery is active (after hero is done)
+  const { textures, ready, status, error, loadedCount } = useSeriesTextures(
+    series.photos,
+    active,
+  );
   const pointer = usePointerParallax(active && ready);
+
+  useEffect(() => {
+    console.log("[Gallery]", { active, ready, status, loadedCount, error });
+  }, [active, ready, status, loadedCount, error]);
+
 
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
@@ -70,11 +79,19 @@ export default function Gallery({
 
   const transitionTween = useRef<gsap.core.Tween | null>(null);
 
+  const texturesRef = useRef(textures);
+  texturesRef.current = textures;
+
   const goTo = useCallback(
     (nextIndex: number, direction: 1 | -1) => {
       if (!active || !ready || busy.current) return;
       if (nextIndex < 0 || nextIndex >= count) return;
       if (nextIndex === indexRef.current) return;
+      // Don't transition until that frame has actually loaded
+      if (!texturesRef.current[nextIndex]) {
+        console.warn("[Gallery] texture not ready for index", nextIndex);
+        return;
+      }
 
       busy.current = true;
       const from = indexRef.current;

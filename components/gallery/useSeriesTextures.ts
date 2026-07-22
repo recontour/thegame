@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import * as THREE from "three";
 import type { Photo } from "@/data/series";
+import {
+  getMobileMaxTextureSize,
+  loadMobileSafeTexture,
+} from "@/components/gallery/loadMobileSafeTexture";
 
 export type SeriesTexturesState = {
   textures: (THREE.Texture | null)[];
@@ -13,10 +17,13 @@ export type SeriesTexturesState = {
 };
 
 /**
- * Loads a series of textures with explicit dispose on unmount / src change.
- * Never hangs Suspense; reports partial/total failure for UI fallbacks.
+ * Progressive series load — first photo, then the rest (never all in parallel on mobile).
+ * Only runs when `enabled` is true (after hero is visible).
  */
-export function useSeriesTextures(photos: Photo[]): SeriesTexturesState {
+export function useSeriesTextures(
+  photos: Photo[],
+  enabled = true,
+): SeriesTexturesState {
   const [textures, setTextures] = useState<(THREE.Texture | null)[]>(() =>
     photos.map(() => null),
   );
@@ -28,6 +35,12 @@ export function useSeriesTextures(photos: Photo[]): SeriesTexturesState {
   const key = photos.map((p) => p.src).join("|");
 
   useEffect(() => {
+    if (!enabled) {
+      setReady(false);
+      setStatus("idle");
+      return;
+    }
+
     if (photos.length === 0) {
       setTextures([]);
       setReady(true);
@@ -36,8 +49,9 @@ export function useSeriesTextures(photos: Photo[]): SeriesTexturesState {
     }
 
     let cancelled = false;
-    let owned: THREE.Texture[] = [];
-    const loader = new THREE.TextureLoader();
+    const owned: THREE.Texture[] = [];
+    const results: (THREE.Texture | null)[] = photos.map(() => null);
+    const maxSize = getMobileMaxTextureSize();
 
     setReady(false);
     setStatus("loading");
@@ -45,75 +59,78 @@ export function useSeriesTextures(photos: Photo[]): SeriesTexturesState {
     setLoadedCount(0);
     setTextures(photos.map(() => null));
 
-    let completed = 0;
-    const results: (THREE.Texture | null)[] = photos.map(() => null);
-    const failures: string[] = [];
+    console.log("[series] start sequential load", photos.length, "maxSize", maxSize);
 
-    const finishIfDone = () => {
-      if (cancelled || completed < photos.length) return;
-      owned = results.filter((t): t is THREE.Texture => t != null);
-      setTextures([...results]);
-      setLoadedCount(owned.length);
-
-      if (owned.length === 0) {
-        setReady(false);
+    (async () => {
+      // 1) First image only — gallery can open once this exists
+      try {
+        const first = await loadMobileSafeTexture(photos[0].src, {
+          maxSize,
+          onLog: (e) => console.log("[series:0]", e),
+        });
+        if (cancelled) {
+          first.dispose();
+          return;
+        }
+        owned.push(first);
+        results[0] = first;
+        setTextures([...results]);
+        setLoadedCount(1);
+        setReady(true);
+        setStatus("ready");
+        console.log("[series] first photo ready — gallery can start");
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err);
+        console.error("[series] first photo failed", err);
+        setError(message);
         setStatus("error");
-        setError(failures[0] ?? "All series textures failed to load");
+        setReady(false);
         return;
       }
 
-      // Ready if at least first frame loaded (gallery can show; gaps skipped later)
-      setReady(results[0] != null || owned.length > 0);
-      setStatus(failures.length ? "error" : "ready");
-      if (failures.length) {
-        setError(
-          `Loaded ${owned.length}/${photos.length}. ${failures[0] ?? ""}`.trim(),
-        );
-      }
-    };
-
-    photos.forEach((photo, i) => {
-      loader.load(
-        photo.src,
-        (tex) => {
+      // 2) Remaining photos one-by-one (avoids mobile GPU memory spikes)
+      for (let i = 1; i < photos.length; i++) {
+        if (cancelled) return;
+        try {
+          const tex = await loadMobileSafeTexture(photos[i].src, {
+            maxSize,
+            onLog: (e) => console.log(`[series:${i}]`, e),
+          });
           if (cancelled) {
             tex.dispose();
             return;
           }
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.wrapS = THREE.ClampToEdgeWrapping;
-          tex.wrapT = THREE.ClampToEdgeWrapping;
-          tex.generateMipmaps = false;
-          tex.minFilter = THREE.LinearFilter;
-          tex.magFilter = THREE.LinearFilter;
-          tex.anisotropy = 1;
-          tex.needsUpdate = true;
+          owned.push(tex);
           results[i] = tex;
-          completed += 1;
-          setLoadedCount((c) => c + 1);
-          finishIfDone();
-        },
-        undefined,
-        (err) => {
-          if (cancelled) return;
-          console.error("[series texture]", photo.src, err);
-          failures.push(photo.src);
+          setTextures([...results]);
+          setLoadedCount(i + 1);
+        } catch (err) {
+          console.error(`[series] photo ${i} failed`, photos[i].src, err);
           results[i] = null;
-          completed += 1;
-          finishIfDone();
-        },
-      );
-    });
+          setTextures([...results]);
+        }
+      }
+
+      if (!cancelled) {
+        console.log(
+          "[series] complete",
+          owned.length,
+          "/",
+          photos.length,
+        );
+      }
+    })();
 
     return () => {
       cancelled = true;
       owned.forEach((t) => t.dispose());
-      results.forEach((t) => t?.dispose());
-      owned = [];
+      results.forEach((t) => {
+        if (t && !owned.includes(t)) t.dispose();
+      });
     };
-    // key captures the photo src list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, enabled]);
 
   return { textures, ready, status, error, loadedCount };
 }
