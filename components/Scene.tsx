@@ -1,5 +1,6 @@
 "use client";
 
+// Trigger redeploy — Scene is the root WebGL experience shell.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import Hero from "@/components/Hero";
