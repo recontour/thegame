@@ -17,8 +17,16 @@ type CollageGalleryProps = {
 
 const PROMOTED_WIDTH_VW = 95;
 const PROMOTED_MAX_PX = 1600;
-const ANIM_OUT = 0.36;
-const ANIM_IN = 0.55;
+/** Snappy exit back into the mess */
+const ANIM_OUT = 0.22;
+/** Promote-in base / max (seconds) — slight natural variation */
+const ANIM_IN_MIN = 0.55;
+const ANIM_IN_MAX = 0.7;
+
+/** Cheap variation — no physics sim, free on mobile */
+function nextInDuration() {
+  return ANIM_IN_MIN + Math.random() * (ANIM_IN_MAX - ANIM_IN_MIN);
+}
 
 function applyRest(
   el: HTMLElement,
@@ -52,7 +60,8 @@ function applyRest(
     return gsap.to(el, {
       ...vars,
       duration: ANIM_OUT,
-      ease: "power3.inOut",
+      // Accelerate into the mess — quick, decisive out
+      ease: "power2.in",
       overwrite: "auto",
     });
   }
@@ -61,7 +70,11 @@ function applyRest(
   return null;
 }
 
-function applyPromoted(el: HTMLElement, animate: boolean) {
+function applyPromoted(
+  el: HTMLElement,
+  animate: boolean,
+  duration = ANIM_IN_MIN,
+) {
   const vars = {
     left: "50%",
     top: "50%",
@@ -82,8 +95,9 @@ function applyPromoted(el: HTMLElement, animate: boolean) {
   if (animate) {
     return gsap.to(el, {
       ...vars,
-      duration: ANIM_IN,
-      ease: "power3.out",
+      duration,
+      // Strong decelerate into place — feels physical without a physics engine
+      ease: "power4.out",
       overwrite: "auto",
     });
   }
@@ -189,9 +203,10 @@ export default function CollageGallery({
       restsRef.current[fromPi] = newRest;
       const outTween = applyRest(fromEl, newRest, true);
 
-      // Promote: rise from its seat in the mess
-      const inTween = gsap.delayedCall(0.06, () => {
-        applyPromoted(toEl, true);
+      // Promote: rise from mess with decelerating settle (duration varies slightly)
+      const inDuration = nextInDuration();
+      const inTween = gsap.delayedCall(0.05, () => {
+        applyPromoted(toEl, true, inDuration);
       });
 
       const done = () => {
@@ -200,10 +215,11 @@ export default function CollageGallery({
         busy.current = false;
       };
 
-      if (outTween) outTween.eventCallback("onComplete", done);
-      else gsap.delayedCall(ANIM_IN + 0.08, done);
+      // Unlock after the longer of out / (delay + in)
+      const total = Math.max(ANIM_OUT, 0.05 + inDuration) + 0.04;
+      gsap.delayedCall(total, done);
 
-      gsap.delayedCall(ANIM_OUT + ANIM_IN + 0.05, () => {
+      gsap.delayedCall(total + 0.08, () => {
         if (busy.current) {
           busy.current = false;
           indexRef.current = to;
