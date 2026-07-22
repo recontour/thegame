@@ -105,35 +105,36 @@ export default function CollageGallery({
 
   // Mount: place everyone in the mess, then promote the first piece
   useEffect(() => {
-    const pieces = pieceRefs.current;
-    restsRef.current = buildScatter(count, 0);
+    // rAF so refs are definitely attached after paint (important on mobile)
+    const id = requestAnimationFrame(() => {
+      const pieces = pieceRefs.current;
+      restsRef.current = buildScatter(count, 0);
 
-    pieces.forEach((el, i) => {
-      if (!el) return;
-      if (i === 0) {
-        // Start in collage, then rise — so it always “comes from” the mess
+      pieces.forEach((el, i) => {
+        if (!el || !restsRef.current[i]) return;
         applyRest(el, restsRef.current[i], false);
+      });
+
+      const first = pieces[0];
+      const stage = stageRef.current;
+      if (stage) {
+        gsap.fromTo(
+          stage,
+          { opacity: 0 },
+          { opacity: 1, duration: 0.4, ease: "power2.out" },
+        );
+      }
+
+      if (first) {
+        gsap.delayedCall(0.12, () => {
+          applyPromoted(first, true);
+        });
       } else {
-        applyRest(el, restsRef.current[i], false);
+        console.warn("[collage] no piece refs on mount");
       }
     });
 
-    const first = pieces[0];
-    const stage = stageRef.current;
-    if (stage) {
-      gsap.fromTo(
-        stage,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.4, ease: "power2.out" },
-      );
-    }
-
-    if (first) {
-      // Brief beat in the collage, then promote
-      gsap.delayedCall(0.12, () => {
-        applyPromoted(first, true);
-      });
-    }
+    return () => cancelAnimationFrame(id);
   }, [count]);
 
   useEffect(() => {
@@ -253,6 +254,15 @@ export default function CollageGallery({
                 draggable={false}
                 loading="eager"
                 decoding="async"
+                onError={(e) => {
+                  // If thumbs missing on deploy, fall back to full-res
+                  const el = e.currentTarget;
+                  if (el.src !== photo.src && !el.dataset.fallback) {
+                    el.dataset.fallback = "1";
+                    el.src = photo.src;
+                    console.warn("[collage] thumb failed, using full-res", photo.thumb);
+                  }
+                }}
                 style={{
                   display: "block",
                   width: "100%",
