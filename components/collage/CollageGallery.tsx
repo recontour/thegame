@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import type { Series } from "@/data/series";
-import { buildScatter } from "@/components/collage/scatter";
+import {
+  buildScatter,
+  scatterForIndex,
+  type ScatterPiece,
+} from "@/components/collage/scatter";
 import { useCollageFlick } from "@/components/collage/useCollageFlick";
 
 type CollageGalleryProps = {
@@ -11,9 +15,73 @@ type CollageGalleryProps = {
   onIndexChange?: (index: number) => void;
 };
 
+const PROMOTED_WIDTH_VW = 72; // max visual weight when focused
+const PROMOTED_MAX_PX = 520;
+const ANIM_OUT = 0.36;
+const ANIM_IN = 0.42;
+
+function applyRest(el: HTMLElement, rest: ScatterPiece, animate: boolean) {
+  const vars = {
+    left: `${rest.left}%`,
+    top: `${rest.top}%`,
+    width: `${rest.width}vw`,
+    xPercent: 0,
+    yPercent: 0,
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: rest.rotate,
+    opacity: rest.opacity,
+    zIndex: rest.zIndex,
+    filter: "saturate(0.9) contrast(0.95) brightness(0.9)",
+  };
+
+  if (animate) {
+    return gsap.to(el, {
+      ...vars,
+      duration: ANIM_OUT,
+      ease: "power3.inOut",
+      overwrite: "auto",
+    });
+  }
+
+  gsap.set(el, vars);
+  return null;
+}
+
+function applyPromoted(el: HTMLElement, animate: boolean) {
+  const vars = {
+    left: "50%",
+    top: "50%",
+    width: `min(${PROMOTED_WIDTH_VW}vw, ${PROMOTED_MAX_PX}px)`,
+    xPercent: -50,
+    yPercent: -50,
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0,
+    opacity: 1,
+    zIndex: 40,
+    filter: "none",
+  };
+
+  if (animate) {
+    return gsap.to(el, {
+      ...vars,
+      duration: ANIM_IN,
+      ease: "power3.out",
+      overwrite: "auto",
+    });
+  }
+
+  gsap.set(el, vars);
+  return null;
+}
+
 /**
- * Chaotic thumbnail collage + one dead-center full-resolution photograph.
- * DOM-based for mobile performance and true image fidelity.
+ * One living collage: every image is a single DOM node in the mess.
+ * The focused image is the same node, promoted to center — not a second layer.
+ * Thumbs only (no full-res).
  */
 export default function CollageGallery({
   series,
@@ -21,127 +89,102 @@ export default function CollageGallery({
 }: CollageGalleryProps) {
   const photos = series.photos;
   const count = photos.length;
-  const scatter = useMemo(() => buildScatter(count), [count]);
 
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
   const busy = useRef(false);
+  const seedRef = useRef(0);
 
-  const heroWrapRef = useRef<HTMLDivElement>(null);
-  const heroImgRef = useRef<HTMLImageElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const pieceRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const restsRef = useRef<ScatterPiece[]>(buildScatter(count, 0));
 
-  // Preload full-res neighbors for snappy handoffs
+  // Mount: place everyone in the mess, then promote the first piece
   useEffect(() => {
-    const preload = (src: string) => {
-      const img = new Image();
-      img.decoding = "async";
-      img.src = src;
-    };
-    preload(photos[index]?.src ?? "");
-    preload(photos[(index + 1) % count]?.src ?? "");
-    preload(photos[(index - 1 + count) % count]?.src ?? "");
-  }, [index, photos, count]);
+    const pieces = pieceRefs.current;
+    restsRef.current = buildScatter(count, 0);
+
+    pieces.forEach((el, i) => {
+      if (!el) return;
+      if (i === 0) {
+        // Start in collage, then rise — so it always “comes from” the mess
+        applyRest(el, restsRef.current[i], false);
+      } else {
+        applyRest(el, restsRef.current[i], false);
+      }
+    });
+
+    const first = pieces[0];
+    const stage = stageRef.current;
+    if (stage) {
+      gsap.fromTo(
+        stage,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.4, ease: "power2.out" },
+      );
+    }
+
+    if (first) {
+      // Brief beat in the collage, then promote
+      gsap.delayedCall(0.12, () => {
+        applyPromoted(first, true);
+      });
+    }
+  }, [count]);
 
   useEffect(() => {
     onIndexChange?.(index);
   }, [index, onIndexChange]);
 
-  // Entrance: collage settles, hero snaps in
-  useEffect(() => {
-    const stage = stageRef.current;
-    const hero = heroWrapRef.current;
-    if (!stage || !hero) return;
-
-    gsap.fromTo(
-      stage,
-      { opacity: 0 },
-      { opacity: 1, duration: 0.45, ease: "power2.out" },
-    );
-    gsap.fromTo(
-      hero,
-      { y: 36, opacity: 0, scale: 0.94 },
-      { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "power3.out", delay: 0.05 },
-    );
-  }, []);
-
   const go = useCallback(
     (dir: 1 | -1) => {
       if (busy.current || count < 2) return;
+
       const from = indexRef.current;
       const to = (from + dir + count) % count;
-      const wrap = heroWrapRef.current;
-      const img = heroImgRef.current;
-      if (!wrap || !img) {
-        indexRef.current = to;
-        setIndex(to);
-        return;
-      }
+      const fromEl = pieceRefs.current[from];
+      const toEl = pieceRefs.current[to];
+      if (!fromEl || !toEl) return;
 
       busy.current = true;
-      const nextSrc = photos[to].src;
+      seedRef.current += 1;
 
-      // Preload next full-res, then run snappy handoff (once)
-      let startedAnim = false;
-      const run = () => {
-        if (startedAnim) return;
-        startedAnim = true;
+      // New rest pose for the demoted image so it falls into a fresh spot
+      const newRest = scatterForIndex(from, count, seedRef.current);
+      restsRef.current[from] = newRest;
 
-        const tl = gsap.timeline({
-          onComplete: () => {
-            indexRef.current = to;
-            setIndex(to);
-            gsap.set(wrap, { y: 0, x: 0, opacity: 1, scale: 1, rotate: 0 });
-            busy.current = false;
-          },
-        });
+      // Demote current: shrink / fade / drift back into the mess
+      const outTween = applyRest(fromEl, newRest, true);
 
-        // Current full-res flies out into the mess
-        tl.to(
-          wrap,
-          {
-            y: dir > 0 ? -140 : 140,
-            x: dir > 0 ? 18 : -18,
-            rotate: dir > 0 ? -6 : 6,
-            scale: 0.82,
-            opacity: 0,
-            duration: 0.38,
-            ease: "power3.in",
-          },
-          0,
-        );
+      // Promote next: rise from its current collage seat into the center
+      // Slight delay so they cross in the void
+      const inTween = gsap.delayedCall(0.06, () => {
+        applyPromoted(toEl, true);
+      });
 
-        // Swap source while off-screen, rise from opposite side
-        tl.add(() => {
-          img.src = nextSrc;
-          gsap.set(wrap, {
-            y: dir > 0 ? 160 : -160,
-            x: dir > 0 ? -12 : 12,
-            rotate: dir > 0 ? 5 : -5,
-            scale: 0.88,
-            opacity: 0,
-          });
-        });
-
-        tl.to(wrap, {
-          y: 0,
-          x: 0,
-          rotate: 0,
-          scale: 1,
-          opacity: 1,
-          duration: 0.42,
-          ease: "power3.out",
-        });
+      const done = () => {
+        indexRef.current = to;
+        setIndex(to);
+        busy.current = false;
       };
 
-      const nextImage = new Image();
-      nextImage.decoding = "async";
-      nextImage.onload = run;
-      nextImage.onerror = run;
-      nextImage.src = nextSrc;
-      if (nextImage.complete) run();
+      if (outTween) {
+        outTween.eventCallback("onComplete", done);
+      } else {
+        gsap.delayedCall(ANIM_IN + 0.08, done);
+      }
+
+      // Safety unlock
+      gsap.delayedCall(ANIM_OUT + ANIM_IN + 0.05, () => {
+        if (busy.current) {
+          busy.current = false;
+          indexRef.current = to;
+          setIndex(to);
+        }
+        inTween.kill();
+      });
     },
-    [count, photos],
+    [count],
   );
 
   const next = useCallback(() => go(1), [go]);
@@ -152,8 +195,6 @@ export default function CollageGallery({
     onNext: next,
     onPrev: prev,
   });
-
-  const current = photos[index];
 
   return (
     <div
@@ -169,47 +210,42 @@ export default function CollageGallery({
         opacity: 0,
       }}
     >
-      {/* Living collage — thumbs reused to carpet the full background */}
+      {/* Single layer — every image lives here */}
       <div
-        aria-hidden
         style={{
           position: "absolute",
-          // Bleed well past edges so rotation never reveals pure black
-          inset: "-22%",
+          inset: "-18%",
           zIndex: 1,
-          pointerEvents: "none",
-          overflow: "hidden",
         }}
       >
-        {scatter.map((s, i) => {
-          const photo = photos[s.photoIndex];
-          if (!photo) return null;
-          const isFocus = s.photoIndex === index;
+        {photos.map((photo, i) => {
+          const rest = restsRef.current[i];
+          const promoted = i === index;
           return (
             <div
-              key={`collage-${i}-${photo.id}`}
-              className="collage-piece"
+              key={photo.id}
+              ref={(el) => {
+                pieceRefs.current[i] = el;
+              }}
+              className={
+                promoted ? "collage-piece is-promoted" : "collage-piece"
+              }
               style={{
                 position: "absolute",
-                left: `${s.left}%`,
-                top: `${s.top}%`,
-                width: `${s.width}vw`,
-                // No maxWidth cap — needs to fill large screens too
-                minWidth: "28vw",
-                zIndex: s.zIndex,
-                opacity: isFocus ? s.opacity * 0.65 : s.opacity,
-                transform: `rotate(${s.rotate}deg)`,
-                ["--dx" as string]: `${s.driftX}px`,
-                ["--dy" as string]: `${s.driftY}px`,
-                ["--dur" as string]: `${s.driftDur}s`,
-                ["--delay" as string]: `${(i % 7) * -0.9}s`,
-                transition: "opacity 0.35s ease",
+                // left/top/width/opacity owned by GSAP after mount — avoid React overwrites
+                transformOrigin: "50% 50%",
+                willChange: "transform, opacity, left, top, width",
+                pointerEvents: "none",
+                ["--dx" as string]: `${rest?.driftX ?? 6}px`,
+                ["--dy" as string]: `${rest?.driftY ?? 5}px`,
+                ["--dur" as string]: `${rest?.driftDur ?? 10}s`,
+                ["--delay" as string]: `${(i % 5) * -1.2}s`,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo.thumb}
-                alt=""
+                alt={photo.alt ?? ""}
                 draggable={false}
                 loading="eager"
                 decoding="async"
@@ -217,9 +253,7 @@ export default function CollageGallery({
                   display: "block",
                   width: "100%",
                   height: "auto",
-                  objectFit: "cover",
-                  // Soften the mess so the center hero owns focus
-                  filter: "saturate(0.9) contrast(0.95) brightness(0.92)",
+                  objectFit: "contain",
                 }}
               />
             </div>
@@ -227,42 +261,7 @@ export default function CollageGallery({
         })}
       </div>
 
-      {/* Dead-center full-resolution hero — clean, sharp */}
-      <div
-        ref={heroWrapRef}
-        style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 20,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "none",
-          padding: "6vh 5vw",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          ref={heroImgRef}
-          src={current?.src}
-          alt={current?.alt ?? ""}
-          draggable={false}
-          decoding="async"
-          style={{
-            display: "block",
-            maxWidth: "min(92vw, 720px)",
-            maxHeight: "78dvh",
-            width: "auto",
-            height: "auto",
-            objectFit: "contain",
-            // No filters — portfolio quality
-            filter: "none",
-            boxShadow: "0 12px 48px rgba(0,0,0,0.55)",
-          }}
-        />
-      </div>
-
-      {/* Whisper progress */}
+      {/* Minimal progress */}
       <div
         aria-hidden
         style={{
@@ -270,7 +269,7 @@ export default function CollageGallery({
           left: "50%",
           bottom: "clamp(1.2rem, 3.5vh, 2rem)",
           transform: "translateX(-50%)",
-          zIndex: 30,
+          zIndex: 50,
           display: "flex",
           gap: 6,
           pointerEvents: "none",
@@ -285,8 +284,8 @@ export default function CollageGallery({
               borderRadius: 1,
               background:
                 i === index
-                  ? "rgba(255,255,255,0.55)"
-                  : "rgba(255,255,255,0.16)",
+                  ? "rgba(255,255,255,0.5)"
+                  : "rgba(255,255,255,0.14)",
               transition: "width 0.25s ease, background 0.25s ease",
             }}
           />
@@ -295,22 +294,18 @@ export default function CollageGallery({
 
       <style>{`
         @keyframes collageDrift {
-          0%, 100% {
-            translate: 0 0;
-          }
-          50% {
-            translate: var(--dx, 8px) var(--dy, 6px);
-          }
+          0%, 100% { translate: 0 0; }
+          50% { translate: var(--dx, 8px) var(--dy, 6px); }
         }
-        .collage-piece {
-          will-change: transform;
+        .collage-piece:not(.is-promoted) {
           animation: collageDrift var(--dur, 10s) ease-in-out infinite;
           animation-delay: var(--delay, 0s);
         }
+        .collage-piece.is-promoted {
+          animation: none;
+        }
         @media (prefers-reduced-motion: reduce) {
-          .collage-piece {
-            animation: none;
-          }
+          .collage-piece { animation: none !important; }
         }
       `}</style>
     </div>
