@@ -169,38 +169,40 @@ export default function CollageGallery({
         opacity: 0,
       }}
     >
-      {/* Living collage — thumbnails only */}
+      {/* Living collage — thumbs reused to carpet the full background */}
       <div
         aria-hidden
         style={{
           position: "absolute",
-          inset: "-8%",
+          // Bleed well past edges so rotation never reveals pure black
+          inset: "-22%",
           zIndex: 1,
           pointerEvents: "none",
+          overflow: "hidden",
         }}
       >
-        {photos.map((photo, i) => {
-          const s = scatter[i];
-          if (!s) return null;
-          const isFocus = i === index;
+        {scatter.map((s, i) => {
+          const photo = photos[s.photoIndex];
+          if (!photo) return null;
+          const isFocus = s.photoIndex === index;
           return (
             <div
-              key={photo.id}
+              key={`collage-${i}-${photo.id}`}
               className="collage-piece"
               style={{
                 position: "absolute",
                 left: `${s.left}%`,
                 top: `${s.top}%`,
                 width: `${s.width}vw`,
-                maxWidth: 280,
+                // No maxWidth cap — needs to fill large screens too
+                minWidth: "28vw",
                 zIndex: s.zIndex,
-                opacity: isFocus ? s.opacity * 0.55 : s.opacity,
+                opacity: isFocus ? s.opacity * 0.65 : s.opacity,
                 transform: `rotate(${s.rotate}deg)`,
-                // CSS variables for idle drift
                 ["--dx" as string]: `${s.driftX}px`,
                 ["--dy" as string]: `${s.driftY}px`,
                 ["--dur" as string]: `${s.driftDur}s`,
-                ["--delay" as string]: `${(i % 5) * -1.1}s`,
+                ["--delay" as string]: `${(i % 7) * -0.9}s`,
                 transition: "opacity 0.35s ease",
               }}
             >
@@ -215,9 +217,9 @@ export default function CollageGallery({
                   display: "block",
                   width: "100%",
                   height: "auto",
-                  objectFit: "contain",
+                  objectFit: "cover",
                   // Soften the mess so the center hero owns focus
-                  filter: "saturate(0.92) contrast(0.96)",
+                  filter: "saturate(0.9) contrast(0.95) brightness(0.92)",
                 }}
               />
             </div>

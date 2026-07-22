@@ -1,13 +1,14 @@
 export type ScatterPiece = {
-  /** percent 0–100 */
+  /** Index into the photo series (thumbs are reused for density) */
+  photoIndex: number;
+  /** percent 0–100 of the collage stage */
   left: number;
   top: number;
-  /** viewport width units roughly as % */
+  /** size as % of viewport width */
   width: number;
   rotate: number;
   opacity: number;
   zIndex: number;
-  /** idle drift phase offsets */
   driftX: number;
   driftY: number;
   driftDur: number;
@@ -20,54 +21,82 @@ function hash(i: number, salt: number): number {
 }
 
 /**
- * Build a messy but stable scatter for N collage pieces.
- * Avoids clustering everything dead-center so the hero can breathe.
+ * Full-bleed chaotic collage.
+ * Reuses each series thumb several times so a small set still carpet the screen.
  */
-export function buildScatter(count: number): ScatterPiece[] {
+export function buildScatter(photoCount: number): ScatterPiece[] {
+  if (photoCount <= 0) return [];
+
+  // Enough tiles to cover mobile + desktop with heavy overlap
+  const COPIES = 4; // 8 photos → 32 pieces
+  const total = photoCount * COPIES;
   const pieces: ScatterPiece[] = [];
 
-  for (let i = 0; i < count; i++) {
-    const a = hash(i, 1);
-    const b = hash(i, 2);
-    const c = hash(i, 3);
-    const d = hash(i, 4);
+  // Rough grid for even coverage, then jitter hard for mess
+  const cols = 4;
+  const rows = Math.ceil(total / cols);
 
-    // Bias toward edges / corners for chaos around the void center
-    const edge = hash(i, 5);
-    let left: number;
-    let top: number;
-    if (edge < 0.25) {
-      left = a * 28 - 4;
-      top = b * 90 - 5;
-    } else if (edge < 0.5) {
-      left = 72 + a * 30;
-      top = b * 90 - 5;
-    } else if (edge < 0.75) {
-      left = a * 90 - 5;
-      top = b * 26 - 6;
-    } else {
-      left = a * 90 - 5;
-      top = 70 + b * 32;
-    }
+  for (let i = 0; i < total; i++) {
+    const photoIndex = i % photoCount;
+    const col = i % cols;
+    const row = Math.floor(i / cols);
 
-    // A few pieces still drift mid-frame for density
-    if (hash(i, 6) > 0.72) {
-      left = 20 + a * 55;
-      top = 18 + b * 55;
-    }
+    const jx = hash(i, 1);
+    const jy = hash(i, 2);
+    const jz = hash(i, 3);
+
+    // Cell size so tiles spill past edges (negative / >100)
+    const cellW = 100 / cols;
+    const cellH = 100 / rows;
+
+    // Place in cell with strong jitter + bleed outside frame
+    const left = col * cellW + jx * cellW * 1.15 - cellW * 0.35 - 8;
+    const top = row * cellH + jy * cellH * 1.15 - cellH * 0.35 - 10;
+
+    // Large enough to carpet when overlapping + rotated
+    const width = 38 + jz * 28; // ~38–66vw
 
     pieces.push({
+      photoIndex,
       left,
       top,
-      width: 22 + c * 28, // ~22–50vw
-      rotate: -28 + d * 56,
-      opacity: 0.4 + hash(i, 7) * 0.1, // 0.40–0.50
-      zIndex: 1 + Math.floor(hash(i, 8) * 8),
-      driftX: 6 + hash(i, 9) * 10,
-      driftY: 5 + hash(i, 10) * 10,
-      driftDur: 7 + hash(i, 11) * 8,
+      width,
+      rotate: -32 + hash(i, 4) * 64,
+      opacity: 0.42 + hash(i, 5) * 0.08, // 0.42–0.50
+      zIndex: 1 + Math.floor(hash(i, 6) * 12),
+      driftX: 5 + hash(i, 7) * 12,
+      driftY: 4 + hash(i, 8) * 12,
+      driftDur: 8 + hash(i, 9) * 9,
     });
   }
+
+  // Extra corner/edge “patches” so no black voids at the extremes
+  const edgePads = [
+    { left: -12, top: -10 },
+    { left: 78, top: -12 },
+    { left: -14, top: 72 },
+    { left: 80, top: 74 },
+    { left: 35, top: -14 },
+    { left: 32, top: 82 },
+    { left: -16, top: 38 },
+    { left: 86, top: 36 },
+  ];
+
+  edgePads.forEach((pad, k) => {
+    const i = total + k;
+    pieces.push({
+      photoIndex: k % photoCount,
+      left: pad.left + hash(i, 10) * 8,
+      top: pad.top + hash(i, 11) * 8,
+      width: 48 + hash(i, 12) * 22,
+      rotate: -40 + hash(i, 13) * 80,
+      opacity: 0.4 + hash(i, 14) * 0.08,
+      zIndex: 1 + Math.floor(hash(i, 15) * 6),
+      driftX: 6 + hash(i, 16) * 10,
+      driftY: 5 + hash(i, 17) * 10,
+      driftDur: 9 + hash(i, 18) * 7,
+    });
+  });
 
   return pieces;
 }
