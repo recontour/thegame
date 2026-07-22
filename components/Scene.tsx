@@ -49,6 +49,7 @@ export default function Scene() {
   const [heroVisible, setHeroVisible] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [seriesReady, setSeriesReady] = useState(false);
+  const [seriesProgress, setSeriesProgress] = useState({ loaded: 0, total: 8 });
   const [phase, setPhase] = useState<Phase>("landing");
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
@@ -77,6 +78,9 @@ export default function Scene() {
     setHeroVisible(true);
   }, []);
   const handleSeriesReady = useCallback(() => setSeriesReady(true), []);
+  const handleSeriesProgress = useCallback((loaded: number, total: number) => {
+    setSeriesProgress({ loaded, total });
+  }, []);
   const handleHeroStatus = useCallback((s: string) => setHeroStatus(s), []);
 
   const enterGallery = useCallback(() => {
@@ -112,12 +116,14 @@ export default function Scene() {
 
   const showLandingUi = started && revealed && phase === "landing";
   const showGalleryUi = started && phase === "gallery";
-  // Show status on real phones until hero is visibly loaded
+  // Boot / load HUD until series finishes (helps real-device debugging)
   const showBootHud =
     debug ||
     webglError ||
     heroStatus.includes("error") ||
-    (started && !heroVisible);
+    (started &&
+      (!heroVisible ||
+        seriesProgress.loaded < seriesProgress.total));
 
   return (
     <>
@@ -192,7 +198,7 @@ export default function Scene() {
               }}
             >
               <color attach="background" args={["#000000"]} />
-              {/* Only hero while landing — no series textures yet */}
+              {/* Hero only on landing */}
               {phase === "landing" && (
                 <Hero
                   onRevealed={handleRevealed}
@@ -200,13 +206,18 @@ export default function Scene() {
                   onStatus={handleHeroStatus}
                 />
               )}
-              {/* Gallery mounts only after landing ends — loads its own textures then */}
-              {phase === "gallery" && (
+              {/*
+                After hero is loaded+visible: start sequential gallery loads (preload).
+                Visible planes only when phase === "gallery".
+              */}
+              {heroVisible && (
                 <Gallery
                   series={defaultSeries}
-                  active
+                  active={phase === "gallery"}
+                  preload
                   onIndexChange={setGalleryIndex}
                   onReady={handleSeriesReady}
+                  onLoadProgress={handleSeriesProgress}
                 />
               )}
             </Canvas>
@@ -248,11 +259,11 @@ export default function Scene() {
           {[
             "MOBILE TEXTURE BOOT",
             `started:${started} canvas:${canvasReady} heroVisible:${heroVisible}`,
-            `phase:${phase} revealed:${revealed} series:${seriesReady}`,
+            `phase:${phase} revealed:${revealed} seriesReady:${seriesReady}`,
+            `series ${seriesProgress.loaded}/${seriesProgress.total}`,
             heroStatus,
             viewportLabel,
             webglError ? `webgl: ${webglError}` : null,
-            "dark-red plane = mesh ok / waiting for texture",
           ]
             .filter(Boolean)
             .join("\n")}
