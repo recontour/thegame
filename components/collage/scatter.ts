@@ -70,7 +70,7 @@ export function buildCollagePieces(
       top,
       width,
       rotate: -34 + hash(s, 6) * 68,
-      opacity: 0.62 + hash(s, 7) * 0.12,
+      opacity: 0.82 + hash(s, 7) * 0.1, // 0.82–0.92
       zIndex: isPrimary
         ? 12 + Math.floor(hash(s, 8) * 6)
         : 1 + Math.floor(hash(s, 8) * 10),
@@ -91,7 +91,7 @@ export function buildCollagePieces(
       top: 20 + hash(s, 2) * 60,
       width: 55 + hash(s, 3) * 25,
       rotate: -20 + hash(s, 4) * 40,
-      opacity: 0.66,
+      opacity: 0.88,
       zIndex: 14,
       driftX: 6,
       driftY: 5,
@@ -119,7 +119,7 @@ export function buildCollagePieces(
       top: pad.top + (hash(s, 2) - 0.5) * 8,
       width: 58 + hash(s, 3) * 28,
       rotate: -40 + hash(s, 4) * 80,
-      opacity: 0.64 + hash(s, 5) * 0.08,
+      opacity: 0.84 + hash(s, 5) * 0.08,
       zIndex: 1 + Math.floor(hash(s, 6) * 5),
       driftX: 5 + hash(s, 7) * 8,
       driftY: 4 + hash(s, 8) * 8,
