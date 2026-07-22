@@ -5,16 +5,19 @@ import { Canvas } from "@react-three/fiber";
 import Hero from "@/components/Hero";
 import ContinueIndicator from "@/components/ContinueIndicator";
 import EntryGate from "@/components/EntryGate";
-import Gallery from "@/components/gallery/Gallery";
-import GalleryProgress from "@/components/gallery/GalleryProgress";
+import ScrollGallery from "@/components/gallery/ScrollGallery";
+import ScrollProgress from "@/components/gallery/ScrollProgress";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 import { useGallerySwipe } from "@/components/gallery/useGallerySwipe";
-import { getMobileDpr, isMobileDevice } from "@/components/gallery/loadMobileSafeTexture";
+import {
+  getMobileDpr,
+  isMobileDevice,
+} from "@/components/gallery/loadMobileSafeTexture";
 import { defaultSeries } from "@/data/series";
 
 type Phase = "landing" | "gallery";
 
-const AUTO_ENTER_MS = 2800;
+const AUTO_ENTER_MS = 3200;
 const GATE_FADE_MS = 900;
 
 const DEBUG_DEFAULT = false;
@@ -33,10 +36,8 @@ function useDebugFlag() {
 }
 
 /**
- * Mobile-safe shell:
- * 1) Pure black — no Canvas until first tap
- * 2) Load ONLY the hero texture first
- * 3) After hero is visible, allow gallery (series loads then)
+ * Experience shell:
+ * black void → tap → hero emerge → scroll journey through the series.
  */
 export default function Scene() {
   const debug = useDebugFlag();
@@ -50,12 +51,11 @@ export default function Scene() {
   const [revealed, setRevealed] = useState(false);
   const [seriesReady, setSeriesReady] = useState(false);
   const [seriesProgress, setSeriesProgress] = useState({ loaded: 0, total: 8 });
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [phase, setPhase] = useState<Phase>("landing");
-  const [galleryIndex, setGalleryIndex] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
   const [heroStatus, setHeroStatus] = useState("hero:waiting-gesture");
   const [webglError, setWebglError] = useState<string | null>(null);
-  const [viewportLabel, setViewportLabel] = useState("");
   const enteredGalleryRef = useRef(false);
 
   const handleEnter = useCallback(() => {
@@ -66,28 +66,24 @@ export default function Scene() {
     });
     setStarted(true);
     setGateDismissing(true);
-    window.setTimeout(() => {
-      setGateMounted(false);
-      console.log("[Scene] entry gate unmounted");
-    }, GATE_FADE_MS);
+    window.setTimeout(() => setGateMounted(false), GATE_FADE_MS);
   }, [started, dpr]);
 
   const handleRevealed = useCallback(() => setRevealed(true), []);
-  const handleHeroVisible = useCallback(() => {
-    console.log("[Scene] hero image visible — series may load later");
-    setHeroVisible(true);
-  }, []);
+  const handleHeroVisible = useCallback(() => setHeroVisible(true), []);
   const handleSeriesReady = useCallback(() => setSeriesReady(true), []);
   const handleSeriesProgress = useCallback((loaded: number, total: number) => {
     setSeriesProgress({ loaded, total });
   }, []);
+  const handleScrollProgress = useCallback((p: number) => {
+    setScrollProgress(p);
+  }, []);
   const handleHeroStatus = useCallback((s: string) => setHeroStatus(s), []);
 
   const enterGallery = useCallback(() => {
-    // Can enter once hero finished reveal; series loads on gallery mount
     if (enteredGalleryRef.current || !revealed) return;
     enteredGalleryRef.current = true;
-    console.log("[Scene] enter gallery");
+    console.log("[Scene] enter scroll gallery");
     setPhase("gallery");
   }, [revealed]);
 
@@ -97,33 +93,47 @@ export default function Scene() {
     return () => window.clearTimeout(id);
   }, [started, revealed, phase, enterGallery]);
 
+  // Vertical intent after hero also enters the void (swipe / scroll metaphor)
   useGallerySwipe({
     enabled: started && revealed && phase === "landing",
     onSwipeLeft: enterGallery,
     onSwipeRight: enterGallery,
   });
 
+  // First downward wheel/touch after reveal also enters
   useEffect(() => {
-    const update = () => {
-      setViewportLabel(
-        `${window.innerWidth}×${window.innerHeight} dpr=${window.devicePixelRatio} mobile=${isMobileDevice()}`,
-      );
+    if (!started || !revealed || phase !== "landing") return;
+
+    const enter = () => enterGallery();
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY > 8) enter();
     };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
+    let y0: number | null = null;
+    const onTouchStart = (e: TouchEvent) => {
+      y0 = e.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY;
+      if (y0 != null && y != null && y0 - y > 36) enter();
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [started, revealed, phase, enterGallery]);
 
   const showLandingUi = started && revealed && phase === "landing";
-  const showGalleryUi = started && phase === "gallery";
-  // Boot / load HUD until series finishes (helps real-device debugging)
+  const showGalleryUi = started && phase === "gallery" && seriesReady;
   const showBootHud =
     debug ||
     webglError ||
     heroStatus.includes("error") ||
-    (started &&
-      (!heroVisible ||
-        seriesProgress.loaded < seriesProgress.total));
+    (started && !heroVisible);
 
   return (
     <>
@@ -167,38 +177,30 @@ export default function Scene() {
                 failIfMajorPerformanceCaveat: false,
               }}
               dpr={dpr}
-              camera={{ position: [0, 0, 5], fov: 50, near: 0.1, far: 100 }}
+              camera={{
+                position: [0, 0, 5],
+                fov: 50,
+                near: 0.1,
+                far: 80,
+              }}
               resize={{ scroll: false, debounce: 0 }}
-              onCreated={({ gl, size }) => {
-                console.log("[Scene] onCreated WebGL", {
-                  w: size.width,
-                  h: size.height,
-                  dpr: gl.getPixelRatio(),
-                  maxTex: gl.capabilities?.maxTextureSize,
-                });
+              onCreated={({ gl }) => {
                 gl.setClearColor("#000000", 1);
-                gl.domElement.style.width = "100%";
-                gl.domElement.style.height = "100%";
-                gl.domElement.style.display = "block";
                 gl.domElement.style.touchAction = "none";
                 gl.domElement.addEventListener(
                   "webglcontextlost",
                   (e) => {
                     e.preventDefault();
-                    console.error("[Scene] webglcontextlost");
                     setWebglError("WebGL context lost");
                   },
                   false,
                 );
                 setCanvasReady(true);
-                setViewportLabel(
-                  (v) =>
-                    `${v} | canvas ${Math.round(size.width)}×${Math.round(size.height)}`,
-                );
               }}
             >
               <color attach="background" args={["#000000"]} />
-              {/* Hero only on landing */}
+              <fog attach="fog" args={["#000000", 4, 22]} />
+
               {phase === "landing" && (
                 <Hero
                   onRevealed={handleRevealed}
@@ -206,18 +208,16 @@ export default function Scene() {
                   onStatus={handleHeroStatus}
                 />
               )}
-              {/*
-                After hero is loaded+visible: start sequential gallery loads (preload).
-                Visible planes only when phase === "gallery".
-              */}
+
+              {/* Preload series after hero appears; activate scroll journey after handoff */}
               {heroVisible && (
-                <Gallery
+                <ScrollGallery
                   series={defaultSeries}
                   active={phase === "gallery"}
                   preload
-                  onIndexChange={setGalleryIndex}
                   onReady={handleSeriesReady}
                   onLoadProgress={handleSeriesProgress}
+                  onScrollProgress={handleScrollProgress}
                 />
               )}
             </Canvas>
@@ -230,11 +230,7 @@ export default function Scene() {
       )}
 
       <ContinueIndicator visible={showLandingUi} />
-      <GalleryProgress
-        index={galleryIndex}
-        total={defaultSeries.photos.length}
-        visible={showGalleryUi}
-      />
+      <ScrollProgress progress={scrollProgress} visible={showGalleryUi} />
 
       {showBootHud && (
         <div
@@ -242,28 +238,22 @@ export default function Scene() {
             position: "fixed",
             top: 10,
             left: 10,
-            right: 10,
             zIndex: 50,
             pointerEvents: "none",
             fontFamily:
               'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
             fontSize: 10,
             lineHeight: 1.45,
-            color: webglError || heroStatus.includes("error")
-              ? "#ff8a8a"
-              : "rgba(180, 255, 200, 0.75)",
+            color: webglError ? "#ff8a8a" : "rgba(180, 255, 200, 0.7)",
             textShadow: "0 1px 2px #000",
             whiteSpace: "pre-wrap",
           }}
         >
           {[
-            "MOBILE TEXTURE BOOT",
-            `started:${started} canvas:${canvasReady} heroVisible:${heroVisible}`,
-            `phase:${phase} revealed:${revealed} seriesReady:${seriesReady}`,
-            `series ${seriesProgress.loaded}/${seriesProgress.total}`,
+            `canvas:${canvasReady} hero:${heroVisible}`,
+            `phase:${phase} series ${seriesProgress.loaded}/${seriesProgress.total}`,
             heroStatus,
-            viewportLabel,
-            webglError ? `webgl: ${webglError}` : null,
+            webglError,
           ]
             .filter(Boolean)
             .join("\n")}

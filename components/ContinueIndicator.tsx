@@ -36,7 +36,7 @@ export default function ContinueIndicator({ visible }: ContinueIndicatorProps) {
             fontWeight: 400,
           }}
         >
-          Swipe
+          Scroll
         </span>
         <span
           style={{
