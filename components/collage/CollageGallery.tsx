@@ -19,7 +19,7 @@ type CollageGalleryProps = {
 const PROMOTED_WIDTH_VW = 95;
 const PROMOTED_MAX_PX = 1600; // don't cap hard on desktop; let vw lead
 const ANIM_OUT = 0.36;
-const ANIM_IN = 0.42;
+const ANIM_IN = 0.55;
 
 function applyRest(el: HTMLElement, rest: ScatterPiece, animate: boolean) {
   const vars = {
