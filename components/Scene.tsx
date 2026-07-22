@@ -199,7 +199,7 @@ export default function Scene() {
               }}
             >
               <color attach="background" args={["#000000"]} />
-              <fog attach="fog" args={["#000000", 4, 22]} />
+              {/* No fog — keeps photographs clean and full contrast */}
 
               {phase === "landing" && (
                 <Hero

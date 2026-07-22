@@ -16,9 +16,12 @@ function isMobileDevice(): boolean {
   return /iPhone|iPad|iPod|Android/i.test(ua) || Boolean(touch && small);
 }
 
-/** Max edge length for GPU upload — oversized textures often render black on phones. */
+/**
+ * Max edge length for GPU upload.
+ * Cap protects real phones from black textures; desktop can go higher for print-sharp stills.
+ */
 export function getMobileMaxTextureSize(): number {
-  return isMobileDevice() ? 1024 : 1536;
+  return isMobileDevice() ? 1280 : 2048;
 }
 
 export function getMobileDpr(): number | [number, number] {
@@ -97,6 +100,9 @@ export function loadMobileSafeTexture(
 
         ctx.fillStyle = "#000000";
         ctx.fillRect(0, 0, w, h);
+        // High-quality downsample for portfolio stills
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, w, h);
         log(
           "resized",
@@ -112,6 +118,7 @@ export function loadMobileSafeTexture(
         tex.magFilter = THREE.LinearFilter;
         tex.anisotropy = 1;
         tex.flipY = true;
+        tex.premultiplyAlpha = false;
         tex.needsUpdate = true;
 
         // Keep a handle for aspect without relying on ImageBitmap quirks
