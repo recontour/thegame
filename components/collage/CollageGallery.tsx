@@ -15,9 +15,9 @@ type CollageGalleryProps = {
   onIndexChange?: (index: number) => void;
 };
 
-const PROMOTED_WIDTH_VW = 72; // max visual weight when focused
-const PROMOTED_MAX_PX = 520;
-const ANIM_OUT = 0.36;
+// ~2–3% side padding each side → ~94–96vw wide
+const PROMOTED_WIDTH_VW = 95;
+const PROMOTED_MAX_PX = 1600; // don't cap on desktop; let vw ruleconst ANIM_OUT = 0.36;
 const ANIM_IN = 0.42;
 
 function applyRest(el: HTMLElement, rest: ScatterPiece, animate: boolean) {
@@ -53,7 +53,10 @@ function applyPromoted(el: HTMLElement, animate: boolean) {
   const vars = {
     left: "50%",
     top: "50%",
-    width: `min(${PROMOTED_WIDTH_VW}vw, ${PROMOTED_MAX_PX}px)`,
+    // ~2.5% inset each side; height capped so tall frames still fit
+    width: `${PROMOTED_WIDTH_VW}vw`,
+    maxWidth: `${PROMOTED_MAX_PX}px`,
+    maxHeight: "92dvh",
     xPercent: -50,
     yPercent: -50,
     x: 0,
@@ -253,6 +256,7 @@ export default function CollageGallery({
                   display: "block",
                   width: "100%",
                   height: "auto",
+                  maxHeight: "inherit",
                   objectFit: "contain",
                 }}
               />

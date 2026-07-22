@@ -42,7 +42,7 @@ export function scatterForIndex(i: number, count: number, seed = 0): ScatterPiec
   return {
     left,
     top,
-    width: 42 + c * 28, // large tiles for coverage
+    width: 54 + c * 30, // ~54–84vw — denser carpet
     rotate: -26 + d * 52,
     opacity: 0.42 + hash(s, 7) * 0.08,
     zIndex: 2 + Math.floor(hash(s, 8) * 10),
