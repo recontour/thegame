@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { Series } from "@/data/series";
 import {
-  buildScatter,
-  scatterForIndex,
+  buildCollagePieces,
+  restPoseFor,
   type ScatterPiece,
 } from "@/components/collage/scatter";
 import { useCollageFlick } from "@/components/collage/useCollageFlick";
@@ -15,13 +15,24 @@ type CollageGalleryProps = {
   onIndexChange?: (index: number) => void;
 };
 
-// ~2–3% side padding each side → ~94–96vw wide
 const PROMOTED_WIDTH_VW = 95;
-const PROMOTED_MAX_PX = 1600; // don't cap hard on desktop; let vw lead
+const PROMOTED_MAX_PX = 1600;
 const ANIM_OUT = 0.36;
 const ANIM_IN = 0.55;
 
-function applyRest(el: HTMLElement, rest: ScatterPiece, animate: boolean) {
+function applyRest(
+  el: HTMLElement,
+  rest: Pick<
+    ScatterPiece,
+    | "left"
+    | "top"
+    | "width"
+    | "rotate"
+    | "opacity"
+    | "zIndex"
+  >,
+  animate: boolean,
+) {
   const vars = {
     left: `${rest.left}%`,
     top: `${rest.top}%`,
@@ -34,7 +45,7 @@ function applyRest(el: HTMLElement, rest: ScatterPiece, animate: boolean) {
     rotation: rest.rotate,
     opacity: rest.opacity,
     zIndex: rest.zIndex,
-    filter: "saturate(0.9) contrast(0.95) brightness(0.9)",
+    filter: "saturate(0.92) contrast(0.96) brightness(0.94)",
   };
 
   if (animate) {
@@ -54,7 +65,6 @@ function applyPromoted(el: HTMLElement, animate: boolean) {
   const vars = {
     left: "50%",
     top: "50%",
-    // ~2.5% inset each side; height capped so tall frames still fit
     width: `${PROMOTED_WIDTH_VW}vw`,
     maxWidth: `${PROMOTED_MAX_PX}px`,
     maxHeight: "92dvh",
@@ -65,7 +75,7 @@ function applyPromoted(el: HTMLElement, animate: boolean) {
     scale: 1,
     rotation: 0,
     opacity: 1,
-    zIndex: 40,
+    zIndex: 50,
     filter: "none",
   };
 
@@ -83,9 +93,9 @@ function applyPromoted(el: HTMLElement, animate: boolean) {
 }
 
 /**
- * One living collage: every image is a single DOM node in the mess.
- * The focused image is the same node, promoted to center — not a second layer.
- * Thumbs only (no full-res).
+ * Unified living collage:
+ * - Many tiles (thumbs reused) carpet the full background
+ * - One primary tile per photo promotes from the mess to center
  */
 export default function CollageGallery({
   series,
@@ -94,6 +104,21 @@ export default function CollageGallery({
   const photos = series.photos;
   const count = photos.length;
 
+  const layoutSeed = useRef(0);
+  const pieces = useMemo(
+    () => buildCollagePieces(count, layoutSeed.current),
+    [count],
+  );
+
+  /** piece array index of the primary tile for each photoIndex */
+  const primaryPieceIndex = useMemo(() => {
+    const map = new Array<number>(count).fill(-1);
+    pieces.forEach((p, i) => {
+      if (p.isPrimary && map[p.photoIndex] < 0) map[p.photoIndex] = i;
+    });
+    return map;
+  }, [pieces, count]);
+
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
   const busy = useRef(false);
@@ -101,21 +126,22 @@ export default function CollageGallery({
 
   const stageRef = useRef<HTMLDivElement>(null);
   const pieceRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const restsRef = useRef<ScatterPiece[]>(buildScatter(count, 0));
+  const restsRef = useRef<ScatterPiece[]>(pieces);
 
-  // Mount: place everyone in the mess, then promote the first piece
   useEffect(() => {
-    // rAF so refs are definitely attached after paint (important on mobile)
-    const id = requestAnimationFrame(() => {
-      const pieces = pieceRefs.current;
-      restsRef.current = buildScatter(count, 0);
+    restsRef.current = pieces;
+  }, [pieces]);
 
-      pieces.forEach((el, i) => {
-        if (!el || !restsRef.current[i]) return;
-        applyRest(el, restsRef.current[i], false);
+  // Mount: place all tiles, promote first primary from the mess
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const els = pieceRefs.current;
+      restsRef.current.forEach((rest, i) => {
+        const el = els[i];
+        if (!el) return;
+        applyRest(el, rest, false);
       });
 
-      const first = pieces[0];
       const stage = stageRef.current;
       if (stage) {
         gsap.fromTo(
@@ -125,17 +151,16 @@ export default function CollageGallery({
         );
       }
 
+      const primary0 = primaryPieceIndex[0];
+      const first = primary0 >= 0 ? els[primary0] : null;
       if (first) {
-        gsap.delayedCall(0.12, () => {
-          applyPromoted(first, true);
-        });
+        gsap.delayedCall(0.12, () => applyPromoted(first, true));
       } else {
-        console.warn("[collage] no piece refs on mount");
+        console.warn("[collage] missing primary tile for photo 0");
       }
     });
-
     return () => cancelAnimationFrame(id);
-  }, [count]);
+  }, [count, primaryPieceIndex]);
 
   useEffect(() => {
     onIndexChange?.(index);
@@ -147,22 +172,24 @@ export default function CollageGallery({
 
       const from = indexRef.current;
       const to = (from + dir + count) % count;
-      const fromEl = pieceRefs.current[from];
-      const toEl = pieceRefs.current[to];
+      const fromPi = primaryPieceIndex[from];
+      const toPi = primaryPieceIndex[to];
+      const fromEl = fromPi >= 0 ? pieceRefs.current[fromPi] : null;
+      const toEl = toPi >= 0 ? pieceRefs.current[toPi] : null;
       if (!fromEl || !toEl) return;
 
       busy.current = true;
       seedRef.current += 1;
 
-      // New rest pose for the demoted image so it falls into a fresh spot
-      const newRest = scatterForIndex(from, count, seedRef.current);
-      restsRef.current[from] = newRest;
-
-      // Demote current: shrink / fade / drift back into the mess
+      // Demote: land in a fresh scatter pose inside the carpet
+      const newRest = {
+        ...restsRef.current[fromPi],
+        ...restPoseFor(from, count, seedRef.current),
+      };
+      restsRef.current[fromPi] = newRest;
       const outTween = applyRest(fromEl, newRest, true);
 
-      // Promote next: rise from its current collage seat into the center
-      // Slight delay so they cross in the void
+      // Promote: rise from its seat in the mess
       const inTween = gsap.delayedCall(0.06, () => {
         applyPromoted(toEl, true);
       });
@@ -173,13 +200,9 @@ export default function CollageGallery({
         busy.current = false;
       };
 
-      if (outTween) {
-        outTween.eventCallback("onComplete", done);
-      } else {
-        gsap.delayedCall(ANIM_IN + 0.08, done);
-      }
+      if (outTween) outTween.eventCallback("onComplete", done);
+      else gsap.delayedCall(ANIM_IN + 0.08, done);
 
-      // Safety unlock
       gsap.delayedCall(ANIM_OUT + ANIM_IN + 0.05, () => {
         if (busy.current) {
           busy.current = false;
@@ -189,7 +212,7 @@ export default function CollageGallery({
         inTween.kill();
       });
     },
-    [count],
+    [count, primaryPieceIndex],
   );
 
   const next = useCallback(() => go(1), [go]);
@@ -215,20 +238,23 @@ export default function CollageGallery({
         opacity: 0,
       }}
     >
-      {/* Single layer — every image lives here */}
+      {/* Full-bleed collage carpet */}
       <div
         style={{
           position: "absolute",
-          inset: "-18%",
+          inset: "-28%",
           zIndex: 1,
         }}
       >
-        {photos.map((photo, i) => {
-          const rest = restsRef.current[i];
-          const promoted = i === index;
+        {pieces.map((piece, i) => {
+          const photo = photos[piece.photoIndex];
+          if (!photo) return null;
+          const promoted =
+            piece.isPrimary && piece.photoIndex === index;
+
           return (
             <div
-              key={photo.id}
+              key={piece.id}
               ref={(el) => {
                 pieceRefs.current[i] = el;
               }}
@@ -237,14 +263,13 @@ export default function CollageGallery({
               }
               style={{
                 position: "absolute",
-                // left/top/width/opacity owned by GSAP after mount — avoid React overwrites
                 transformOrigin: "50% 50%",
                 willChange: "transform, opacity, left, top, width",
                 pointerEvents: "none",
-                ["--dx" as string]: `${rest?.driftX ?? 6}px`,
-                ["--dy" as string]: `${rest?.driftY ?? 5}px`,
-                ["--dur" as string]: `${rest?.driftDur ?? 10}s`,
-                ["--delay" as string]: `${(i % 5) * -1.2}s`,
+                ["--dx" as string]: `${piece.driftX}px`,
+                ["--dy" as string]: `${piece.driftY}px`,
+                ["--dur" as string]: `${piece.driftDur}s`,
+                ["--delay" as string]: `${(i % 8) * -0.85}s`,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -255,12 +280,14 @@ export default function CollageGallery({
                 loading="eager"
                 decoding="async"
                 onError={(e) => {
-                  // If thumbs missing on deploy, fall back to full-res
                   const el = e.currentTarget;
                   if (el.src !== photo.src && !el.dataset.fallback) {
                     el.dataset.fallback = "1";
                     el.src = photo.src;
-                    console.warn("[collage] thumb failed, using full-res", photo.thumb);
+                    console.warn(
+                      "[collage] thumb failed, using full-res",
+                      photo.thumb,
+                    );
                   }
                 }}
                 style={{
@@ -268,7 +295,7 @@ export default function CollageGallery({
                   width: "100%",
                   height: "auto",
                   maxHeight: "inherit",
-                  objectFit: "contain",
+                  objectFit: "cover",
                 }}
               />
             </div>
@@ -276,7 +303,6 @@ export default function CollageGallery({
         })}
       </div>
 
-      {/* Minimal progress */}
       <div
         aria-hidden
         style={{
@@ -284,7 +310,7 @@ export default function CollageGallery({
           left: "50%",
           bottom: "clamp(1.2rem, 3.5vh, 2rem)",
           transform: "translateX(-50%)",
-          zIndex: 50,
+          zIndex: 60,
           display: "flex",
           gap: 6,
           pointerEvents: "none",
