@@ -17,17 +17,25 @@ type CollageGalleryProps = {
 
 const PROMOTED_WIDTH_VW = 95;
 const PROMOTED_MAX_PX = 1600;
-const ANIM_OUT = 0.22;
-const ANIM_IN_MIN = 0.55;
-const ANIM_IN_MAX = 0.7;
+
+/**
+ * Fairy-tale pacing — sequential, unhurried, deliberate.
+ * Out → breath → in. No snappy overlap.
+ */
+const OUT_MIN = 1.35;
+const OUT_MAX = 1.75;
+const BREATH_MIN = 0.45;
+const BREATH_MAX = 0.75;
+const IN_MIN = 1.65;
+const IN_MAX = 2.15;
 
 type RestPose = Pick<
   ScatterPiece,
   "left" | "top" | "width" | "rotate" | "opacity" | "zIndex"
 >;
 
-function nextInDuration() {
-  return ANIM_IN_MIN + Math.random() * (ANIM_IN_MAX - ANIM_IN_MIN);
+function vary(min: number, max: number) {
+  return min + Math.random() * (max - min);
 }
 
 /**
@@ -84,8 +92,8 @@ function applyRest(el: HTMLElement, rest: RestPose, animate: boolean) {
   if (animate) {
     return gsap.to(el, {
       ...vars,
-      duration: ANIM_OUT,
-      ease: "power2.in",
+      duration: vary(OUT_MIN, OUT_MAX),
+      ease: "sine.inOut",
       overwrite: "auto",
       onComplete: () => {
         el.classList.remove("is-settling");
@@ -101,7 +109,7 @@ function applyRest(el: HTMLElement, rest: RestPose, animate: boolean) {
 function applyPromoted(
   el: HTMLElement,
   animate: boolean,
-  duration = ANIM_IN_MIN,
+  duration = vary(IN_MIN, IN_MAX),
 ) {
   el.classList.add("is-settling", "is-promoted");
 
@@ -121,8 +129,8 @@ function applyPromoted(
     return gsap.to(el, {
       ...vars,
       duration,
-      // Smooth settle — avoid power4 hard stop which can feel like a snap
-      ease: "power2.out",
+      // Long decelerating float into place
+      ease: "power3.out",
       overwrite: "auto",
       onComplete: () => {
         el.classList.remove("is-settling");
@@ -190,9 +198,9 @@ export default function CollageGallery({
       const primary0 = primaryPieceIndex[0];
       const first = primary0 >= 0 ? els[primary0] : null;
       if (first) {
-        // Promote from already-centered rest coords — smooth continuous path
-        gsap.delayedCall(0.15, () => {
-          applyPromoted(first, true, 0.62);
+        // Opening: long, soft rise from the mess
+        gsap.delayedCall(0.35, () => {
+          applyPromoted(first, true, vary(1.8, 2.2));
         });
       }
     });
@@ -218,10 +226,8 @@ export default function CollageGallery({
       busy.current = true;
       seedRef.current += 1;
 
-      // Freeze any CSS drift on both pieces before tweening
       fromEl.classList.add("is-settling");
       toEl.classList.add("is-settling");
-      // Clear CSS translate so GSAP starts from true visual position
       gsap.set([fromEl, toEl], { translate: "none" });
 
       const newRest = {
@@ -230,9 +236,11 @@ export default function CollageGallery({
       };
       restsRef.current[fromPi] = newRest as ScatterPiece;
 
-      const inDuration = nextInDuration();
+      const outDur = vary(OUT_MIN, OUT_MAX);
+      const breath = vary(BREATH_MIN, BREATH_MAX);
+      const inDur = vary(IN_MIN, IN_MAX);
 
-      // One timeline — continuous, no mid-hand-off jump
+      // Fairy-tale sequence: leave → rest in the void → next arrives
       const tl = gsap.timeline({
         onComplete: () => {
           indexRef.current = to;
@@ -243,65 +251,49 @@ export default function CollageGallery({
         },
       });
 
-      // Out: current leaves center into collage
-      tl.to(
-        fromEl,
-        {
-          ...layoutVars({
-            left: newRest.left,
-            top: newRest.top,
-            width: `${newRest.width}vw`,
-            rotate: newRest.rotate,
-            opacity: newRest.opacity,
-            zIndex: newRest.zIndex,
-            filter: "saturate(0.95) contrast(0.98) brightness(0.98)",
-          }),
-          duration: ANIM_OUT,
-          ease: "power2.in",
-          overwrite: "auto",
-        },
-        0,
-      );
+      tl.call(() => {
+        fromEl.classList.remove("is-promoted");
+      });
 
-      // In: next rises from its seat — starts slightly after out for crossfade feel
-      // but uses continuous tween from CURRENT computed state (no gsap.set teleport)
-      tl.to(
-        toEl,
-        {
-          ...layoutVars({
-            left: 50,
-            top: 50,
-            width: `${PROMOTED_WIDTH_VW}vw`,
-            maxWidth: `${PROMOTED_MAX_PX}px`,
-            maxHeight: "92dvh",
-            rotate: 0,
-            opacity: 1,
-            zIndex: 50,
-            filter: "none",
-          }),
-          duration: inDuration,
-          ease: "power2.out",
-          overwrite: "auto",
-        },
-        0.04,
-      );
+      // 1) Current drifts back into the collage and settles
+      tl.to(fromEl, {
+        ...layoutVars({
+          left: newRest.left,
+          top: newRest.top,
+          width: `${newRest.width}vw`,
+          rotate: newRest.rotate,
+          opacity: newRest.opacity,
+          zIndex: newRest.zIndex,
+          filter: "saturate(0.95) contrast(0.98) brightness(0.98)",
+        }),
+        duration: outDur,
+        ease: "sine.inOut",
+        overwrite: "auto",
+      });
 
-      // Keep class in sync for drift CSS (fillers only use drift)
-      tl.call(
-        () => {
-          fromEl.classList.remove("is-promoted");
-          toEl.classList.add("is-promoted");
-        },
-        undefined,
-        0,
-      );
+      // 2) Hold — let it sit in the mess a beat
+      tl.to({}, { duration: breath });
 
-      gsap.delayedCall(ANIM_OUT + inDuration + 0.12, () => {
-        if (busy.current) {
-          busy.current = false;
-          indexRef.current = to;
-          setIndex(to);
-        }
+      // 3) Next slowly lifts from its seat into the center
+      tl.call(() => {
+        toEl.classList.add("is-promoted");
+      });
+
+      tl.to(toEl, {
+        ...layoutVars({
+          left: 50,
+          top: 50,
+          width: `${PROMOTED_WIDTH_VW}vw`,
+          maxWidth: `${PROMOTED_MAX_PX}px`,
+          maxHeight: "92dvh",
+          rotate: 0,
+          opacity: 1,
+          zIndex: 50,
+          filter: "none",
+        }),
+        duration: inDur,
+        ease: "power3.out",
+        overwrite: "auto",
       });
     },
     [count, primaryPieceIndex],

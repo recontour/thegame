@@ -58,7 +58,8 @@ export function useCollageFlick({
 
     const onWheel = (e: WheelEvent) => {
       const now = performance.now();
-      if (now - lastWheel < 420) return;
+      // Long fairy-tale transitions — don't stack wheel spam
+      if (now - lastWheel < 900) return;
       if (Math.abs(e.deltaY) < 10) return;
       lastWheel = now;
       if (e.deltaY > 0) handlers.current.onNext?.();
