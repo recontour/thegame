@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { Series } from "@/data/series";
 import {
-  buildCollagePieces,
-  restPoseFor,
+  buildHomeLayout,
+  homeWithNudge,
   type ScatterPiece,
 } from "@/components/collage/scatter";
 import { useCollageFlick } from "@/components/collage/useCollageFlick";
@@ -18,10 +18,7 @@ type CollageGalleryProps = {
 const PROMOTED_WIDTH_VW = 95;
 const PROMOTED_MAX_PX = 1600;
 
-/**
- * Fairy-tale pacing — sequential, unhurried, deliberate.
- * Out → breath → in. No snappy overlap.
- */
+/** Fairy-tale pacing — out → breath → in */
 const OUT_MIN = 1.35;
 const OUT_MAX = 1.75;
 const BREATH_MIN = 0.45;
@@ -39,9 +36,7 @@ function vary(min: number, max: number) {
 }
 
 /**
- * Shared layout model for rest + promoted:
- * always center-anchored (xPercent/yPercent -50) so left/top/width
- * interpolate without a mid-flight snap.
+ * Shared center-anchored layout so rest ↔ promote interpolates cleanly.
  */
 function layoutVars(pose: {
   left: number | string;
@@ -69,13 +64,11 @@ function layoutVars(pose: {
     opacity: pose.opacity,
     zIndex: pose.zIndex,
     filter: pose.filter,
-    // Clear any CSS translate leftover from idle drift
     translate: "none",
   };
 }
 
 function applyRest(el: HTMLElement, rest: RestPose, animate: boolean) {
-  // Kill CSS idle animation before tweening so it can't fight GSAP
   el.classList.add("is-settling");
   el.classList.remove("is-promoted");
 
@@ -95,9 +88,7 @@ function applyRest(el: HTMLElement, rest: RestPose, animate: boolean) {
       duration: vary(OUT_MIN, OUT_MAX),
       ease: "sine.inOut",
       overwrite: "auto",
-      onComplete: () => {
-        el.classList.remove("is-settling");
-      },
+      onComplete: () => el.classList.remove("is-settling"),
     });
   }
 
@@ -129,12 +120,9 @@ function applyPromoted(
     return gsap.to(el, {
       ...vars,
       duration,
-      // Long decelerating float into place
       ease: "power3.out",
       overwrite: "auto",
-      onComplete: () => {
-        el.classList.remove("is-settling");
-      },
+      onComplete: () => el.classList.remove("is-settling"),
     });
   }
 
@@ -143,6 +131,10 @@ function applyPromoted(
   return null;
 }
 
+/**
+ * Exactly one tile per series photo.
+ * Promote/demote always moves that same node — nothing appears from nowhere.
+ */
 export default function CollageGallery({
   series,
   onIndexChange,
@@ -150,19 +142,7 @@ export default function CollageGallery({
   const photos = series.photos;
   const count = photos.length;
 
-  const layoutSeed = useRef(0);
-  const pieces = useMemo(
-    () => buildCollagePieces(count, layoutSeed.current),
-    [count],
-  );
-
-  const primaryPieceIndex = useMemo(() => {
-    const map = new Array<number>(count).fill(-1);
-    pieces.forEach((p, i) => {
-      if (p.isPrimary && map[p.photoIndex] < 0) map[p.photoIndex] = i;
-    });
-    return map;
-  }, [pieces, count]);
+  const homes = useMemo(() => buildHomeLayout(count), [count]);
 
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
@@ -171,19 +151,19 @@ export default function CollageGallery({
 
   const stageRef = useRef<HTMLDivElement>(null);
   const pieceRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const restsRef = useRef<ScatterPiece[]>(pieces);
+  /** Current rest pose per photo (starts as home, tiny nudge on demote) */
+  const restsRef = useRef<ScatterPiece[]>(homes.map((h) => ({ ...h })));
 
   useEffect(() => {
-    restsRef.current = pieces;
-  }, [pieces]);
+    restsRef.current = homes.map((h) => ({ ...h }));
+  }, [homes]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       const els = pieceRefs.current;
       restsRef.current.forEach((rest, i) => {
         const el = els[i];
-        if (!el) return;
-        applyRest(el, rest, false);
+        if (el) applyRest(el, rest, false);
       });
 
       const stage = stageRef.current;
@@ -191,21 +171,19 @@ export default function CollageGallery({
         gsap.fromTo(
           stage,
           { opacity: 0 },
-          { opacity: 1, duration: 0.45, ease: "power2.out" },
+          { opacity: 1, duration: 0.5, ease: "power2.out" },
         );
       }
 
-      const primary0 = primaryPieceIndex[0];
-      const first = primary0 >= 0 ? els[primary0] : null;
+      const first = els[0];
       if (first) {
-        // Opening: long, soft rise from the mess
-        gsap.delayedCall(0.35, () => {
+        gsap.delayedCall(0.4, () => {
           applyPromoted(first, true, vary(1.8, 2.2));
         });
       }
     });
     return () => cancelAnimationFrame(id);
-  }, [count, primaryPieceIndex]);
+  }, [count]);
 
   useEffect(() => {
     onIndexChange?.(index);
@@ -217,10 +195,8 @@ export default function CollageGallery({
 
       const from = indexRef.current;
       const to = (from + dir + count) % count;
-      const fromPi = primaryPieceIndex[from];
-      const toPi = primaryPieceIndex[to];
-      const fromEl = fromPi >= 0 ? pieceRefs.current[fromPi] : null;
-      const toEl = toPi >= 0 ? pieceRefs.current[toPi] : null;
+      const fromEl = pieceRefs.current[from];
+      const toEl = pieceRefs.current[to];
       if (!fromEl || !toEl) return;
 
       busy.current = true;
@@ -230,17 +206,15 @@ export default function CollageGallery({
       toEl.classList.add("is-settling");
       gsap.set([fromEl, toEl], { translate: "none" });
 
-      const newRest = {
-        ...restsRef.current[fromPi],
-        ...restPoseFor(from, seedRef.current),
-      };
-      restsRef.current[fromPi] = newRest as ScatterPiece;
+      // Return to its known home in the collage (slight nudge only)
+      const home = homes[from] ?? restsRef.current[from];
+      const newRest = homeWithNudge(home, seedRef.current);
+      restsRef.current[from] = newRest;
 
       const outDur = vary(OUT_MIN, OUT_MAX);
       const breath = vary(BREATH_MIN, BREATH_MAX);
       const inDur = vary(IN_MIN, IN_MAX);
 
-      // Fairy-tale sequence: leave → rest in the void → next arrives
       const tl = gsap.timeline({
         onComplete: () => {
           indexRef.current = to;
@@ -251,11 +225,11 @@ export default function CollageGallery({
         },
       });
 
+      // 1) Focused image slowly returns to its place in the mess
       tl.call(() => {
         fromEl.classList.remove("is-promoted");
       });
 
-      // 1) Current drifts back into the collage and settles
       tl.to(fromEl, {
         ...layoutVars({
           left: newRest.left,
@@ -271,10 +245,10 @@ export default function CollageGallery({
         overwrite: "auto",
       });
 
-      // 2) Hold — let it sit in the mess a beat
+      // 2) Pause — it’s home
       tl.to({}, { duration: breath });
 
-      // 3) Next slowly lifts from its seat into the center
+      // 3) The chosen collage image (already visible) rises into focus
       tl.call(() => {
         toEl.classList.add("is-promoted");
       });
@@ -296,7 +270,7 @@ export default function CollageGallery({
         overwrite: "auto",
       });
     },
-    [count, primaryPieceIndex],
+    [count, homes],
   );
 
   const next = useCallback(() => go(1), [go]);
@@ -325,38 +299,34 @@ export default function CollageGallery({
       <div
         style={{
           position: "absolute",
-          inset: "-28%",
+          inset: "-18%",
           zIndex: 1,
         }}
       >
-        {pieces.map((piece, i) => {
-          const photo = photos[piece.photoIndex];
-          if (!photo) return null;
-          const promoted =
-            piece.isPrimary && piece.photoIndex === index;
+        {photos.map((photo, i) => {
+          const rest = restsRef.current[i] ?? homes[i];
+          const promoted = i === index;
 
           return (
             <div
-              key={piece.id}
+              key={photo.id}
               ref={(el) => {
                 pieceRefs.current[i] = el;
               }}
               className={
                 promoted
                   ? "collage-piece is-promoted"
-                  : piece.isPrimary
-                    ? "collage-piece is-primary"
-                    : "collage-piece is-filler"
+                  : "collage-piece is-resting"
               }
               style={{
                 position: "absolute",
                 transformOrigin: "50% 50%",
                 willChange: "transform, opacity, left, top, width",
                 pointerEvents: "none",
-                ["--dx" as string]: `${piece.driftX}px`,
-                ["--dy" as string]: `${piece.driftY}px`,
-                ["--dur" as string]: `${piece.driftDur}s`,
-                ["--delay" as string]: `${(i % 8) * -0.85}s`,
+                ["--dx" as string]: `${rest?.driftX ?? 6}px`,
+                ["--dy" as string]: `${rest?.driftY ?? 5}px`,
+                ["--dur" as string]: `${rest?.driftDur ?? 10}s`,
+                ["--delay" as string]: `${(i % 6) * -1.1}s`,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -421,12 +391,11 @@ export default function CollageGallery({
           0%, 100% { translate: 0px 0px; }
           50% { translate: var(--dx, 8px) var(--dy, 6px); }
         }
-        /* Only non-primary fillers drift — primaries stay GSAP-clean (no snap) */
-        .collage-piece.is-filler:not(.is-settling) {
+        /* Gentle drift only while resting in the collage */
+        .collage-piece.is-resting:not(.is-settling) {
           animation: collageDrift var(--dur, 10s) ease-in-out infinite;
           animation-delay: var(--delay, 0s);
         }
-        .collage-piece.is-primary,
         .collage-piece.is-promoted,
         .collage-piece.is-settling {
           animation: none !important;

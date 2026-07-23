@@ -1,14 +1,12 @@
 /**
  * Gallery series definitions.
- * `src` = full-resolution (centered hero)
- * `thumb` = lightweight collage background piece
+ * `src` = full-resolution (optional; collage currently uses thumbs)
+ * `thumb` = collage piece
  */
 
 export type Photo = {
   id: string;
-  /** Full-resolution image for the focused center frame */
   src: string;
-  /** Thumbnail for collage background mess */
   thumb: string;
   alt?: string;
 };
@@ -31,15 +29,15 @@ function photo(n: number): Photo {
 }
 
 /**
- * Default series — first 8 frames from /public/photos.
+ * Full series — all 12 frames live in the collage.
+ * Each photo appears exactly once.
  */
 export const defaultSeries: Series = {
   id: "series-1",
   title: "Series I",
-  photos: [1, 2, 3, 4, 5, 6, 7, 8].map(photo),
+  photos: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(photo),
 };
 
-/** Registry for future multi-series support. */
 export const seriesRegistry: Record<string, Series> = {
   [defaultSeries.id]: defaultSeries,
 };

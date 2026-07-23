@@ -1,11 +1,9 @@
 export type ScatterPiece = {
-  id: string;
+  /** Always matches series photo index — one tile per photo */
   photoIndex: number;
-  isPrimary: boolean;
-  /** Center of tile as % of stage (0–100, may bleed outside) */
+  /** Center of tile as % of stage */
   left: number;
   top: number;
-  /** width as % of viewport width */
   width: number;
   rotate: number;
   opacity: number;
@@ -21,126 +19,63 @@ function hash(i: number, salt: number): number {
 }
 
 /**
- * Full-bleed carpet of overlapping tiles.
- * Positions are tile *centers* so promote/demote can share one transform model.
+ * Exactly one home pose per photo — no duplicates, no mystery clones.
+ * 4×3-ish layout so all 12 carpet the void with big overlapping tiles.
  */
-export function buildCollagePieces(
-  photoCount: number,
-  seed = 0,
-): ScatterPiece[] {
+export function buildHomeLayout(photoCount: number): ScatterPiece[] {
   if (photoCount <= 0) return [];
 
-  const COLS = 5;
-  const ROWS = 6;
-  const gridTotal = COLS * ROWS;
-  const pieces: ScatterPiece[] = [];
-  const primaryAssigned = new Set<number>();
+  // Prefer a grid that fits the count cleanly (12 → 4×3)
+  const COLS = photoCount <= 6 ? 3 : photoCount <= 9 ? 3 : 4;
+  const ROWS = Math.ceil(photoCount / COLS);
 
-  for (let i = 0; i < gridTotal; i++) {
-    const photoIndex = i % photoCount;
-    const isPrimary = !primaryAssigned.has(photoIndex);
-    if (isPrimary) primaryAssigned.add(photoIndex);
-
+  return Array.from({ length: photoCount }, (_, i) => {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
-    const s = i * 19 + seed * 41;
+    const s = i * 17 + 3;
 
     const cellW = 100 / COLS;
     const cellH = 100 / ROWS;
 
-    // Center of each cell + jitter (percent of stage)
+    // Center of cell + mild chaos (kept mild so each photo stays "findable")
     const left =
-      col * cellW +
-      cellW * 0.5 +
-      (hash(s, 1) - 0.5) * cellW * 0.7 -
-      4;
+      col * cellW + cellW * 0.5 + (hash(s, 1) - 0.5) * cellW * 0.45;
     const top =
-      row * cellH +
-      cellH * 0.5 +
-      (hash(s, 2) - 0.5) * cellH * 0.7 -
-      4;
+      row * cellH + cellH * 0.5 + (hash(s, 2) - 0.5) * cellH * 0.45;
 
-    const width = 48 + hash(s, 5) * 34;
+    // Large enough that 12 tiles still fill the frame when rotated
+    const width = 42 + hash(s, 3) * 22; // ~42–64vw
 
-    pieces.push({
-      id: `g-${seed}-${i}`,
-      photoIndex,
-      isPrimary,
+    return {
+      photoIndex: i,
       left,
       top,
       width,
-      rotate: -34 + hash(s, 6) * 68,
-      opacity: 0.82 + hash(s, 7) * 0.1, // 0.82–0.92
-      zIndex: isPrimary
-        ? 12 + Math.floor(hash(s, 8) * 6)
-        : 1 + Math.floor(hash(s, 8) * 10),
-      driftX: 4 + hash(s, 9) * 10,
-      driftY: 3 + hash(s, 10) * 10,
-      driftDur: 9 + hash(s, 11) * 8,
-    });
-  }
-
-  for (let p = 0; p < photoCount; p++) {
-    if (primaryAssigned.has(p)) continue;
-    const s = 9000 + p + seed;
-    pieces.push({
-      id: `primary-fallback-${p}-${seed}`,
-      photoIndex: p,
-      isPrimary: true,
-      left: 20 + hash(s, 1) * 60,
-      top: 20 + hash(s, 2) * 60,
-      width: 55 + hash(s, 3) * 25,
-      rotate: -20 + hash(s, 4) * 40,
-      opacity: 0.88,
-      zIndex: 14,
-      driftX: 6,
-      driftY: 5,
-      driftDur: 10,
-    });
-  }
-
-  const plugs = [
-    { left: 8, top: 8 },
-    { left: 92, top: 6 },
-    { left: 6, top: 92 },
-    { left: 94, top: 94 },
-    { left: 50, top: 4 },
-    { left: 50, top: 96 },
-    { left: 3, top: 50 },
-    { left: 97, top: 50 },
-  ];
-  plugs.forEach((pad, k) => {
-    const s = 5000 + k + seed * 3;
-    pieces.push({
-      id: `edge-${seed}-${k}`,
-      photoIndex: k % photoCount,
-      isPrimary: false,
-      left: pad.left + (hash(s, 1) - 0.5) * 8,
-      top: pad.top + (hash(s, 2) - 0.5) * 8,
-      width: 58 + hash(s, 3) * 28,
-      rotate: -40 + hash(s, 4) * 80,
-      opacity: 0.84 + hash(s, 5) * 0.08,
-      zIndex: 1 + Math.floor(hash(s, 6) * 5),
-      driftX: 5 + hash(s, 7) * 8,
-      driftY: 4 + hash(s, 8) * 8,
-      driftDur: 10 + hash(s, 9) * 6,
-    });
+      rotate: -22 + hash(s, 4) * 44,
+      opacity: 0.82 + hash(s, 5) * 0.1,
+      zIndex: 2 + i,
+      driftX: 4 + hash(s, 6) * 8,
+      driftY: 3 + hash(s, 7) * 8,
+      driftDur: 9 + hash(s, 8) * 7,
+    };
   });
-
-  return pieces;
 }
 
-export function restPoseFor(photoIndex: number, seed: number) {
-  const s = photoIndex * 23 + seed * 47;
+/**
+ * When demoting, return to the same home slot with only a tiny nudge —
+ * never a random teleport across the screen.
+ */
+export function homeWithNudge(
+  home: ScatterPiece,
+  seed: number,
+): ScatterPiece {
+  const s = home.photoIndex * 31 + seed * 13;
   return {
-    left: 12 + hash(s, 1) * 76,
-    top: 12 + hash(s, 2) * 76,
-    width: 50 + hash(s, 3) * 32,
-    rotate: -30 + hash(s, 4) * 60,
+    ...home,
+    left: home.left + (hash(s, 1) - 0.5) * 6,
+    top: home.top + (hash(s, 2) - 0.5) * 6,
+    rotate: home.rotate + (hash(s, 3) - 0.5) * 8,
+    width: home.width + (hash(s, 4) - 0.5) * 4,
     opacity: 0.82 + hash(s, 5) * 0.1,
-    zIndex: 12 + Math.floor(hash(s, 6) * 6),
-    driftX: 4 + hash(s, 7) * 10,
-    driftY: 3 + hash(s, 8) * 10,
-    driftDur: 9 + hash(s, 9) * 8,
   };
 }
