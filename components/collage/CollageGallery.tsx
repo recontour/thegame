@@ -299,8 +299,13 @@ export default function CollageGallery({
       <div
         style={{
           position: "absolute",
-          inset: "-18%",
+          // Side bleed ok; keep top/bottom locked to the viewport band
+          top: 0,
+          bottom: 0,
+          left: "-10%",
+          right: "-10%",
           zIndex: 1,
+          overflow: "hidden",
         }}
       >
         {photos.map((photo, i) => {
