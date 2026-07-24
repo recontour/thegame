@@ -7,14 +7,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Ref for GPU each frame; React state throttled for DOM UI.
  */
 export function useLandingProgress(options?: {
-  /** When true, ignore input (e.g. reduced motion static end state). */
+  /** When true, jump to end (e.g. reduced motion). */
   disabled?: boolean;
+  /** When true, ignore progress changes (hard lock). */
+  locked?: boolean;
+  /** Fires on any scroll/swipe/key intent — used to snap intro pieces early. */
+  onScrollIntent?: () => void;
 }) {
   const disabled = options?.disabled ?? false;
+  const locked = options?.locked ?? false;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
+
+  const onIntentRef = useRef(options?.onScrollIntent);
+  onIntentRef.current = options?.onScrollIntent;
+
   const targetRef = useRef(0);
   const currentRef = useRef(0);
   const [uiProgress, setUiProgress] = useState(0);
-  const touchingRef = useRef(false);
   const lastYRef = useRef<number | null>(null);
   const lastUiEmit = useRef(0);
 
@@ -23,7 +33,12 @@ export function useLandingProgress(options?: {
   const addDelta = useCallback(
     (delta: number) => {
       if (disabled) return;
-      // delta > 0 = swipe/scroll up through the story
+      if (delta === 0) return;
+
+      // Always notify — intro can snap pieces even while story is locked
+      onIntentRef.current?.();
+
+      if (lockedRef.current) return;
       targetRef.current = clamp01(targetRef.current + delta);
     },
     [disabled],
@@ -39,28 +54,23 @@ export function useLandingProgress(options?: {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      // Natural: scroll down / swipe content up advances story
-      const dy = e.deltaY;
-      addDelta(dy * 0.00115);
+      addDelta(e.deltaY * 0.00115);
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      touchingRef.current = true;
       lastYRef.current = e.touches[0]?.clientY ?? null;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       const y = e.touches[0]?.clientY;
       if (y == null || lastYRef.current == null) return;
-      const dy = lastYRef.current - y; // finger up → positive
+      const dy = lastYRef.current - y;
       lastYRef.current = y;
-      // Prevent rubber-band fighting our story
       if (Math.abs(dy) > 0.5) e.preventDefault();
       addDelta(dy * 0.0024);
     };
 
     const onTouchEnd = () => {
-      touchingRef.current = false;
       lastYRef.current = null;
     };
 
@@ -73,9 +83,11 @@ export function useLandingProgress(options?: {
       } else if (e.key === "ArrowUp" || e.key === "PageUp") {
         addDelta(-0.08);
       } else if (e.key === "Home") {
-        targetRef.current = 0;
+        onIntentRef.current?.();
+        if (!lockedRef.current) targetRef.current = 0;
       } else if (e.key === "End") {
-        targetRef.current = 1;
+        onIntentRef.current?.();
+        if (!lockedRef.current) targetRef.current = 1;
       }
     };
 
@@ -96,11 +108,9 @@ export function useLandingProgress(options?: {
     };
   }, [addDelta, disabled]);
 
-  /** Call from rAF / useFrame — returns smoothed progress. */
   const tick = useCallback((dt: number) => {
     const t = targetRef.current;
     const c = currentRef.current;
-    // Critically damped-ish follow
     const alpha = 1 - Math.exp(-10 * Math.min(dt, 0.064));
     const next = c + (t - c) * alpha;
     currentRef.current = next;

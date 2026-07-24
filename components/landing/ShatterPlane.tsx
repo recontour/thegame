@@ -10,6 +10,8 @@ type ShatterPlaneProps = {
   texture: THREE.Texture;
   /** Live progress reader (0..1), updated every frame. */
   getProgress: () => number;
+  /** Intro reveal 0..1 — pieces fade/rise in after welcome text (DOM-driven). */
+  getIntroReveal?: () => number;
 };
 
 const MAX_MOBILE = 160;
@@ -24,6 +26,7 @@ const MAX_DESKTOP = 280;
 export default function ShatterPlane({
   texture,
   getProgress,
+  getIntroReveal,
 }: ShatterPlaneProps) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -258,32 +261,72 @@ export default function ShatterPlane({
 
   useFrame(() => {
     const p = getProgress();
+    // 0 → bottom-of-frame start · 1 → final rest pose
+    // Use intro linearly so GSAP's duration = wall-clock travel (no double-ease squash)
+    const intro = getIntroReveal ? getIntroReveal() : 1;
+    const travel = intro;
+    // Glass visible almost immediately; position still uses full 10s
+    const appear = smoothstep(0, 0.04, intro);
 
-    // 0–0.50 assemble · 0.50–0.64 hold · 0.64–1 re-shatter + lift
+    // 0–0.50 assemble (ONLY place pieces rise into full frame / under text area)
+    // 0.50–0.64 hold · 0.64–1 exit
     const assemble = smoothstep(0.0, 0.5, p);
     const exit = smoothstep(0.64, 1.0, p);
 
-    uProgress.current.value = (1 - assemble) * 1.25 + exit * 1.55;
+    const restShatter = (1 - assemble) * 1.25 + exit * 1.55;
+    uProgress.current.value = restShatter + (1 - travel) * 0.35;
 
     const mat = matRef.current;
     if (mat) {
-      // Glassy when shattered (first load + exit); solid only when fully assembled
-      // ~0.48 matches the CTA-phase translucency users liked
       const shatteredLook = THREE.MathUtils.lerp(0.48, 1, assemble);
-      mat.opacity = shatteredLook * (1 - exit * 0.92);
+      mat.opacity = shatteredLook * (1 - exit * 0.92) * appear;
     }
 
     if (groupRef.current) {
+      /**
+       * Intro travel (0→1 over ~10s):
+       *   start — visible pile at the BOTTOM of the frame (in-view)
+       *   end   — final rest pose you locked in (mid-low)
+       * Scroll assemble → full hero. Exit → CTAs.
+       */
+      const vh = Math.max(viewport.height, 0.01);
+
+      const finalRestY = -vh * 0.36;
+      const finalRestScale = 0.58;
+      // In-frame bottom band (not off-screen)
+      const startY = -vh * 0.5;
+      const startScale = 0.46;
+
+      const introY = THREE.MathUtils.lerp(startY, finalRestY, travel);
+      const introScale = THREE.MathUtils.lerp(startScale, finalRestScale, travel);
+
       const y =
-        THREE.MathUtils.lerp(-0.42, 0.02, assemble) +
-        exit * (mobile ? 1.55 : 1.85);
+        THREE.MathUtils.lerp(introY, 0.0, assemble) +
+        exit * (mobile ? vh * 0.55 : vh * 0.62);
       const z = exit * -0.35;
-      const s = 0.94 + assemble * 0.06 - exit * 0.08;
-      groupRef.current.position.set(0, y, z);
+      const s =
+        THREE.MathUtils.lerp(introScale, 1, assemble) *
+        (0.98 + assemble * 0.02 - exit * 0.06);
+
+      /**
+       * Idle float — only when the 10s travel has settled and user isn't scrolling.
+       * Cheap: a few sin()s on the group transform (no extra draws / materials).
+       * Amplitude → 0 as soon as assemble/exit starts, so scroll “breaks” it free.
+       */
+      const settled = smoothstep(0.92, 1, intro);
+      const idle =
+        settled * appear * (1 - assemble) * (1 - exit);
+      const t = performance.now() * 0.001;
+      // Slow, small — reads as breath, not bobbing
+      const floatY = Math.sin(t * 0.48) * vh * 0.012 * idle;
+      const floatX = Math.sin(t * 0.31 + 1.1) * vh * 0.005 * idle;
+      const floatRotZ = Math.sin(t * 0.39 + 0.4) * 0.014 * idle;
+
+      groupRef.current.position.set(floatX, y + floatY, z);
       groupRef.current.scale.setScalar(s);
-      const hold = assemble * (1 - exit);
+      const hold = assemble * (1 - exit) * appear;
       groupRef.current.rotation.z =
-        Math.sin(performance.now() * 0.0004) * 0.008 * hold;
+        floatRotZ + Math.sin(t * 0.4) * 0.008 * hold;
     }
   });
 
