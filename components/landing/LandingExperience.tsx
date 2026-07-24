@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Canvas, useFrame } from "@react-three/fiber";
 import {
@@ -39,11 +39,15 @@ function prefersReducedMotion() {
 /**
  * Landing story:
  * broken hero pile + welcome → swipe up assemble → swipe again exit → Gal / Work.
+ *
+ * Device / motion prefs are read only after mount so SSR HTML matches the
+ * first client render (avoids hydration attribute mismatches).
  */
 export default function LandingExperience() {
-  const reduced = useMemo(() => prefersReducedMotion(), []);
-  const dpr = useMemo(() => getMobileDpr(), []);
-  const mobile = useMemo(() => isMobileDevice(), []);
+  const [mounted, setMounted] = useState(false);
+  const [reduced, setReduced] = useState(false);
+  const [mobile, setMobile] = useState(false);
+  const [dpr, setDpr] = useState<number | [number, number]>(1);
 
   const { texture, status } = useTextureLoader(LANDING_HERO_SRC);
   const { uiProgress, tick, getProgress } = useLandingProgress({
@@ -54,7 +58,10 @@ export default function LandingExperience() {
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
-    // Allow first paint of DOM chrome, then mark ready for subtle fades
+    setMounted(true);
+    setReduced(prefersReducedMotion());
+    setMobile(isMobileDevice());
+    setDpr(getMobileDpr());
     const id = window.requestAnimationFrame(() => setBooted(true));
     return () => window.cancelAnimationFrame(id);
   }, []);
@@ -74,7 +81,8 @@ export default function LandingExperience() {
     : smoothstep(0.72, 0.9, uiProgress);
   const ctaInteractive = ctaOpacity > 0.45;
 
-  const showCanvas = !reduced && !webglError;
+  // Canvas only after mount — never part of SSR HTML
+  const showCanvas = mounted && !reduced && !webglError;
 
   return (
     <div
@@ -90,12 +98,12 @@ export default function LandingExperience() {
         overflow: "hidden",
       }}
     >
-      {/* Portrait stage — same vertical experience on phone + desktop */}
+      {/* Portrait stage — CSS-only cap (same on server + client) */}
       <div
         style={{
           position: "relative",
           width: "100%",
-          maxWidth: mobile ? "100%" : 430,
+          maxWidth: 430,
           height: "100dvh",
           minHeight: "100vh",
           background: "#000000",
