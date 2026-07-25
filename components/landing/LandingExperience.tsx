@@ -9,7 +9,7 @@ import {
   type MutableRefObject,
 } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Monsieur_La_Doulaise, Tangerine } from "next/font/google";
+import { Inter, Monsieur_La_Doulaise, Tangerine } from "next/font/google";
 import gsap from "gsap";
 import {
   getMobileDpr,
@@ -36,6 +36,13 @@ const tangerine = Tangerine({
 
 const monsieur = Monsieur_La_Doulaise({
   weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+/** Thinnest Inter for “raconteur” wordmark */
+const interThin = Inter({
+  weight: "100",
   subsets: ["latin"],
   display: "swap",
 });
@@ -400,47 +407,56 @@ export default function LandingExperience() {
     };
   }, [measureTextClear, step]);
 
-  // Intro: both title lines together, 1.5s — swipe available immediately
-  useEffect(() => {
-    setMounted(true);
-    const motionOff = prefersReducedMotion();
-    setReduced(motionOff);
-    setMobile(isMobileDevice());
-    setDpr(getMobileDpr());
-    setScrollLocked(false);
+  /** Slow cinematic rise from below — plays on every visit to image 1 */
+  const playTitleIntro = useCallback((motionOff: boolean) => {
+    const lead = titleLeadRef.current;
+    const tag = titleTagRef.current;
+    if (!lead || !tag) return;
+
+    gsap.killTweensOf([lead, tag]);
 
     if (motionOff) {
-      if (titleLeadRef.current)
-        gsap.set(titleLeadRef.current, { opacity: 1, y: 0 });
-      if (titleTagRef.current)
-        gsap.set(titleTagRef.current, { opacity: 1, y: 0 });
+      gsap.set([lead, tag], { opacity: 1, y: 0 });
       return;
     }
 
-    if (titleLeadRef.current)
-      gsap.set(titleLeadRef.current, { opacity: 0, y: 12 });
-    if (titleTagRef.current)
-      gsap.set(titleTagRef.current, { opacity: 0, y: 12 });
-
-    const titleEls = [titleLeadRef.current, titleTagRef.current].filter(
-      Boolean,
-    ) as HTMLElement[];
-    const tl = gsap.timeline();
-    if (titleEls.length) {
-      tl.to(titleEls, {
+    // Start well below the rest position
+    gsap.set([lead, tag], { opacity: 0, y: 72 });
+    gsap
+      .timeline({ defaults: { ease: "power3.out" } })
+      .to(lead, {
         opacity: 1,
         y: 0,
-        duration: 1.5,
-        ease: "power2.out",
-        stagger: 0,
-        delay: 0.2,
-      });
-    }
-
-    return () => {
-      tl.kill();
-    };
+        duration: 2.8,
+        delay: 0.15,
+      })
+      .to(
+        tag,
+        {
+          opacity: 1,
+          y: 0,
+          duration: 2.8,
+        },
+        "<0.18", // almost together, tag follows a hair later
+      );
   }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    setReduced(prefersReducedMotion());
+    setMobile(isMobileDevice());
+    setDpr(getMobileDpr());
+    setScrollLocked(false);
+  }, []);
+
+  // Every time we land on image 1 (including first load)
+  useEffect(() => {
+    if (step !== 0) return;
+    const id = requestAnimationFrame(() => {
+      playTitleIntro(prefersReducedMotion() || reduced);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [step, reduced, playTitleIntro]);
 
   // Body / about-me fades
   useEffect(() => {
@@ -602,27 +618,26 @@ export default function LandingExperience() {
           }}
         >
           <h1
-            className={monsieur.className}
             style={{
               margin: 0,
-              fontSize: "clamp(2.35rem, 9.5vw, 3.1rem)",
-              fontWeight: 400,
-              letterSpacing: "0.02em",
-              lineHeight: 1.15,
+              lineHeight: 1.2,
               color: "#ffffff",
               textAlign: "center",
               display: showTitle ? "flex" : "none",
               flexDirection: "column",
               alignItems: "center",
-              gap: "0.12em",
-              // Anchor block so 70% is the vertical start of the title
-              transform: "translateY(0)",
+              gap: "0.35em",
             }}
           >
             <span
               ref={titleLeadRef}
+              className={interThin.className}
               style={{
                 display: "block",
+                fontWeight: 100,
+                fontSize: "clamp(2.1rem, 8.5vw, 2.85rem)",
+                letterSpacing: "0.28em",
+                textTransform: "lowercase",
                 opacity: reduced ? 1 : 0,
                 willChange: "opacity, transform",
               }}
@@ -631,9 +646,12 @@ export default function LandingExperience() {
             </span>
             <span
               ref={titleTagRef}
+              className={monsieur.className}
               style={{
                 display: "block",
-                fontSize: "1.05em",
+                fontWeight: 400,
+                fontSize: "clamp(1.85rem, 7.5vw, 2.5rem)",
+                letterSpacing: "0.02em",
                 opacity: reduced ? 1 : 0,
                 willChange: "opacity, transform",
               }}
