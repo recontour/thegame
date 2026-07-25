@@ -79,6 +79,8 @@ export default function LandingExperience() {
   // pieces intro only (0..1) — avoid key name `text` (GSAP TextPlugin)
   const introRef = useRef({ pieces: 0 });
   const piecesSnappedRef = useRef(false);
+  /** First 3s: no scroll / no interaction */
+  const [scrollLocked, setScrollLocked] = useState(true);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
@@ -128,7 +130,7 @@ export default function LandingExperience() {
   const { texture, status } = useTextureLoader(LANDING_HERO_SRC);
   const { uiProgress, tick, getProgress } = useLandingProgress({
     disabled: reduced,
-    locked: false,
+    locked: scrollLocked && !reduced,
     onScrollIntent: snapPiecesIn,
   });
 
@@ -165,6 +167,7 @@ export default function LandingExperience() {
     if (motionOff) {
       state.pieces = 1;
       piecesSnappedRef.current = true;
+      setScrollLocked(false);
       if (titleLead) gsap.set(titleLead, { opacity: 1, y: 0, clearProps: "transform" });
       if (titleTag) gsap.set(titleTag, { opacity: 1, y: 0, clearProps: "transform" });
       if (lines.length) gsap.set(lines, { opacity: 1, y: 0, clearProps: "transform" });
@@ -173,12 +176,16 @@ export default function LandingExperience() {
 
     state.pieces = 0;
     piecesSnappedRef.current = false;
+    setScrollLocked(true);
 
     if (titleLead) gsap.set(titleLead, { opacity: 0, y: 14 });
     if (titleTag) gsap.set(titleTag, { opacity: 0, y: 14 });
     if (lines.length) gsap.set(lines, { opacity: 0, y: 16 });
 
     const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+    // 0) First 3s: page locked — text can play, no scroll / no pieces yet
+    tl.call(() => setScrollLocked(false), undefined, 3);
 
     // 1) "raconteur"
     if (titleLead) {
@@ -228,16 +235,17 @@ export default function LandingExperience() {
       });
     }
 
-    // 4) Pieces: visible ASAP at bottom, true 10s linear travel to rest
-    tl.set(state, { pieces: 0.04 }, 0.2);
+    // 4) Pieces appear only after the 3s lock — barely in frame, then 15s to rest
+    tl.set(state, { pieces: 0 }, 0);
+    tl.set(state, { pieces: 0.05 }, 3);
     tl.to(
       state,
       {
         pieces: 1,
-        duration: 10,
+        duration: 15,
         ease: "none",
       },
-      0.2,
+      3,
     );
 
     return () => {
@@ -394,7 +402,7 @@ export default function LandingExperience() {
               ref={titleTagRef}
               style={{
                 display: "block",
-                fontSize: "0.92em",
+                fontSize: "1.05em",
                 opacity: reduced ? 1 : 0,
                 willChange: "opacity, transform",
               }}

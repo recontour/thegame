@@ -290,7 +290,7 @@ export default function ShatterPlane({
 
     if (groupRef.current) {
       /**
-       * Intro travel (0→1 over ~10s):
+       * Intro travel (0→1 over ~15s):
        *   start — bottom of frame (in-view)
        *   end   — final rest parked just BELOW measured copy bottom
        * Scroll assemble → full hero. Exit → CTAs.
@@ -300,20 +300,23 @@ export default function ShatterPlane({
       // 0 top → 1 bottom of stage; default ~mid if measure not ready
       const clearFromTop = getTextClearFromTop
         ? getTextClearFromTop()
-        : 0.5;
+        : 0.48;
       // World Y of the clear line (Three: +Y up, 0 = center)
       const clearWorldY = vh * (0.5 - clearFromTop);
 
-      const finalRestScale = 0.58;
-      // Top of scaled grid ≈ y + scale * (vh/2); sit snug under the copy
-      const pad = vh * 0.012;
-      let finalRestY =
-        clearWorldY - pad - finalRestScale * (vh * 0.5);
-      // Allow sitting higher (closer to text) than before
-      finalRestY = THREE.MathUtils.clamp(finalRestY, -vh * 0.58, -vh * 0.14);
+      const finalRestScale = 0.62;
+      // Visible pile is tighter than full viewport height — don't use 0.5*vh
+      // or the rest pose sinks way too low under the copy.
+      const pileHalf = finalRestScale * vh * 0.28;
+      const pad = vh * 0.004;
+      let finalRestY = clearWorldY - pad - pileHalf;
+      // Bias upward; allow sitting close under the text band
+      finalRestY += vh * 0.06;
+      finalRestY = THREE.MathUtils.clamp(finalRestY, -vh * 0.42, -vh * 0.02);
 
-      const startScale = 0.46;
-      const startY = Math.min(finalRestY - vh * 0.12, -vh * 0.52);
+      const startScale = 0.48;
+      // First appear (after 3s lock): just barely in the bottom of the frame
+      const startY = Math.min(finalRestY - vh * 0.16, -vh * 0.58);
 
       const introY = THREE.MathUtils.lerp(startY, finalRestY, travel);
       const introScale = THREE.MathUtils.lerp(startScale, finalRestScale, travel);
@@ -327,7 +330,7 @@ export default function ShatterPlane({
         (0.98 + assemble * 0.02 - exit * 0.06);
 
       /**
-       * Idle float — only when the 10s travel has settled and user isn't scrolling.
+       * Idle float — only when the travel has settled and user isn't scrolling.
        * Cheap: a few sin()s on the group transform (no extra draws / materials).
        * Amplitude → 0 as soon as assemble/exit starts, so scroll “breaks” it free.
        */

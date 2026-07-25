@@ -34,11 +34,11 @@ export function useLandingProgress(options?: {
     (delta: number) => {
       if (disabled) return;
       if (delta === 0) return;
-
-      // Always notify — intro can snap pieces even while story is locked
-      onIntentRef.current?.();
-
+      // Hard lock (first seconds of landing) — no scroll, no snap
       if (lockedRef.current) return;
+
+      // Unlocked: scroll can snap the slow piece intro if still running
+      onIntentRef.current?.();
       targetRef.current = clamp01(targetRef.current + delta);
     },
     [disabled],
@@ -83,11 +83,13 @@ export function useLandingProgress(options?: {
       } else if (e.key === "ArrowUp" || e.key === "PageUp") {
         addDelta(-0.08);
       } else if (e.key === "Home") {
+        if (lockedRef.current) return;
         onIntentRef.current?.();
-        if (!lockedRef.current) targetRef.current = 0;
+        targetRef.current = 0;
       } else if (e.key === "End") {
+        if (lockedRef.current) return;
         onIntentRef.current?.();
-        if (!lockedRef.current) targetRef.current = 1;
+        targetRef.current = 1;
       }
     };
 
