@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import Link from "next/link";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Monsieur_La_Doulaise, Tangerine } from "next/font/google";
@@ -10,38 +17,34 @@ import {
   isMobileDevice,
 } from "@/components/gallery/loadMobileSafeTexture";
 import { useTextureLoader } from "@/components/gallery/useTextureLoader";
-import { LANDING_HERO_SRC } from "@/data/series";
+import {
+  LANDING_PIECES_HERO_SRC,
+  LANDING_SLIDES,
+  LANDING_SWAP_PHOTOS,
+  STORY_SLIDE_COUNT,
+  TOTAL_STEPS,
+} from "@/data/landingPhotos";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 import ShatterPlane from "@/components/landing/ShatterPlane";
-import {
-  smoothstep,
-  useLandingProgress,
-} from "@/components/landing/useLandingProgress";
+import StorySwapCanvas from "@/components/landing/StorySwapCanvas";
+import { smoothstep } from "@/components/landing/useLandingProgress";
 
-/** Script display — manifesto body. */
 const tangerine = Tangerine({
   weight: ["400", "700"],
   subsets: ["latin"],
   display: "swap",
 });
 
-/** Script display — heading (raconteur line). */
 const monsieur = Monsieur_La_Doulaise({
   weight: "400",
   subsets: ["latin"],
   display: "swap",
 });
 
-function ProgressBridge({
-  tick,
-}: {
-  tick: (dt: number) => number;
-}) {
-  useFrame((_, dt) => {
-    tick(dt);
-  });
-  return null;
-}
+const UI_FONT =
+  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+const PIECES_STEP = STORY_SLIDE_COUNT; // index 6 = 7th beat
 
 function prefersReducedMotion() {
   if (typeof window === "undefined") return false;
@@ -52,53 +55,53 @@ function prefersReducedMotion() {
   }
 }
 
-const UI_FONT =
-  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
-
-const MANIFESTO_LINES = [
-  "Everyone wants to be seen.",
-  "Some chase money. Some chase fame.",
-  "In the long pursuit of our own dreams, we stop noticing the small things that quietly keep the world standing.",
-  "I am not trying to photograph success.",
-  "These are moments that almost never get a camera pointed at them; the people who carry the weight, take the risk, and still go unnamed.",
-  "I hope these photographs make you look at them with respect instead of looking past them.",
-] as const;
-
 /**
- * Landing story:
- * blank → type reveal → glass pieces → swipe assemble → exit → Gal / Work.
- *
- * Text: GSAP stagger on DOM (opacity + translate3d only) — free vs WebGL.
+ * One continuous vertical story:
+ * steps 0–5 → 9:16 zoom-blur photos
+ * step 6 → black + hero.webp shatter + “about me.”
+ * Swipe up/down moves freely through all 7 beats.
  */
 export default function LandingExperience() {
   const [mounted, setMounted] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [dpr, setDpr] = useState<number | [number, number]>(1);
-
-  // pieces intro only (0..1) — avoid key name `text` (GSAP TextPlugin)
-  const introRef = useRef({ pieces: 0 });
-  const piecesSnappedRef = useRef(false);
-  /** First 3s: no scroll / no interaction */
   const [scrollLocked, setScrollLocked] = useState(true);
+
+  /** 0…5 photos, 6 = pieces / about me */
+  const [step, setStep] = useState(0);
+  const stepRef = useRef(0);
+
+  const introRef = useRef({ pieces: 0 });
+  const piecesProgress = useRef(0);
+  const piecesTarget = useRef(0);
+  const [piecesUi, setPiecesUi] = useState(0);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
+  const textClearFromTopRef = useRef(0.72);
+
   const titleLeadRef = useRef<HTMLSpanElement>(null);
   const titleTagRef = useRef<HTMLSpanElement>(null);
-  const lineRefs = useRef<(HTMLParagraphElement | null)[]>([]);
-  /** Copy bottom as fraction of stage height from top — cheap, not per-frame. */
-  const textClearFromTopRef = useRef(0.5);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const [webglError, setWebglError] = useState<string | null>(null);
+  const [storyReady, setStoryReady] = useState(false);
+
+  const isPieces = step === PIECES_STEP;
+  const storySlide = Math.min(step, STORY_SLIDE_COUNT - 1);
 
   const getIntroReveal = useCallback(() => introRef.current.pieces, []);
   const getTextClearFromTop = useCallback(
     () => textClearFromTopRef.current,
     [],
   );
+  const getTargetSlide = useCallback(
+    () => Math.min(stepRef.current, STORY_SLIDE_COUNT - 1),
+    [],
+  );
+  const getPiecesProgress = useCallback(() => piecesProgress.current, []);
 
-  /** One rect read — safe on resize / font load; does not run in the render loop. */
   const measureTextClear = useCallback(() => {
     const stage = stageRef.current;
     const copy = copyRef.current;
@@ -107,47 +110,169 @@ export default function LandingExperience() {
     if (sr.height < 1) return;
     const cr = copy.getBoundingClientRect();
     const ratio = (cr.bottom - sr.top) / sr.height;
-    // Tiny pad under last line — pieces can sit closer without covering glyphs
-    textClearFromTopRef.current = Math.min(0.78, Math.max(0.28, ratio + 0.008));
+    textClearFromTopRef.current = Math.min(0.85, Math.max(0.35, ratio + 0.01));
   }, []);
 
-  /** User scrolled — finish the smoke-in now so the story never feels stuck. */
-  const snapPiecesIn = useCallback(() => {
-    if (piecesSnappedRef.current) return;
-    if (introRef.current.pieces >= 0.98) {
-      piecesSnappedRef.current = true;
-      return;
-    }
-    piecesSnappedRef.current = true;
-    gsap.killTweensOf(introRef.current, "pieces");
+  // Preload hero for pieces while still on late story slides
+  const preloadPieces = step >= STORY_SLIDE_COUNT - 2 || isPieces;
+  const { texture: piecesTexture, status: piecesStatus } = useTextureLoader(
+    preloadPieces ? LANDING_PIECES_HERO_SRC : null,
+  );
+
+  const enterPieces = useCallback(() => {
+    introRef.current.pieces = 0;
+    piecesProgress.current = 0;
+    piecesTarget.current = 0;
+    setPiecesUi(0);
+    gsap.killTweensOf(introRef.current);
     gsap.to(introRef.current, {
       pieces: 1,
-      duration: 0.55,
-      ease: "power2.out",
+      duration: 2.4,
+      ease: "sine.inOut",
     });
   }, []);
 
-  const { texture, status } = useTextureLoader(LANDING_HERO_SRC);
-  const { uiProgress, tick, getProgress } = useLandingProgress({
-    disabled: reduced,
-    locked: scrollLocked && !reduced,
-    onScrollIntent: snapPiecesIn,
-  });
+  const goNext = useCallback(() => {
+    if (scrollLocked) return;
+    const s = stepRef.current;
+
+    // On pieces beat: further up = assemble / CTAs
+    if (s === PIECES_STEP) {
+      piecesTarget.current = Math.min(1, piecesTarget.current + 0.14);
+      return;
+    }
+
+    if (s < PIECES_STEP) {
+      const next = s + 1;
+      stepRef.current = next;
+      setStep(next);
+      if (next === PIECES_STEP) enterPieces();
+    }
+  }, [scrollLocked, enterPieces]);
+
+  const goPrev = useCallback(() => {
+    if (scrollLocked) return;
+    const s = stepRef.current;
+
+    // On pieces: first unwind assemble, then return to image 6
+    if (s === PIECES_STEP) {
+      if (piecesTarget.current > 0.04) {
+        piecesTarget.current = Math.max(0, piecesTarget.current - 0.14);
+        return;
+      }
+      stepRef.current = STORY_SLIDE_COUNT - 1;
+      setStep(STORY_SLIDE_COUNT - 1);
+      gsap.killTweensOf(introRef.current);
+      introRef.current.pieces = 0;
+      piecesProgress.current = 0;
+      piecesTarget.current = 0;
+      setPiecesUi(0);
+      return;
+    }
+
+    if (s > 0) {
+      const next = s - 1;
+      stepRef.current = next;
+      setStep(next);
+    }
+  }, [scrollLocked]);
+
+  // Single continuous navigation for all 7 beats
+  useEffect(() => {
+    let touchY0: number | null = null;
+    let lastWheel = 0;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (scrollLocked) return;
+      const now = performance.now();
+      if (now - lastWheel < 380) return;
+      if (Math.abs(e.deltaY) < 8) return;
+      lastWheel = now;
+      if (e.deltaY > 0) goNext();
+      else goPrev();
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchY0 = e.touches[0]?.clientY ?? null;
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (scrollLocked || touchY0 == null) return;
+      const y = e.changedTouches[0]?.clientY;
+      if (y == null) return;
+      const dy = touchY0 - y;
+      touchY0 = null;
+      if (Math.abs(dy) < 40) return;
+      if (dy > 0) goNext();
+      else goPrev();
+    };
+
+    const onKey = (e: KeyboardEvent) => {
+      if (scrollLocked) return;
+      if (
+        e.key === "ArrowDown" ||
+        e.key === "ArrowRight" ||
+        e.key === " " ||
+        e.key === "PageDown"
+      ) {
+        e.preventDefault();
+        goNext();
+      } else if (
+        e.key === "ArrowUp" ||
+        e.key === "ArrowLeft" ||
+        e.key === "PageUp"
+      ) {
+        e.preventDefault();
+        goPrev();
+      }
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [scrollLocked, goNext, goPrev]);
+
+  // Smooth pieces assemble progress
+  useEffect(() => {
+    if (!isPieces) return;
+    let raf = 0;
+    const loop = () => {
+      const a = 1 - Math.exp(-8 * 0.016);
+      piecesProgress.current +=
+        (piecesTarget.current - piecesProgress.current) * a;
+      setPiecesUi((prev) =>
+        Math.abs(prev - piecesProgress.current) > 0.012
+          ? piecesProgress.current
+          : prev,
+      );
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [isPieces]);
 
   useEffect(() => {
     measureTextClear();
     const onResize = () => measureTextClear();
     window.addEventListener("resize", onResize);
     const t1 = window.setTimeout(measureTextClear, 120);
-    const t2 = window.setTimeout(measureTextClear, 600);
+    const t2 = window.setTimeout(measureTextClear, 500);
     void document.fonts?.ready?.then(() => measureTextClear());
     return () => {
       window.removeEventListener("resize", onResize);
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [measureTextClear]);
+  }, [measureTextClear, step]);
 
+  // Intro: both title lines together, 1.5s — lock first 3s
   useEffect(() => {
     setMounted(true);
     const motionOff = prefersReducedMotion();
@@ -155,118 +280,86 @@ export default function LandingExperience() {
     setMobile(isMobileDevice());
     setDpr(getMobileDpr());
 
-    // Fonts / first paint may shift copy height
-    measureTextClear();
-    requestAnimationFrame(() => measureTextClear());
-
-    const state = introRef.current;
-    const titleLead = titleLeadRef.current;
-    const titleTag = titleTagRef.current;
-    const lines = lineRefs.current.filter(Boolean) as HTMLParagraphElement[];
-
     if (motionOff) {
-      state.pieces = 1;
-      piecesSnappedRef.current = true;
       setScrollLocked(false);
-      if (titleLead) gsap.set(titleLead, { opacity: 1, y: 0, clearProps: "transform" });
-      if (titleTag) gsap.set(titleTag, { opacity: 1, y: 0, clearProps: "transform" });
-      if (lines.length) gsap.set(lines, { opacity: 1, y: 0, clearProps: "transform" });
+      if (titleLeadRef.current)
+        gsap.set(titleLeadRef.current, { opacity: 1, y: 0 });
+      if (titleTagRef.current)
+        gsap.set(titleTagRef.current, { opacity: 1, y: 0 });
       return;
     }
 
-    state.pieces = 0;
-    piecesSnappedRef.current = false;
     setScrollLocked(true);
+    if (titleLeadRef.current)
+      gsap.set(titleLeadRef.current, { opacity: 0, y: 12 });
+    if (titleTagRef.current)
+      gsap.set(titleTagRef.current, { opacity: 0, y: 12 });
 
-    if (titleLead) gsap.set(titleLead, { opacity: 0, y: 14 });
-    if (titleTag) gsap.set(titleTag, { opacity: 0, y: 14 });
-    if (lines.length) gsap.set(lines, { opacity: 0, y: 16 });
-
-    const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
-
-    // 0) First 3s: page locked — text can play, no scroll / no pieces yet
+    const tl = gsap.timeline();
     tl.call(() => setScrollLocked(false), undefined, 3);
 
-    // 1) "raconteur"
-    if (titleLead) {
+    const titleEls = [titleLeadRef.current, titleTagRef.current].filter(
+      Boolean,
+    ) as HTMLElement[];
+    if (titleEls.length) {
       tl.to(
-        titleLead,
+        titleEls,
         {
           opacity: 1,
           y: 0,
-          duration: 1.6,
+          duration: 1.5,
           ease: "power2.out",
+          stagger: 0,
         },
-        0.35,
+        0.3,
       );
     }
-
-    // 2) After 2s hold — "for those who care"
-    if (titleTag) {
-      tl.to(
-        titleTag,
-        {
-          opacity: 1,
-          y: 0,
-          duration: 1.6,
-          ease: "power2.out",
-        },
-        "+=2",
-      );
-    }
-
-    // 3) Manifesto — default 2s between lines; 3s after the longer paragraphs
-    if (lines.length) {
-      const gapBefore = [0, 2, 2, 3, 2, 3];
-      tl.addLabel("manifesto", ">");
-      let t = 0;
-      lines.forEach((line, i) => {
-        t += gapBefore[i] ?? 2;
-        tl.to(
-          line,
-          {
-            opacity: 1,
-            y: 0,
-            duration: 1.1,
-            ease: "power2.out",
-          },
-          `manifesto+=${t}`,
-        );
-      });
-    }
-
-    // 4) Pieces appear only after the 3s lock — barely in frame, then 15s to rest
-    tl.set(state, { pieces: 0 }, 0);
-    tl.set(state, { pieces: 0.05 }, 3);
-    tl.to(
-      state,
-      {
-        pieces: 1,
-        duration: 15,
-        ease: "none",
-      },
-      3,
-    );
 
     return () => {
       tl.kill();
-      gsap.killTweensOf(state);
-      if (titleLead) gsap.killTweensOf(titleLead);
-      if (titleTag) gsap.killTweensOf(titleTag);
-      if (lines.length) gsap.killTweensOf(lines);
     };
   }, []);
 
-  // Scroll leave — one soft block (cheap; no per-line work on scroll)
-  const copyLeave = reduced ? 1 : 1 - smoothstep(0.05, 0.36, uiProgress);
-  const copyScrollY = (1 - copyLeave) * -36;
-  const welcomeAlive = copyLeave > 0.02;
+  // Body / about-me fades
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    if (step === 0) return;
+    gsap.fromTo(
+      el,
+      { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" },
+    );
+    measureTextClear();
+  }, [step, measureTextClear]);
 
-  const ctaOpacity = reduced ? 1 : smoothstep(0.72, 0.9, uiProgress);
+  const slide = LANDING_SLIDES[storySlide] ?? LANDING_SLIDES[0];
+  const showTitle = !isPieces && step === 0;
+  const showBody = !isPieces && step > 0 && step < PIECES_STEP;
+  const showAbout = isPieces;
+  // Image 6 (last photo) — lower placement, similar to title slide
+  const copyTop = showTitle ? "70%" : showBody && step === 5 ? "65%" : "8%";
+
+  const piecesLeave = reduced
+    ? 1
+    : isPieces
+      ? 1 - smoothstep(0.05, 0.36, piecesUi)
+      : 1;
+  const copyScrollY = (1 - piecesLeave) * -28;
+
+  const ctaOpacity = reduced && isPieces
+    ? 1
+    : isPieces
+      ? smoothstep(0.72, 0.9, piecesUi)
+      : 0;
   const ctaInteractive = ctaOpacity > 0.45;
 
-  const showCanvas = mounted && !reduced && !webglError;
-  const heroStillOpacity = reduced ? 0.9 : 0;
+  // Keep story canvas mounted so swipe-back is instant
+  const showStoryCanvas = mounted && !reduced && !webglError;
+  const showPiecesCanvas =
+    mounted && isPieces && !reduced && !webglError;
+
+  const srcList = useMemo(() => LANDING_SWAP_PHOTOS, []);
 
   return (
     <div
@@ -294,39 +387,50 @@ export default function LandingExperience() {
           overflow: "hidden",
         }}
       >
-        {showCanvas && (
+        {/* Story always under — hidden on pieces beat (black + shatter on top) */}
+        {showStoryCanvas && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: isPieces ? 0 : 1,
+              pointerEvents: isPieces ? "none" : "auto",
+              transition: "opacity 0.45s ease",
+            }}
+          >
+            <StorySwapCanvas
+              srcs={srcList}
+              getTargetSlide={getTargetSlide}
+              onReady={() => setStoryReady(true)}
+              onError={setWebglError}
+            />
+          </div>
+        )}
+
+        {showPiecesCanvas && (
           <WebGLErrorBoundary onError={setWebglError}>
             <Canvas
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                display: "block",
-                background: "#000000",
-                touchAction: "none",
-              }}
+              style={{ position: "absolute", inset: 0 }}
+              dpr={dpr}
               gl={{
                 antialias: !mobile,
                 alpha: false,
                 powerPreference: "default",
                 stencil: false,
                 depth: true,
-                failIfMajorPerformanceCaveat: false,
               }}
-              dpr={dpr}
               camera={{ position: [0, 0, 5], fov: 50, near: 0.1, far: 80 }}
-              resize={{ scroll: false, debounce: 0 }}
-              onCreated={({ gl }) => {
-                gl.setClearColor("#000000", 1);
-              }}
+              onCreated={({ gl }) => gl.setClearColor("#000000", 1)}
             >
               <color attach="background" args={["#000000"]} />
-              <ProgressBridge tick={tick} />
-              {texture && status === "ready" && (
+              <PiecesProgressBridge
+                progress={piecesProgress}
+                target={piecesTarget}
+              />
+              {piecesTexture && piecesStatus === "ready" && (
                 <ShatterPlane
-                  texture={texture}
-                  getProgress={getProgress}
+                  texture={piecesTexture}
+                  getProgress={getPiecesProgress}
                   getIntroReveal={getIntroReveal}
                   getTextClearFromTop={getTextClearFromTop}
                 />
@@ -338,7 +442,7 @@ export default function LandingExperience() {
         {(reduced || webglError) && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={LANDING_HERO_SRC}
+            src={isPieces ? LANDING_PIECES_HERO_SRC : slide.src}
             alt=""
             style={{
               position: "absolute",
@@ -346,46 +450,46 @@ export default function LandingExperience() {
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              opacity: heroStillOpacity || (webglError ? 0.55 : 0.9),
+              opacity: 0.9,
               pointerEvents: "none",
             }}
           />
         )}
 
-        {/* Copy — GSAP intro on nodes; scroll leave is one wrapper fade.
-            No maxHeight/overflow clip — that was cutting the last manifesto line. */}
+        {/* Copy */}
         <div
           ref={copyRef}
-          aria-hidden={!welcomeAlive}
           style={{
             position: "absolute",
-            top: "8%",
+            // Title ~70%; image 6 copy ~65%; other body slides upper band
+            top: copyTop,
             left: 0,
             right: 0,
             zIndex: 10,
             textAlign: "left",
             padding: "0 1.25rem 1.25rem 1rem",
             pointerEvents: "none",
-            opacity: copyLeave,
-            transform: `translate3d(0, ${copyScrollY}px, 0)`,
+            opacity: isPieces ? piecesLeave : 1,
+            transform: `translate3d(0, ${isPieces ? copyScrollY : 0}px, 0)`,
             willChange: "opacity, transform",
           }}
         >
           <h1
             className={monsieur.className}
             style={{
-              // Match stage top: 8% — dvh so gap is height-based
-              margin: "0 0 8dvh",
+              margin: 0,
               fontSize: "clamp(2.35rem, 9.5vw, 3.1rem)",
               fontWeight: 400,
-              letterSpacing: `${0.02 + (1 - copyLeave) * 0.06}em`,
+              letterSpacing: "0.02em",
               lineHeight: 1.15,
               color: "#ffffff",
               textAlign: "center",
-              display: "flex",
+              display: showTitle ? "flex" : "none",
               flexDirection: "column",
               alignItems: "center",
               gap: "0.12em",
+              // Anchor block so 70% is the vertical start of the title
+              transform: "translateY(0)",
             }}
           >
             <span
@@ -410,35 +514,85 @@ export default function LandingExperience() {
               for those who care
             </span>
           </h1>
+
           <div
+            ref={showBody ? bodyRef : undefined}
             className={tangerine.className}
             style={{
+              display: showBody ? "block" : "none",
               margin: 0,
               maxWidth: "100%",
-              fontSize: "clamp(1.55rem, 5.8vw, 1.9rem)",
+              // ~1.5× previous size; solid white so it doesn’t wash out on photos
+              fontSize: "clamp(2.3rem, 8.7vw, 2.85rem)",
               fontWeight: 700,
               letterSpacing: "0.02em",
-              lineHeight: 1.42,
-              color: "rgba(255,255,255,0.78)",
+              lineHeight: 1.35,
+              color: "rgba(255,255,255,0.95)",
+              textAlign: step === 5 ? "center" : "left",
             }}
           >
-            {MANIFESTO_LINES.map((line, i) => (
-              <p
-                key={line}
-                ref={(el) => {
-                  lineRefs.current[i] = el;
-                }}
-                style={{
-                  margin: i === MANIFESTO_LINES.length - 1 ? 0 : "0 0 0.28em",
-                  opacity: reduced ? 1 : 0,
-                  willChange: "opacity, transform",
-                }}
-              >
-                {line}
-              </p>
-            ))}
+            {showBody &&
+              slide.lines.map((line, i) => (
+                <p
+                  key={`${step}-${i}`}
+                  style={{
+                    margin: i === slide.lines.length - 1 ? 0 : "0 0 0.28em",
+                  }}
+                >
+                  {line}
+                </p>
+              ))}
+          </div>
+
+          <div
+            ref={showAbout ? bodyRef : undefined}
+            className={monsieur.className}
+            style={{
+              display: showAbout ? "block" : "none",
+              margin: 0,
+              textAlign: "center",
+              fontSize: "clamp(2.2rem, 9vw, 2.9rem)",
+              fontWeight: 400,
+              letterSpacing: "0.04em",
+              color: "#ffffff",
+            }}
+          >
+            about me.
           </div>
         </div>
+
+        {/* 7-step progress (6 photos + pieces) */}
+        {storyReady && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              bottom: 18,
+              left: 0,
+              right: 0,
+              zIndex: 12,
+              display: "flex",
+              justifyContent: "center",
+              gap: 6,
+              pointerEvents: "none",
+            }}
+          >
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <span
+                key={i}
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: "50%",
+                  background:
+                    i === step
+                      ? "rgba(255,255,255,0.75)"
+                      : "rgba(255,255,255,0.2)",
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         <nav
           aria-label="Experiences"
@@ -503,4 +657,19 @@ export default function LandingExperience() {
       </div>
     </div>
   );
+}
+
+/** Keep pieces assemble progress smooth inside R3F without extra React work. */
+function PiecesProgressBridge({
+  progress,
+  target,
+}: {
+  progress: MutableRefObject<number>;
+  target: MutableRefObject<number>;
+}) {
+  useFrame((_, dt) => {
+    const a = 1 - Math.exp(-8 * Math.min(dt, 0.05));
+    progress.current += (target.current - progress.current) * a;
+  });
+  return null;
 }

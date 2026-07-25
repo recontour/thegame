@@ -1,120 +1,83 @@
 import {
-  BufferGeometry,
-  Color,
-  DoubleSide,
-  Face3,
-  Geometry,
-  InstancedBufferAttribute,
-  InstancedMesh,
-  MathUtils,
+  BoxBufferGeometry,
+  Mesh,
   MeshBasicMaterial,
-  Object3D,
-  PerspectiveCamera,
+  PlaneBufferGeometry,
   Scene,
+  ShaderMaterial,
   TextureLoader,
   Vector2,
-  Vector3,
-  WebGLRenderer
-} from 'https://unpkg.com/three@0.119.0/build/three.module.js';
+} from 'https://unpkg.com/three@0.120.0/build/three.module.js';
+
+import useThree from 'https://codepen.io/soju22/pen/cb31020fed766eb66bc8ad1879bc3325.js';
+
+App();
 
 function App() {
-  const conf = {
-    size: 10,
-    images: [
-      { src: 'https://assets.codepen.io/33787/img1.jpg' },
-      { src: 'https://assets.codepen.io/33787/img2.jpg' },
-      { src: 'https://assets.codepen.io/33787/img3.jpg' },
-      { src: 'https://assets.codepen.io/33787/img4.jpg' }
-    ]
-  };
+  const images = [
+    { src: 'https://assets.codepen.io/33787/img10.jpg' },
+    { src: 'https://assets.codepen.io/33787/img8.jpg' },
+    { src: 'https://assets.codepen.io/33787/img1.jpg' },
+    { src: 'https://assets.codepen.io/33787/img2.jpg' },
+    { src: 'https://assets.codepen.io/33787/img4.jpg' },
+  ];
 
-  let renderer, scene, camera, cameraCtrl;
-  const screen = {
-    width: 0, height: 0,
-    wWidth: 0, wHeight: 0,
-    ratio: 0
-  };
-
+  let three, scene;
+  let image1, image2;
+  let progress = 0, targetProgress = 0, center = new Vector2();
   const loader = new TextureLoader();
-  const textures = [];
-  let planes, plane1, plane2;
-  let progress = 0, targetProgress = 0;
-
-  const mouse = new Vector2();
 
   init();
 
   function init() {
-    renderer = new WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+    three = useThree().init({
+      canvas: document.getElementById('canvas'),
+      mouse_move: true,
+    });
 
-    camera = new PerspectiveCamera(50);
-    camera.position.z = 150;
-
-    updateSize();
-    window.addEventListener('resize', onResize);
-
-    Promise.all(conf.images.map(loadTexture)).then(responses => {
+    Promise.all(images.map(loadTexture)).then(responses => {
       initScene();
       initListeners();
-
-      gsap.fromTo(plane1.uProgress,
-        {
-          value: -2
-        },
-        {
-          value: 0,
-          duration: 2.5,
-          ease: Power4.easeOut
-        }
-      );
-
-      requestAnimationFrame(animate);
+      animate();
     });
   }
 
   function initScene() {
     scene = new Scene();
-    scene.background = new Color(0);
 
-    plane1 = new AnimatedPlane({
-      renderer, screen,
-      size: conf.size,
-      anim: 1,
-      texture: textures[0]
+    image1 = ZoomBlurImage({ three });
+    image1.setMap(images[0].texture);
+    scene.add(image1.mesh);
+
+    image2 = ZoomBlurImage({ three });
+    image2.setMap(images[1].texture);
+    scene.add(image2.mesh);
+
+    setImagesProgress(0);
+
+    gsap.fromTo(image1.uStrength,
+      { value: -2 },
+      { value: 0, duration: 3, ease: Power2.easeOut }
+    );
+
+    three.onAfterResize(() => {
+      image1.resize();
+      image2.resize();
     });
-
-    plane2 = new AnimatedPlane({
-      renderer, screen,
-      size: conf.size,
-      anim: 2,
-      texture: textures[1]
-    });
-
-    setPlanesProgress(0);
-
-    planes = new Object3D();
-    planes.add(plane1.o3d);
-    planes.add(plane2.o3d);
-    scene.add(planes);
   }
-  
-  function initListeners() {
-    document.addEventListener('mousemove', e => {
-      mouse.x = (e.clientX / screen.width) * 2 - 1;
-      mouse.y = -(e.clientY / screen.height) * 2 + 1;
-    });
 
+  function initListeners() {
     window.addEventListener('wheel', e => {
       e.preventDefault();
       if (e.deltaY > 0) {
-        targetProgress = limit(targetProgress + 1 / 20, 0, conf.images.length - 1);
+        setTargetProgress(targetProgress + 1/20);
       } else {
-        targetProgress = limit(targetProgress - 1 / 20, 0, conf.images.length - 1);
+        setTargetProgress(targetProgress - 1/20);
       }
     });
 
     document.addEventListener('click', e => {
-      if (e.clientY < screen.height / 2) {
+      if (e.clientY < three.size.height / 2) {
         navPrevious();
       } else {
         navNext();
@@ -131,81 +94,58 @@ function App() {
   }
 
   function navNext() {
-    if (Number.isInteger(targetProgress)) targetProgress += 1;
-    else targetProgress = Math.ceil(targetProgress);
-    targetProgress = limit(targetProgress, 0, conf.images.length - 1);
+    if (Number.isInteger(targetProgress)) setTargetProgress(targetProgress + 1);
+    else setTargetProgress(Math.ceil(targetProgress));
   }
 
   function navPrevious() {
-    if (Number.isInteger(targetProgress)) targetProgress -= 1;
-    else targetProgress = Math.floor(targetProgress);
-    targetProgress = limit(targetProgress, 0, conf.images.length - 1);
+    if (Number.isInteger(targetProgress)) setTargetProgress(targetProgress - 1);
+    else setTargetProgress(Math.floor(targetProgress));
+  }
+
+  function setTargetProgress(value) {
+    targetProgress = value;
+    if (targetProgress < 0) {
+      progress += images.length;
+      targetProgress += images.length;
+    }
   }
 
   function updateProgress() {
-    const progress1 = lerp(progress, targetProgress, 0.1);
+    const progress1 = lerp(progress, targetProgress, 0.05);
     const pdiff = progress1 - progress;
     if (pdiff === 0) return;
 
     const p0 = progress % 1;
     const p1 = progress1 % 1;
     if ((pdiff > 0 && p1 < p0) || (pdiff < 0 && p0 < p1)) {
-      const i = Math.floor(progress1);
-      plane1.setTexture(textures[i]);
-      plane2.setTexture(textures[i + 1]);
+      const i = Math.floor(progress1) % images.length;
+      const j = (i + 1) % images.length;
+      image1.setMap(images[i].texture);
+      image2.setMap(images[j].texture);
     }
 
     progress = progress1;
-    setPlanesProgress(progress % 1);
+    setImagesProgress(progress % 1);
   }
 
-  function setPlanesProgress(progress) {
-    plane1.uProgress.value = progress;
-    plane2.uProgress.value = -1 + progress;
-    plane1.material.opacity = 1 - progress;
-    plane2.material.opacity = progress;
-    plane1.o3d.position.z = progress;
-    plane2.o3d.position.z = progress - 1;
+  function setImagesProgress(progress) {
+    image1.uStrength.value = progress;
+    image2.uStrength.value = -1 + progress;
   }
 
   function animate() {
     requestAnimationFrame(animate);
+    const { renderer, camera, cameraCtrl, mouse } = three;
+
+    center.copy(mouse).divideScalar(2).addScalar(0.5);
+    lerpv2(image1.uCenter.value, center, 0.1);
+    lerpv2(image2.uCenter.value, center, 0.1);
 
     updateProgress();
 
-    const tiltX = lerp(planes.rotation.x, -mouse.y * 0.2, 0.1);
-    const tiltY = lerp(planes.rotation.y, mouse.x * 0.2, 0.1);
-    planes.rotation.set(tiltX, tiltY, 0);
-
+    if (cameraCtrl) cameraCtrl.update();
     renderer.render(scene, camera);
-  }
-
-  let resizeTimeout;
-  function onResize() {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(updateSize, 200);
-  }
-
-  function updateSize() {
-    screen.width = window.innerWidth;
-    screen.height = window.innerHeight;
-    screen.ratio = screen.width / screen.height;
-    if (renderer && camera) {
-      renderer.setSize(screen.width, screen.height);
-      camera.aspect = screen.ratio;
-      camera.updateProjectionMatrix();
-      const wsize = getRendererSize();
-      screen.wWidth = wsize[0]; screen.wHeight = wsize[1];
-    }
-    if (plane1) plane1.resize();
-    if (plane2) plane2.resize();
-  }
-
-  function getRendererSize() {
-    const vFOV = (camera.fov * Math.PI) / 180;
-    const h = 2 * Math.tan(vFOV / 2) * Math.abs(camera.position.z);
-    const w = h * camera.aspect;
-    return [w, h];
   }
 
   function loadTexture(img, index) {
@@ -213,7 +153,7 @@ function App() {
       loader.load(
         img.src,
         texture => {
-          textures[index] = texture;
+          img.texture = texture;
           resolve(texture);
         }
       );
@@ -221,189 +161,108 @@ function App() {
   }
 }
 
-class AnimatedPlane {
-  constructor(params) {
-    for (const [key, value] of Object.entries(params)) {
-      this[key] = value;
-    }
-    this.o3d = new Object3D();
-    this.uProgress = { value: 0 };
-    this.uvScale = new Vector2();
+function ZoomBlurImage({ three }) {
+  let geometry, material, mesh;
 
-    this.initMaterial();
-    this.initPlane();
-  }
+  const uMap = { value: null };
+  const uCenter = { value: new Vector2(0.5, 0.5) };
+  const uStrength = { value: -1 };
+  const uUVOffset = { value: new Vector2(0, 0) };
+  const uUVScale = { value: new Vector2(1, 1) };
 
-  initMaterial() {
-    this.material = new MeshBasicMaterial({
-      side: DoubleSide,
+  init();
+
+  return { geometry, material, mesh, uCenter, uStrength, setMap, resize };
+
+  function init(params) {
+    geometry = new PlaneBufferGeometry(1, 1, 1, 1);
+
+    material = new ShaderMaterial({
       transparent: true,
-      map: this.texture,
-      onBeforeCompile: shader => {
-        shader.uniforms.progress = this.uProgress;
-        shader.uniforms.uvScale = { value: this.uvScale };
-        shader.vertexShader = `
-          uniform float progress;
-          uniform vec2 uvScale;
+      uniforms: {
+        map: uMap,
+        center: uCenter,
+        strength: uStrength,
+        uvOffset: uUVOffset,
+        uvScale: uUVScale,
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      // adapted from from https://github.com/evanw/glfx.js
+      fragmentShader: `
+        uniform sampler2D map;
+        uniform vec2 center;
+        uniform float strength;
+        uniform vec2 uvOffset;
+        uniform vec2 uvScale;
+        varying vec2 vUv;
 
-          attribute vec3 offset;
-          attribute vec3 rotation;
-          attribute vec2 uvOffset;
+        float random(vec3 scale, float seed) {
+          /* use the fragment position for a different seed per-pixel */
+          return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
+        }
+        
+        void main() {
+          vec2 tUv = vUv * uvScale + uvOffset;
+          if (abs(strength) > 0.001) {
+            vec4 color = vec4(0.0);
+            float total = 0.0;
+            vec2 toCenter = center * uvScale + uvOffset - tUv;
+            
+            /* randomize the lookup values to hide the fixed number of samples */
+            float offset = random(vec3(12.9898, 78.233, 151.7182), 0.0);
+            
+            for (float t = 0.0; t <= 20.0; t++) {
+              float percent = (t + offset) / 20.0;
+              float weight = 2.0 * (percent - percent * percent);
+              vec4 texel = texture2D(map, tUv + toCenter * percent * strength);
 
-          mat3 rotationMatrixXYZ(vec3 r)
-          {
-            float cx = cos(r.x);
-            float sx = sin(r.x);
-            float cy = cos(r.y);
-            float sy = sin(r.y);
-            float cz = cos(r.z);
-            float sz = sin(r.z);
+              /* switch to pre-multiplied alpha to correctly blur transparent images */
+              texel.rgb *= texel.a;
 
-            return mat3(
-               cy * cz, cx * sz + sx * sy * cz, sx * sz - cx * sy * cz,
-              -cy * sz, cx * cz - sx * sy * sz, sx * cz + cx * sy * sz,
-                    sy,               -sx * cy,                cx * cy
-            );
+              color += texel * weight;
+              total += weight;
+            }
+
+            gl_FragColor = color / total;
+
+            /* switch back from pre-multiplied alpha */
+            gl_FragColor.rgb /= gl_FragColor.a + 0.00001;
+            gl_FragColor.a = 1.0 - abs(strength);
+          } else {
+            gl_FragColor = texture2D(map, tUv);
           }
-        ` + shader.vertexShader;
-
-        shader.vertexShader = shader.vertexShader.replace('#include <uv_vertex>', `
-          #include <uv_vertex>
-          vUv = vUv * uvScale + uvOffset;
-        `);
-
-        shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `
-          mat3 rotMat = rotationMatrixXYZ(progress * rotation);
-          transformed = rotMat * transformed;
-
-          vec4 mvPosition = vec4(transformed, 1.0);
-          #ifdef USE_INSTANCING
-            mvPosition = instanceMatrix * mvPosition;
-          #endif
-
-          mvPosition.xyz += progress * offset;
-
-          mvPosition = modelViewMatrix * mvPosition;
-          gl_Position = projectionMatrix * mvPosition;
-        `);
-      }
+        }
+      `,
     });
+
+    mesh = new Mesh(geometry, material);
   }
 
-  initPlane() {
-    const { width, wWidth, wHeight } = this.screen;
-    this.wSize = this.size * wWidth / width;
-    this.nx = Math.ceil(wWidth / this.wSize) + 1;
-    this.ny = Math.ceil(wHeight / this.wSize) + 1;
-    this.icount = this.nx * this.ny;
+  function setMap(value) {
+    uMap.value = value;
+    resize();
+  }
 
-    this.initGeometry();
-    this.initUV();
-    this.initAnimAttributes();
-
-    if (this.imesh) {
-      this.o3d.remove(this.imesh);
+  function resize() {
+    mesh.scale.set(three.size.wWidth, three.size.wHeight, 1);
+    const iWidth = uMap.value.image.width;
+    const iHeight = uMap.value.image.height;
+    const iRatio = iWidth / iHeight;
+    uUVOffset.value.set(0, 0);
+    uUVScale.value.set(1, 1);
+    if (iRatio > three.size.ratio) {
+      uUVScale.value.x = three.size.ratio / iRatio;
+      uUVOffset.value.x = (1 - uUVScale.value.x) / 2;
+    } else {
+      uUVScale.value.y = iRatio / three.size.ratio;
+      uUVOffset.value.y = (1 - uUVScale.value.y) / 2;
     }
-    this.imesh = new InstancedMesh(this.bGeometry, this.material, this.icount);
-    this.o3d.add(this.imesh);
-
-    const dummy = new Object3D();
-    let index = 0;
-    let x = -(wWidth - (wWidth - this.nx * this.wSize)) / 2 + this.dx;
-    for (let i = 0; i < this.nx; i++) {
-      let y = -(wHeight - (wHeight - this.ny * this.wSize)) / 2 + this.dy;
-      for (let j = 0; j < this.ny; j++) {
-        dummy.position.set(x, y, 0);
-        dummy.updateMatrix();
-        this.imesh.setMatrixAt(index++, dummy.matrix);
-        y += this.wSize;
-      }
-      x += this.wSize;
-    }
-  }
-
-  initGeometry() {
-    // square
-    const geometry = new Geometry();
-    geometry.vertices.push(new Vector3(0, 0, 0));
-    geometry.vertices.push(new Vector3(this.wSize, 0, 0));
-    geometry.vertices.push(new Vector3(0, this.wSize, 0));
-    geometry.vertices.push(new Vector3(this.wSize, this.wSize, 0));
-    geometry.faces.push(new Face3(0, 2, 1));
-    geometry.faces.push(new Face3(2, 3, 1));
-
-    geometry.faceVertexUvs[0].push([
-      new Vector2(0, 0),
-      new Vector2(0, 1),
-      new Vector2(1, 0)
-    ]);
-    geometry.faceVertexUvs[0].push([
-      new Vector2(0, 1),
-      new Vector2(1, 1),
-      new Vector2(1, 0)
-    ]);
-
-    // geometry.computeFaceNormals();
-    // geometry.computeVertexNormals();
-
-    // center
-    this.dx = this.wSize / 2;
-    this.dy = this.wSize / 2;
-    geometry.translate(-this.dx, -this.dy, 0);
-
-    this.bGeometry = new BufferGeometry().fromGeometry(geometry);
-  }
-
-  initAnimAttributes() {
-    const { randFloat: rnd, randFloatSpread: rndFS } = MathUtils;
-    const v3 = new Vector3();
-
-    const offsets = new Float32Array(this.icount * 3);
-    for (let i = 0; i < offsets.length; i += 3) {
-      if (this.anim === 1) v3.set(rndFS(10), rnd(50, 100), rnd(20, 50)).toArray(offsets, i);
-      else v3.set(rndFS(20), rndFS(20), rnd(20, 200)).toArray(offsets, i);
-    }
-    this.bGeometry.setAttribute('offset', new InstancedBufferAttribute(offsets, 3));
-
-    const rotations = new Float32Array(this.icount * 3);
-    const angle = Math.PI * 4;
-    for (let i = 0; i < rotations.length; i += 3) {
-      rotations[i] = rndFS(angle);
-      rotations[i + 1] = rndFS(angle);
-      rotations[i + 2] = rndFS(angle);
-    }
-    this.bGeometry.setAttribute('rotation', new InstancedBufferAttribute(rotations, 3));
-  }
-
-  initUV() {
-    const ratio = this.nx / this.ny;
-    const tRatio = this.texture.image.width / this.texture.image.height;
-    if (ratio > tRatio) this.uvScale.set(1 / this.nx, (tRatio / ratio) / this.ny);
-    else this.uvScale.set((ratio / tRatio) / this.nx, 1 / this.ny);
-    const nW = this.uvScale.x * this.nx;
-    const nH = this.uvScale.y * this.ny;
-
-    const v2 = new Vector2();
-    const uvOffsets = new Float32Array(this.icount * 2);
-    for (let i = 0; i < this.nx; i++) {
-      for (let j = 0; j < this.ny; j++) {
-        v2.set(
-          this.uvScale.x * i + (1 - nW) / 2,
-          this.uvScale.y * j + (1 - nH) / 2
-        ).toArray(uvOffsets, (i * this.ny + j) * 2);
-      }
-    }
-    this.bGeometry.setAttribute('uvOffset', new InstancedBufferAttribute(uvOffsets, 2));
-  }
-
-  setTexture(texture) {
-    this.texture = texture;
-    this.material.map = texture;
-    this.initUV();
-  }
-
-  resize() {
-    this.initPlane();
   }
 }
 
@@ -415,4 +274,7 @@ function lerp(a, b, x) {
   return a + x * (b - a);
 }
 
-App();
+export function lerpv2(v1, v2, amount) {
+  v1.x = lerp(v1.x, v2.x, amount);
+  v1.y = lerp(v1.y, v2.y, amount);
+};
