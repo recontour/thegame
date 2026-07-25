@@ -416,7 +416,7 @@ export default function LandingExperience() {
               margin: 0,
               maxWidth: "100%",
               fontSize: "clamp(1.55rem, 5.8vw, 1.9rem)",
-              fontWeight: 400,
+              fontWeight: 700,
               letterSpacing: "0.02em",
               lineHeight: 1.42,
               color: "rgba(255,255,255,0.78)",
