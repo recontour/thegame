@@ -1,8 +1,49 @@
 import type { Metadata, Viewport } from "next";
 
+/** Absolute base for OG/Twitter image URLs (Instagram/iMessage use these). */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000");
+
 export const metadata: Metadata = {
-  title: "thegame",
-  description: "thegame",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "raconteur",
+    template: "%s · raconteur",
+  },
+  description: "raconteur — for those who care",
+  applicationName: "raconteur",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: "raconteur",
+    title: "raconteur",
+    description: "raconteur — for those who care",
+    // Hero portrait for link previews (WhatsApp, iMessage, Instagram in-app, etc.)
+    images: [
+      {
+        url: "/hero.webp",
+        width: 1200,
+        height: 1600,
+        alt: "raconteur",
+        type: "image/webp",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "raconteur",
+    description: "raconteur — for those who care",
+    images: ["/hero.webp"],
+  },
+  // Helps some crawlers / PWA chrome
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export const viewport: Viewport = {
