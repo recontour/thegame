@@ -781,52 +781,58 @@ export default function LandingExperience() {
               display: "inline-flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "0.85rem",
+              justifyContent: "center",
+              gap: "0.9rem",
               textDecoration: "none",
               color: "#ffffff",
               WebkitTapHighlightColor: "transparent",
               cursor: "pointer",
-              padding: "1.1rem 1.75rem 1rem",
-              border: "1px solid rgba(255,255,255,0.45)",
-              borderRadius: 4,
-              background: "rgba(255,255,255,0.06)",
-              minWidth: 180,
+              padding: "1.25rem",
+              width: "min(72vw, 220px)",
+              height: "min(72vw, 220px)",
+              aspectRatio: "1 / 1",
               boxSizing: "border-box",
+              border: "none",
+              borderRadius: 22,
+              // Classic Instagram gradient (purple → pink → orange → yellow)
+              background:
+                "linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)",
+              boxShadow: "0 12px 40px rgba(188, 24, 136, 0.35)",
             }}
           >
-            {/* Simple Instagram glyph — no external icon pack */}
             <svg
-              width="28"
-              height="28"
+              width="56"
+              height="56"
               viewBox="0 0 24 24"
               fill="none"
               aria-hidden
             >
               <rect
-                x="2.5"
-                y="2.5"
-                width="19"
-                height="19"
+                x="2.25"
+                y="2.25"
+                width="19.5"
+                height="19.5"
                 rx="5.5"
                 stroke="currentColor"
-                strokeWidth="1.5"
+                strokeWidth="1.6"
               />
               <circle
                 cx="12"
                 cy="12"
-                r="4.25"
+                r="4.4"
                 stroke="currentColor"
-                strokeWidth="1.5"
+                strokeWidth="1.6"
               />
-              <circle cx="17.4" cy="6.6" r="1.15" fill="currentColor" />
+              <circle cx="17.5" cy="6.5" r="1.25" fill="currentColor" />
             </svg>
             <span
               style={{
                 fontFamily: UI_FONT,
-                fontSize: "0.72rem",
-                letterSpacing: "0.22em",
+                fontSize: "1rem",
+                letterSpacing: "0.28em",
                 textTransform: "uppercase",
-                color: "rgba(255,255,255,0.88)",
+                color: "#ffffff",
+                fontWeight: 500,
               }}
             >
               Instagram
@@ -834,9 +840,9 @@ export default function LandingExperience() {
             <span
               style={{
                 fontFamily: UI_FONT,
-                fontSize: "0.68rem",
-                letterSpacing: "0.06em",
-                color: "rgba(255,255,255,0.42)",
+                fontSize: "0.9rem",
+                letterSpacing: "0.04em",
+                color: "rgba(255,255,255,0.9)",
                 textTransform: "none",
               }}
             >
