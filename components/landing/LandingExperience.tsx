@@ -550,6 +550,22 @@ export default function LandingExperience() {
           </div>
         )}
 
+        {/* Image 3: darken top ~60% so body copy stays readable (subject at bottom) */}
+        {!isPieces && step === 2 && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 5,
+              pointerEvents: "none",
+              background:
+                "linear-gradient(to bottom, rgba(0,0,0,0.74) 0%, rgba(0,0,0,0.52) 34%, rgba(0,0,0,0.28) 52%, rgba(0,0,0,0.08) 60%, rgba(0,0,0,0) 68%)",
+              transition: "opacity 0.4s ease",
+            }}
+          />
+        )}
+
         {showPiecesCanvas && (
           <WebGLErrorBoundary onError={setWebglError}>
             <Canvas
