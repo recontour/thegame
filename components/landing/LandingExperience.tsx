@@ -8,7 +8,6 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import Link from "next/link";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Monsieur_La_Doulaise, Tangerine } from "next/font/google";
 import gsap from "gsap";
@@ -723,7 +722,7 @@ export default function LandingExperience() {
         )}
 
         <nav
-          aria-label="Experiences"
+          aria-label="Connect"
           style={{
             position: "absolute",
             inset: 0,
@@ -732,73 +731,84 @@ export default function LandingExperience() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: "1.75rem",
+            gap: "1.25rem",
             opacity: ctaOpacity,
             pointerEvents: ctaInteractive ? "auto" : "none",
             transform: `translate3d(0, ${(1 - ctaOpacity) * 16}px, 0)`,
             transition: reduced ? "none" : "opacity 0.2s linear",
           }}
         >
-          <p
-            style={{
-              margin: "0 0 0.35rem",
-              fontFamily: UI_FONT,
-              fontSize: "0.62rem",
-              letterSpacing: "0.36em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.34)",
-            }}
-          >
-            Enter
-          </p>
-          <Link
-            href="/gal"
+          <a
+            href="https://www.instagram.com/ashwinunderscore/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram @ashwinunderscore"
             style={{
               display: "inline-flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
-              minWidth: 168,
-              boxSizing: "border-box",
-              fontFamily: UI_FONT,
-              fontSize: "0.78rem",
-              letterSpacing: "0.36em",
-              textTransform: "uppercase",
-              color: "#ffffff",
+              gap: "0.85rem",
               textDecoration: "none",
-              padding: "0.95rem 2rem",
-              border: "1px solid rgba(255,255,255,0.55)",
-              borderRadius: 2,
-              background: "rgba(255,255,255,0.06)",
+              color: "#ffffff",
               WebkitTapHighlightColor: "transparent",
               cursor: "pointer",
-            }}
-          >
-            Gal
-          </Link>
-          <Link
-            href="/work"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 168,
-              boxSizing: "border-box",
-              fontFamily: UI_FONT,
-              fontSize: "0.78rem",
-              letterSpacing: "0.36em",
-              textTransform: "uppercase",
-              color: "#ffffff",
-              textDecoration: "none",
-              padding: "0.95rem 2rem",
-              border: "1px solid rgba(255,255,255,0.55)",
-              borderRadius: 2,
+              padding: "1.1rem 1.75rem 1rem",
+              border: "1px solid rgba(255,255,255,0.45)",
+              borderRadius: 4,
               background: "rgba(255,255,255,0.06)",
-              WebkitTapHighlightColor: "transparent",
-              cursor: "pointer",
+              minWidth: 180,
+              boxSizing: "border-box",
             }}
           >
-            Work
-          </Link>
+            {/* Simple Instagram glyph — no external icon pack */}
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden
+            >
+              <rect
+                x="2.5"
+                y="2.5"
+                width="19"
+                height="19"
+                rx="5.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="4.25"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <circle cx="17.4" cy="6.6" r="1.15" fill="currentColor" />
+            </svg>
+            <span
+              style={{
+                fontFamily: UI_FONT,
+                fontSize: "0.72rem",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.88)",
+              }}
+            >
+              Instagram
+            </span>
+            <span
+              style={{
+                fontFamily: UI_FONT,
+                fontSize: "0.68rem",
+                letterSpacing: "0.06em",
+                color: "rgba(255,255,255,0.42)",
+                textTransform: "none",
+              }}
+            >
+              @ashwinunderscore
+            </span>
+          </a>
         </nav>
       </div>
     </div>
