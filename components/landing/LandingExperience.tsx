@@ -337,8 +337,8 @@ export default function LandingExperience() {
   const showTitle = !isPieces && step === 0;
   const showBody = !isPieces && step > 0 && step < PIECES_STEP;
   const showAbout = isPieces;
-  // Image 6 (last photo) — lower placement, similar to title slide
-  const copyTop = showTitle ? "70%" : showBody && step === 5 ? "65%" : "8%";
+  // Title + image 6 — lower placement at 65%
+  const copyTop = showTitle || (showBody && step === 5) ? "65%" : "8%";
 
   const piecesLeave = reduced
     ? 1
@@ -461,7 +461,7 @@ export default function LandingExperience() {
           ref={copyRef}
           style={{
             position: "absolute",
-            // Title ~70%; image 6 copy ~65%; other body slides upper band
+            // Title + image 6 at 65%; other body slides upper band
             top: copyTop,
             left: 0,
             right: 0,
