@@ -119,30 +119,50 @@ export default function LandingExperience() {
     preloadPieces ? LANDING_PIECES_HERO_SRC : null,
   );
 
+  const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+  /** Blocks double-advance on trackpads (1→3 skips). */
+  const storyLockUntil = useRef(0);
+  const STORY_STEP_MS = 700;
+
   const enterPieces = useCallback(() => {
     introRef.current.pieces = 0;
     piecesProgress.current = 0;
-    piecesTarget.current = 0;
+    piecesTarget.current = 0.04;
     setPiecesUi(0);
     gsap.killTweensOf(introRef.current);
     gsap.to(introRef.current, {
       pieces: 1,
-      duration: 2.4,
-      ease: "sine.inOut",
+      duration: 1.35,
+      ease: "power2.out",
     });
+  }, []);
+
+  const leavePiecesToStory = useCallback(() => {
+    stepRef.current = STORY_SLIDE_COUNT - 1;
+    setStep(STORY_SLIDE_COUNT - 1);
+    gsap.killTweensOf(introRef.current);
+    introRef.current.pieces = 0;
+    piecesProgress.current = 0;
+    piecesTarget.current = 0;
+    setPiecesUi(0);
+    storyLockUntil.current = performance.now() + STORY_STEP_MS;
   }, []);
 
   const goNext = useCallback(() => {
     if (scrollLocked) return;
     const s = stepRef.current;
+    const now = performance.now();
 
-    // On pieces beat: further up = assemble / CTAs
     if (s === PIECES_STEP) {
-      piecesTarget.current = Math.min(1, piecesTarget.current + 0.14);
+      // Gentle discrete nudge (keys / intentional flick)
+      piecesTarget.current = clamp01(piecesTarget.current + 0.2);
       return;
     }
 
+    // Exactly one story step — ignore bursty wheel/trackpad events
+    if (now < storyLockUntil.current) return;
     if (s < PIECES_STEP) {
+      storyLockUntil.current = now + STORY_STEP_MS;
       const next = s + 1;
       stepRef.current = next;
       setStep(next);
@@ -153,56 +173,112 @@ export default function LandingExperience() {
   const goPrev = useCallback(() => {
     if (scrollLocked) return;
     const s = stepRef.current;
+    const now = performance.now();
 
-    // On pieces: first unwind assemble, then return to image 6
     if (s === PIECES_STEP) {
-      if (piecesTarget.current > 0.04) {
-        piecesTarget.current = Math.max(0, piecesTarget.current - 0.14);
+      if (piecesTarget.current > 0.05) {
+        piecesTarget.current = clamp01(piecesTarget.current - 0.2);
         return;
       }
-      stepRef.current = STORY_SLIDE_COUNT - 1;
-      setStep(STORY_SLIDE_COUNT - 1);
-      gsap.killTweensOf(introRef.current);
-      introRef.current.pieces = 0;
-      piecesProgress.current = 0;
-      piecesTarget.current = 0;
-      setPiecesUi(0);
+      leavePiecesToStory();
       return;
     }
 
+    if (now < storyLockUntil.current) return;
     if (s > 0) {
+      storyLockUntil.current = now + STORY_STEP_MS;
       const next = s - 1;
       stepRef.current = next;
       setStep(next);
     }
-  }, [scrollLocked]);
+  }, [scrollLocked, leavePiecesToStory]);
 
-  // Single continuous navigation for all 7 beats
+  // Story: one step per gesture. Pieces: soft continuous scrub.
   useEffect(() => {
     let touchY0: number | null = null;
-    let lastWheel = 0;
+    let touchAcc = 0;
+    let piecesDragging = false;
+    let wheelAcc = 0;
+    let wheelResetTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (scrollLocked) return;
-      const now = performance.now();
-      if (now - lastWheel < 380) return;
-      if (Math.abs(e.deltaY) < 8) return;
-      lastWheel = now;
-      if (e.deltaY > 0) goNext();
+
+      // 7th beat — gentler continuous assemble
+      if (stepRef.current === PIECES_STEP) {
+        piecesTarget.current = clamp01(
+          piecesTarget.current + e.deltaY * 0.00115,
+        );
+        return;
+      }
+
+      // Story: accumulate into one step, then lock (stops 1→3 skips)
+      if (performance.now() < storyLockUntil.current) {
+        wheelAcc = 0;
+        return;
+      }
+
+      wheelAcc += e.deltaY;
+      if (wheelResetTimer) clearTimeout(wheelResetTimer);
+      wheelResetTimer = setTimeout(() => {
+        wheelAcc = 0;
+      }, 180);
+
+      // Need a clear intentional scroll, not trackpad noise
+      if (Math.abs(wheelAcc) < 48) return;
+      const dir = wheelAcc;
+      wheelAcc = 0;
+      if (dir > 0) goNext();
       else goPrev();
     };
 
     const onTouchStart = (e: TouchEvent) => {
       touchY0 = e.touches[0]?.clientY ?? null;
+      touchAcc = 0;
+      piecesDragging = stepRef.current === PIECES_STEP;
     };
-    const onTouchEnd = (e: TouchEvent) => {
+
+    const onTouchMove = (e: TouchEvent) => {
       if (scrollLocked || touchY0 == null) return;
-      const y = e.changedTouches[0]?.clientY;
+      const y = e.touches[0]?.clientY;
       if (y == null) return;
       const dy = touchY0 - y;
+      touchY0 = y;
+
+      if (piecesDragging && stepRef.current === PIECES_STEP) {
+        // Softer drag on about-me
+        piecesTarget.current = clamp01(piecesTarget.current + dy * 0.0019);
+        return;
+      }
+      touchAcc += dy;
+    };
+
+    const onTouchEnd = () => {
+      if (scrollLocked) {
+        touchY0 = null;
+        touchAcc = 0;
+        piecesDragging = false;
+        return;
+      }
+
+      if (piecesDragging) {
+        piecesDragging = false;
+        // Swipe down near rest → back to image 6
+        if (touchAcc < -56 && piecesTarget.current < 0.07) {
+          leavePiecesToStory();
+        }
+        touchY0 = null;
+        touchAcc = 0;
+        return;
+      }
+
+      // Story: one step only if flick is clear
+      const dy = touchAcc;
       touchY0 = null;
-      if (Math.abs(dy) < 40) return;
+      touchAcc = 0;
+      if (Math.abs(dy) < 52) return;
+      if (performance.now() < storyLockUntil.current) return;
       if (dy > 0) goNext();
       else goPrev();
     };
@@ -229,26 +305,29 @@ export default function LandingExperience() {
 
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
     window.addEventListener("keydown", onKey);
     return () => {
+      if (wheelResetTimer) clearTimeout(wheelResetTimer);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("keydown", onKey);
     };
-  }, [scrollLocked, goNext, goPrev]);
+  }, [scrollLocked, goNext, goPrev, leavePiecesToStory]);
 
-  // Smooth pieces assemble progress
+  // Medium follow — smooth but not laggy
   useEffect(() => {
     if (!isPieces) return;
     let raf = 0;
     const loop = () => {
-      const a = 1 - Math.exp(-8 * 0.016);
+      const a = 1 - Math.exp(-11 * 0.016);
       piecesProgress.current +=
         (piecesTarget.current - piecesProgress.current) * a;
       setPiecesUi((prev) =>
-        Math.abs(prev - piecesProgress.current) > 0.012
+        Math.abs(prev - piecesProgress.current) > 0.01
           ? piecesProgress.current
           : prev,
       );
@@ -673,7 +752,7 @@ function PiecesProgressBridge({
   target: MutableRefObject<number>;
 }) {
   useFrame((_, dt) => {
-    const a = 1 - Math.exp(-8 * Math.min(dt, 0.05));
+    const a = 1 - Math.exp(-11 * Math.min(dt, 0.05));
     progress.current += (target.current - progress.current) * a;
   });
   return null;
