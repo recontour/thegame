@@ -12,6 +12,11 @@ type ShatterPlaneProps = {
   getProgress: () => number;
   /** Intro reveal 0..1 — pieces fade/rise in after welcome text (DOM-driven). */
   getIntroReveal?: () => number;
+  /**
+   * How far down the stage the copy ends (0 = top, 1 = bottom).
+   * Measured once / on resize — not every frame. Keeps the pile under the text.
+   */
+  getTextClearFromTop?: () => number;
 };
 
 const MAX_MOBILE = 160;
@@ -27,6 +32,7 @@ export default function ShatterPlane({
   texture,
   getProgress,
   getIntroReveal,
+  getTextClearFromTop,
 }: ShatterPlaneProps) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -285,17 +291,29 @@ export default function ShatterPlane({
     if (groupRef.current) {
       /**
        * Intro travel (0→1 over ~10s):
-       *   start — visible pile at the BOTTOM of the frame (in-view)
-       *   end   — final rest pose you locked in (mid-low)
+       *   start — bottom of frame (in-view)
+       *   end   — final rest parked just BELOW measured copy bottom
        * Scroll assemble → full hero. Exit → CTAs.
        */
       const vh = Math.max(viewport.height, 0.01);
 
-      const finalRestY = -vh * 0.36;
+      // 0 top → 1 bottom of stage; default ~mid if measure not ready
+      const clearFromTop = getTextClearFromTop
+        ? getTextClearFromTop()
+        : 0.5;
+      // World Y of the clear line (Three: +Y up, 0 = center)
+      const clearWorldY = vh * (0.5 - clearFromTop);
+
       const finalRestScale = 0.58;
-      // In-frame bottom band (not off-screen)
-      const startY = -vh * 0.5;
+      // Top of scaled grid ≈ y + scale * (vh/2); sit snug under the copy
+      const pad = vh * 0.012;
+      let finalRestY =
+        clearWorldY - pad - finalRestScale * (vh * 0.5);
+      // Allow sitting higher (closer to text) than before
+      finalRestY = THREE.MathUtils.clamp(finalRestY, -vh * 0.58, -vh * 0.14);
+
       const startScale = 0.46;
+      const startY = Math.min(finalRestY - vh * 0.12, -vh * 0.52);
 
       const introY = THREE.MathUtils.lerp(startY, finalRestY, travel);
       const introScale = THREE.MathUtils.lerp(startScale, finalRestScale, travel);

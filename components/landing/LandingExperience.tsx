@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Canvas, useFrame } from "@react-three/fiber";
+import { Monsieur_La_Doulaise, Tangerine } from "next/font/google";
 import gsap from "gsap";
 import {
   getMobileDpr,
@@ -16,6 +17,20 @@ import {
   smoothstep,
   useLandingProgress,
 } from "@/components/landing/useLandingProgress";
+
+/** Script display — manifesto body. */
+const tangerine = Tangerine({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  display: "swap",
+});
+
+/** Script display — heading (raconteur line). */
+const monsieur = Monsieur_La_Doulaise({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 function ProgressBridge({
   tick,
@@ -37,30 +52,62 @@ function prefersReducedMotion() {
   }
 }
 
-const FONT =
+const UI_FONT =
   'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+const MANIFESTO_LINES = [
+  "Everyone wants to be seen.",
+  "Some chase money. Some chase fame.",
+  "In the long pursuit of our own dreams, we stop noticing the small things that quietly keep the world standing.",
+  "I am not trying to photograph success.",
+  "These are moments that almost never get a camera pointed at them; the people who carry the weight, take the risk, and still go unnamed.",
+  "I hope these photographs make you look at them with respect instead of looking past them.",
+] as const;
 
 /**
  * Landing story:
- * blank → welcome text in → glass pieces in → swipe assemble → exit → Gal / Work.
+ * blank → type reveal → glass pieces → swipe assemble → exit → Gal / Work.
  *
- * Text is pure DOM (CSS opacity/transform) — free on mobile GPU.
- * WebGL only runs the shatter plane; intro reveal is a float uniform.
+ * Text: GSAP stagger on DOM (opacity + translate3d only) — free vs WebGL.
  */
 export default function LandingExperience() {
   const [mounted, setMounted] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [dpr, setDpr] = useState<number | [number, number]>(1);
-  // DOM-driven intro (0..1) — GSAP mutates refs, React state for text chrome only
-  // Avoid key name `text` — GSAP TextPlugin reserves it.
-  const introRef = useRef({ welcome: 0, pieces: 0 });
+
+  // pieces intro only (0..1) — avoid key name `text` (GSAP TextPlugin)
+  const introRef = useRef({ pieces: 0 });
   const piecesSnappedRef = useRef(false);
-  const [textIn, setTextIn] = useState(0);
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLDivElement>(null);
+  const titleLeadRef = useRef<HTMLSpanElement>(null);
+  const titleTagRef = useRef<HTMLSpanElement>(null);
+  const lineRefs = useRef<(HTMLParagraphElement | null)[]>([]);
+  /** Copy bottom as fraction of stage height from top — cheap, not per-frame. */
+  const textClearFromTopRef = useRef(0.5);
 
   const [webglError, setWebglError] = useState<string | null>(null);
 
   const getIntroReveal = useCallback(() => introRef.current.pieces, []);
+  const getTextClearFromTop = useCallback(
+    () => textClearFromTopRef.current,
+    [],
+  );
+
+  /** One rect read — safe on resize / font load; does not run in the render loop. */
+  const measureTextClear = useCallback(() => {
+    const stage = stageRef.current;
+    const copy = copyRef.current;
+    if (!stage || !copy) return;
+    const sr = stage.getBoundingClientRect();
+    if (sr.height < 1) return;
+    const cr = copy.getBoundingClientRect();
+    const ratio = (cr.bottom - sr.top) / sr.height;
+    // Tiny pad under last line — pieces can sit closer without covering glyphs
+    textClearFromTopRef.current = Math.min(0.78, Math.max(0.28, ratio + 0.008));
+  }, []);
 
   /** User scrolled — finish the smoke-in now so the story never feels stuck. */
   const snapPiecesIn = useCallback(() => {
@@ -81,9 +128,23 @@ export default function LandingExperience() {
   const { texture, status } = useTextureLoader(LANDING_HERO_SRC);
   const { uiProgress, tick, getProgress } = useLandingProgress({
     disabled: reduced,
-    locked: false, // never freeze the page — scroll always works
+    locked: false,
     onScrollIntent: snapPiecesIn,
   });
+
+  useEffect(() => {
+    measureTextClear();
+    const onResize = () => measureTextClear();
+    window.addEventListener("resize", onResize);
+    const t1 = window.setTimeout(measureTextClear, 120);
+    const t2 = window.setTimeout(measureTextClear, 600);
+    void document.fonts?.ready?.then(() => measureTextClear());
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [measureTextClear]);
 
   useEffect(() => {
     setMounted(true);
@@ -92,47 +153,89 @@ export default function LandingExperience() {
     setMobile(isMobileDevice());
     setDpr(getMobileDpr());
 
+    // Fonts / first paint may shift copy height
+    measureTextClear();
+    requestAnimationFrame(() => measureTextClear());
+
+    const state = introRef.current;
+    const titleLead = titleLeadRef.current;
+    const titleTag = titleTagRef.current;
+    const lines = lineRefs.current.filter(Boolean) as HTMLParagraphElement[];
+
     if (motionOff) {
-      introRef.current.welcome = 1;
-      introRef.current.pieces = 1;
+      state.pieces = 1;
       piecesSnappedRef.current = true;
-      setTextIn(1);
+      if (titleLead) gsap.set(titleLead, { opacity: 1, y: 0, clearProps: "transform" });
+      if (titleTag) gsap.set(titleTag, { opacity: 1, y: 0, clearProps: "transform" });
+      if (lines.length) gsap.set(lines, { opacity: 1, y: 0, clearProps: "transform" });
       return;
     }
 
-    // blank → text → pieces smoke over 10s (always alive, no dead wait)
-    // early scroll → snap pieces to full visibility and continue
-    const state = introRef.current;
-    state.welcome = 0;
     state.pieces = 0;
     piecesSnappedRef.current = false;
-    setTextIn(0);
 
-    const tl = gsap.timeline({
-      defaults: { ease: "power2.out" },
-    });
+    if (titleLead) gsap.set(titleLead, { opacity: 0, y: 14 });
+    if (titleTag) gsap.set(titleTag, { opacity: 0, y: 14 });
+    if (lines.length) gsap.set(lines, { opacity: 0, y: 16 });
 
-    // 1) Welcome text after a short black beat
-    tl.to(
-      state,
-      {
-        welcome: 1,
-        duration: 1.15,
-        ease: "power3.out",
-        onUpdate: () => setTextIn(state.welcome),
-      },
-      0.3,
-    );
+    const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
 
-    // 2) Seed a little visibility so the first shards are on-screen ASAP,
-    //    then a true 10s linear travel bottom → final rest (wall-clock = duration)
+    // 1) "raconteur"
+    if (titleLead) {
+      tl.to(
+        titleLead,
+        {
+          opacity: 1,
+          y: 0,
+          duration: 1.6,
+          ease: "power2.out",
+        },
+        0.35,
+      );
+    }
+
+    // 2) After 2s hold — "for those who care"
+    if (titleTag) {
+      tl.to(
+        titleTag,
+        {
+          opacity: 1,
+          y: 0,
+          duration: 1.6,
+          ease: "power2.out",
+        },
+        "+=2",
+      );
+    }
+
+    // 3) Manifesto — default 2s between lines; 3s after the longer paragraphs
+    if (lines.length) {
+      const gapBefore = [0, 2, 2, 3, 2, 3];
+      tl.addLabel("manifesto", ">");
+      let t = 0;
+      lines.forEach((line, i) => {
+        t += gapBefore[i] ?? 2;
+        tl.to(
+          line,
+          {
+            opacity: 1,
+            y: 0,
+            duration: 1.1,
+            ease: "power2.out",
+          },
+          `manifesto+=${t}`,
+        );
+      });
+    }
+
+    // 4) Pieces: visible ASAP at bottom, true 10s linear travel to rest
     tl.set(state, { pieces: 0.04 }, 0.2);
     tl.to(
       state,
       {
         pieces: 1,
         duration: 10,
-        ease: "none", // linear — feels like a full 10s, not ~6s with ease-in-out
+        ease: "none",
       },
       0.2,
     );
@@ -140,29 +243,22 @@ export default function LandingExperience() {
     return () => {
       tl.kill();
       gsap.killTweensOf(state);
+      if (titleLead) gsap.killTweensOf(titleLead);
+      if (titleTag) gsap.killTweensOf(titleTag);
+      if (lines.length) gsap.killTweensOf(lines);
     };
   }, []);
 
-  // Scroll-linked exit for welcome (DOM only — no extra GPU work)
-  const titleLeave = reduced ? 0 : 1 - smoothstep(0.05, 0.3, uiProgress);
-  const bodyLeave = reduced ? 0 : 1 - smoothstep(0.08, 0.38, uiProgress);
-
-  const titleOpacity = textIn * titleLeave;
-  const bodyOpacity = textIn * bodyLeave;
-  const welcomeAlive = titleOpacity > 0.02 || bodyOpacity > 0.02;
+  // Scroll leave — one soft block (cheap; no per-line work on scroll)
+  const copyLeave = reduced ? 1 : 1 - smoothstep(0.05, 0.36, uiProgress);
+  const copyScrollY = (1 - copyLeave) * -36;
+  const welcomeAlive = copyLeave > 0.02;
 
   const ctaOpacity = reduced ? 1 : smoothstep(0.72, 0.9, uiProgress);
   const ctaInteractive = ctaOpacity > 0.45;
 
   const showCanvas = mounted && !reduced && !webglError;
   const heroStillOpacity = reduced ? 0.9 : 0;
-
-  // Intro rise + scroll leave (title slightly ahead of body)
-  const textEnterY = (1 - textIn) * 18;
-  const titleScrollY = (1 - titleLeave) * -32;
-  const bodyScrollY = (1 - bodyLeave) * -40;
-  const titleScale = 1 - (1 - titleLeave) * 0.05;
-  const titleTracking = 0.08 + (1 - titleLeave) * 0.12;
 
   return (
     <div
@@ -179,6 +275,7 @@ export default function LandingExperience() {
       }}
     >
       <div
+        ref={stageRef}
         style={{
           position: "relative",
           width: "100%",
@@ -223,6 +320,7 @@ export default function LandingExperience() {
                   texture={texture}
                   getProgress={getProgress}
                   getIntroReveal={getIntroReveal}
+                  getTextClearFromTop={getTextClearFromTop}
                 />
               )}
             </Canvas>
@@ -246,73 +344,91 @@ export default function LandingExperience() {
           />
         )}
 
-        {/* Welcome + manifesto — blank first, then CSS-composited in/out */}
+        {/* Copy — GSAP intro on nodes; scroll leave is one wrapper fade.
+            No maxHeight/overflow clip — that was cutting the last manifesto line. */}
         <div
+          ref={copyRef}
           aria-hidden={!welcomeAlive}
           style={{
             position: "absolute",
-            top: "6%",
+            top: "8%",
             left: 0,
             right: 0,
             zIndex: 10,
             textAlign: "left",
-            padding: "0 1.25rem 0 1rem", // ~pl-4 left, light right inset
+            padding: "0 1.25rem 1.25rem 1rem",
             pointerEvents: "none",
-            maxHeight: "58%",
-            overflow: "hidden",
+            opacity: copyLeave,
+            transform: `translate3d(0, ${copyScrollY}px, 0)`,
+            willChange: "opacity, transform",
           }}
         >
           <h1
+            className={monsieur.className}
             style={{
-              margin: 0,
-              fontFamily: FONT,
-              fontSize: "clamp(1.25rem, 5vw, 1.5rem)",
+              // Match stage top: 8% — dvh so gap is height-based
+              margin: "0 0 8dvh",
+              fontSize: "clamp(2.35rem, 9.5vw, 3.1rem)",
               fontWeight: 400,
-              letterSpacing: `${titleTracking}em`,
-              lineHeight: 1.35,
-              color: "rgba(255,255,255,0.92)",
-              opacity: titleOpacity,
-              transform: `translate3d(0, ${textEnterY + titleScrollY}px, 0) scale(${titleScale})`,
-              willChange: "opacity, transform",
+              letterSpacing: `${0.02 + (1 - copyLeave) * 0.06}em`,
+              lineHeight: 1.15,
+              color: "#ffffff",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.12em",
             }}
           >
-            Welcome to my page
+            <span
+              ref={titleLeadRef}
+              style={{
+                display: "block",
+                opacity: reduced ? 1 : 0,
+                willChange: "opacity, transform",
+              }}
+            >
+              raconteur
+            </span>
+            <span
+              ref={titleTagRef}
+              style={{
+                display: "block",
+                fontSize: "0.92em",
+                opacity: reduced ? 1 : 0,
+                willChange: "opacity, transform",
+              }}
+            >
+              for those who care
+            </span>
           </h1>
           <div
+            className={tangerine.className}
             style={{
-              margin: "1.25rem 0 0",
+              margin: 0,
               maxWidth: "100%",
-              fontFamily: FONT,
-              fontSize: "clamp(0.88rem, 3.4vw, 1rem)",
+              fontSize: "clamp(1.55rem, 5.8vw, 1.9rem)",
               fontWeight: 400,
-              letterSpacing: "0.015em",
-              lineHeight: 1.62,
-              color: "rgba(255,255,255,0.62)",
-              opacity: bodyOpacity,
-              transform: `translate3d(0, ${textEnterY * 1.1 + bodyScrollY}px, 0)`,
-              willChange: "opacity, transform",
+              letterSpacing: "0.02em",
+              lineHeight: 1.42,
+              color: "rgba(255,255,255,0.78)",
             }}
           >
-            <p style={{ margin: "0 0 0.75em" }}>Everyone wants to be seen.</p>
-            <p style={{ margin: "0 0 0.75em" }}>
-              Some chase money. Some chase fame.
-            </p>
-            <p style={{ margin: "0 0 0.75em" }}>
-              In the long pursuit of our own dreams, we stop noticing the small
-              things that quietly keep the world standing.
-            </p>
-            <p style={{ margin: "0 0 0.75em" }}>
-              I am not trying to photograph success.
-            </p>
-            <p style={{ margin: "0 0 0.75em" }}>
-              These are moments that almost never get a camera pointed at them;
-              the people who carry the weight, take the risk, and still go
-              unnamed.
-            </p>
-            <p style={{ margin: 0 }}>
-              I hope these photographs make you look at them with respect
-              instead of looking past them.
-            </p>
+            {MANIFESTO_LINES.map((line, i) => (
+              <p
+                key={line}
+                ref={(el) => {
+                  lineRefs.current[i] = el;
+                }}
+                style={{
+                  margin: i === MANIFESTO_LINES.length - 1 ? 0 : "0 0 0.28em",
+                  opacity: reduced ? 1 : 0,
+                  willChange: "opacity, transform",
+                }}
+              >
+                {line}
+              </p>
+            ))}
           </div>
         </div>
 
@@ -336,7 +452,7 @@ export default function LandingExperience() {
           <p
             style={{
               margin: "0 0 0.5rem",
-              fontFamily: FONT,
+              fontFamily: UI_FONT,
               fontSize: "0.62rem",
               letterSpacing: "0.36em",
               textTransform: "uppercase",
@@ -348,7 +464,7 @@ export default function LandingExperience() {
           <Link
             href="/gal"
             style={{
-              fontFamily: FONT,
+              fontFamily: UI_FONT,
               fontSize: "0.82rem",
               letterSpacing: "0.42em",
               textTransform: "uppercase",
@@ -363,7 +479,7 @@ export default function LandingExperience() {
           <Link
             href="/work"
             style={{
-              fontFamily: FONT,
+              fontFamily: UI_FONT,
               fontSize: "0.82rem",
               letterSpacing: "0.42em",
               textTransform: "uppercase",
