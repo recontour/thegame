@@ -176,8 +176,9 @@ export default function LandingExperience() {
     const now = performance.now();
 
     if (s === PIECES_STEP) {
-      if (piecesTarget.current > 0.05) {
-        piecesTarget.current = clamp01(piecesTarget.current - 0.2);
+      // Still assembling → ease back; near rest → return to image 6
+      if (piecesTarget.current > 0.08 || piecesProgress.current > 0.08) {
+        piecesTarget.current = clamp01(piecesTarget.current - 0.22);
         return;
       }
       leavePiecesToStory();
@@ -193,20 +194,43 @@ export default function LandingExperience() {
     }
   }, [scrollLocked, leavePiecesToStory]);
 
-  // Story: one step per gesture. Pieces: soft continuous scrub.
+  // Story: one step per gesture. Pieces: soft scrub + reliable swipe-back.
   useEffect(() => {
     let touchY0: number | null = null;
+    let touchStartY: number | null = null;
     let touchAcc = 0;
     let piecesDragging = false;
+    let piecesLeaveAcc = 0;
     let wheelAcc = 0;
+    let wheelLeaveAcc = 0;
     let wheelResetTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (scrollLocked) return;
 
-      // 7th beat — gentler continuous assemble
+      // 7th beat — scrub assemble; scroll up at rest → image 6
       if (stepRef.current === PIECES_STEP) {
+        if (e.deltaY < 0) {
+          // scrolling / swiping back
+          if (
+            piecesTarget.current <= 0.06 &&
+            piecesProgress.current <= 0.08
+          ) {
+            wheelLeaveAcc += -e.deltaY;
+            if (wheelLeaveAcc > 36) {
+              wheelLeaveAcc = 0;
+              leavePiecesToStory();
+            }
+            return;
+          }
+          piecesTarget.current = clamp01(
+            piecesTarget.current + e.deltaY * 0.00115,
+          );
+          wheelLeaveAcc = 0;
+          return;
+        }
+        wheelLeaveAcc = 0;
         piecesTarget.current = clamp01(
           piecesTarget.current + e.deltaY * 0.00115,
         );
@@ -225,7 +249,6 @@ export default function LandingExperience() {
         wheelAcc = 0;
       }, 180);
 
-      // Need a clear intentional scroll, not trackpad noise
       if (Math.abs(wheelAcc) < 48) return;
       const dir = wheelAcc;
       wheelAcc = 0;
@@ -234,8 +257,11 @@ export default function LandingExperience() {
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      touchY0 = e.touches[0]?.clientY ?? null;
+      const y = e.touches[0]?.clientY ?? null;
+      touchY0 = y;
+      touchStartY = y;
       touchAcc = 0;
+      piecesLeaveAcc = 0;
       piecesDragging = stepRef.current === PIECES_STEP;
     };
 
@@ -243,43 +269,67 @@ export default function LandingExperience() {
       if (scrollLocked || touchY0 == null) return;
       const y = e.touches[0]?.clientY;
       if (y == null) return;
-      const dy = touchY0 - y;
+      const dy = touchY0 - y; // finger up → positive
       touchY0 = y;
 
       if (piecesDragging && stepRef.current === PIECES_STEP) {
-        // Softer drag on about-me
+        if (
+          dy < 0 &&
+          piecesTarget.current <= 0.06 &&
+          piecesProgress.current <= 0.08
+        ) {
+          // Already at rest pile — accumulate swipe-down to leave
+          piecesLeaveAcc += -dy;
+          if (piecesLeaveAcc > 44) {
+            piecesLeaveAcc = 0;
+            leavePiecesToStory();
+          }
+          return;
+        }
+        piecesLeaveAcc = 0;
         piecesTarget.current = clamp01(piecesTarget.current + dy * 0.0019);
         return;
       }
       touchAcc += dy;
     };
 
-    const onTouchEnd = () => {
+    const onTouchEnd = (e: TouchEvent) => {
       if (scrollLocked) {
         touchY0 = null;
+        touchStartY = null;
         touchAcc = 0;
+        piecesLeaveAcc = 0;
         piecesDragging = false;
         return;
       }
+
+      const endY = e.changedTouches[0]?.clientY ?? null;
+      const totalDy =
+        touchStartY != null && endY != null ? touchStartY - endY : touchAcc;
 
       if (piecesDragging) {
         piecesDragging = false;
-        // Swipe down near rest → back to image 6
-        if (touchAcc < -56 && piecesTarget.current < 0.07) {
+        // Full-gesture swipe down near rest → image 6
+        if (
+          totalDy < -48 &&
+          piecesTarget.current < 0.1 &&
+          piecesProgress.current < 0.12
+        ) {
           leavePiecesToStory();
         }
         touchY0 = null;
+        touchStartY = null;
         touchAcc = 0;
+        piecesLeaveAcc = 0;
         return;
       }
 
-      // Story: one step only if flick is clear
-      const dy = touchAcc;
       touchY0 = null;
+      touchStartY = null;
       touchAcc = 0;
-      if (Math.abs(dy) < 52) return;
+      if (Math.abs(totalDy) < 52) return;
       if (performance.now() < storyLockUntil.current) return;
-      if (dy > 0) goNext();
+      if (totalDy > 0) goNext();
       else goPrev();
     };
 
