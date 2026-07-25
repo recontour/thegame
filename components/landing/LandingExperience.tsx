@@ -66,7 +66,7 @@ export default function LandingExperience() {
   const [reduced, setReduced] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [dpr, setDpr] = useState<number | [number, number]>(1);
-  const [scrollLocked, setScrollLocked] = useState(true);
+  const [scrollLocked, setScrollLocked] = useState(false);
 
   /** 0…5 photos, 6 = pieces / about me */
   const [step, setStep] = useState(0);
@@ -401,16 +401,16 @@ export default function LandingExperience() {
     };
   }, [measureTextClear, step]);
 
-  // Intro: both title lines together, 1.5s — lock first 3s
+  // Intro: both title lines together, 1.5s — swipe available immediately
   useEffect(() => {
     setMounted(true);
     const motionOff = prefersReducedMotion();
     setReduced(motionOff);
     setMobile(isMobileDevice());
     setDpr(getMobileDpr());
+    setScrollLocked(false);
 
     if (motionOff) {
-      setScrollLocked(false);
       if (titleLeadRef.current)
         gsap.set(titleLeadRef.current, { opacity: 1, y: 0 });
       if (titleTagRef.current)
@@ -418,30 +418,24 @@ export default function LandingExperience() {
       return;
     }
 
-    setScrollLocked(true);
     if (titleLeadRef.current)
       gsap.set(titleLeadRef.current, { opacity: 0, y: 12 });
     if (titleTagRef.current)
       gsap.set(titleTagRef.current, { opacity: 0, y: 12 });
 
-    const tl = gsap.timeline();
-    tl.call(() => setScrollLocked(false), undefined, 3);
-
     const titleEls = [titleLeadRef.current, titleTagRef.current].filter(
       Boolean,
     ) as HTMLElement[];
+    const tl = gsap.timeline();
     if (titleEls.length) {
-      tl.to(
-        titleEls,
-        {
-          opacity: 1,
-          y: 0,
-          duration: 1.5,
-          ease: "power2.out",
-          stagger: 0,
-        },
-        0.3,
-      );
+      tl.to(titleEls, {
+        opacity: 1,
+        y: 0,
+        duration: 1.5,
+        ease: "power2.out",
+        stagger: 0,
+        delay: 0.2,
+      });
     }
 
     return () => {
