@@ -741,7 +741,7 @@ export default function LandingExperience() {
         >
           <p
             style={{
-              margin: "0 0 0.5rem",
+              margin: "0 0 0.35rem",
               fontFamily: UI_FONT,
               fontSize: "0.62rem",
               letterSpacing: "0.36em",
@@ -754,14 +754,23 @@ export default function LandingExperience() {
           <Link
             href="/gal"
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 168,
+              boxSizing: "border-box",
               fontFamily: UI_FONT,
-              fontSize: "0.82rem",
-              letterSpacing: "0.42em",
+              fontSize: "0.78rem",
+              letterSpacing: "0.36em",
               textTransform: "uppercase",
-              color: "rgba(255,255,255,0.82)",
+              color: "#ffffff",
               textDecoration: "none",
-              padding: "0.75rem 1.5rem",
+              padding: "0.95rem 2rem",
+              border: "1px solid rgba(255,255,255,0.55)",
+              borderRadius: 2,
+              background: "rgba(255,255,255,0.06)",
               WebkitTapHighlightColor: "transparent",
+              cursor: "pointer",
             }}
           >
             Gal
@@ -769,14 +778,23 @@ export default function LandingExperience() {
           <Link
             href="/work"
             style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 168,
+              boxSizing: "border-box",
               fontFamily: UI_FONT,
-              fontSize: "0.82rem",
-              letterSpacing: "0.42em",
+              fontSize: "0.78rem",
+              letterSpacing: "0.36em",
               textTransform: "uppercase",
-              color: "rgba(255,255,255,0.82)",
+              color: "#ffffff",
               textDecoration: "none",
-              padding: "0.75rem 1.5rem",
+              padding: "0.95rem 2rem",
+              border: "1px solid rgba(255,255,255,0.55)",
+              borderRadius: 2,
+              background: "rgba(255,255,255,0.06)",
               WebkitTapHighlightColor: "transparent",
+              cursor: "pointer",
             }}
           >
             Work
