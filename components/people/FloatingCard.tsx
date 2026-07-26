@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { clamp01, lerp, smoothstep } from "@/components/people/math";
@@ -20,9 +20,9 @@ type FloatingCardProps = {
 /**
  * One image card. MeshBasicMaterial only (mobile-stable color path).
  *
- * Production note: CanvasTextures must be uploaded with gl.initTexture() on the
- * active WebGL context — without it, many live/mobile builds show a white plane
- * at the correct aspect (dimensions exist, GPU map never bound). Matches Hero.
+ * Production: CanvasTextures need gl.initTexture() on the live WebGL context.
+ * Without it, live/mobile often shows a white plane at the correct aspect
+ * (dimensions known, GPU map never bound). Same fix as Hero / PhotoPlane.
  */
 export default function FloatingCard({
   index,
@@ -34,45 +34,34 @@ export default function FloatingCard({
   floatAmp,
 }: FloatingCardProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const { viewport, gl } = useThree();
 
-  // Remount material when texture identity changes (reliable map bind in R3F)
-  const material = useMemo(() => {
-    return new THREE.MeshBasicMaterial({
-      map: texture,
-      color: new THREE.Color("#ffffff"),
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      side: THREE.FrontSide,
-      toneMapped: false,
-    });
-  }, [texture]);
-
+  // Upload + bind map when texture arrives (must run against this Canvas's gl)
   useEffect(() => {
+    const mat = matRef.current;
+    if (!mat) return;
+
     if (texture) {
       try {
-        // Critical on iOS / production WebGL — forces GPU upload of CanvasTexture
         gl.initTexture(texture);
       } catch (e) {
         console.warn("[FloatingCard] initTexture", e);
       }
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.needsUpdate = true;
-      material.map = texture;
-      material.needsUpdate = true;
+      mat.map = texture;
+      mat.needsUpdate = true;
     } else {
-      material.map = null;
-      material.needsUpdate = true;
+      mat.map = null;
+      mat.needsUpdate = true;
     }
-    return () => {
-      material.dispose();
-    };
-  }, [texture, material, gl]);
+  }, [texture, gl]);
 
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
-    if (!mesh) return;
+    const mat = matRef.current;
+    if (!mesh || !mat) return;
 
     const p = positionRef.current;
     let d = index - p;
@@ -80,12 +69,10 @@ export default function FloatingCard({
     if (d > count / 2) d -= count;
     const ad = Math.abs(d);
 
-    // Hide far cards entirely (saves fill when opacity ~0)
     const visible = ad < 3.2;
     mesh.visible = visible;
     if (!visible) return;
 
-    // Natural aspect (w/h). Landscape > 1, portrait < 1.
     let aspect = 3 / 4;
     if (texture) {
       const ud = texture.userData as { width?: number; height?: number };
@@ -105,10 +92,6 @@ export default function FloatingCard({
     const focus = smoothstep(1.15, 0.05, ad);
     const mid = smoothstep(2.6, 0.9, ad);
 
-    /**
-     * Hard horizontal fit: card width is a fraction of the visible world width
-     * at the focus plane.
-     */
     const frameW = Math.max(viewport.width, 0.5);
     const maxFocusW = frameW * 0.86;
     const maxFarW = frameW * 0.42;
@@ -152,17 +135,23 @@ export default function FloatingCard({
     const texReady = texture ? 1 : 0.28;
     const opacity =
       lerp(0.12, 1, focus) * mid * texReady * clamp01(1.15 - ad * 0.28);
-    material.opacity = opacity;
+    mat.opacity = opacity;
     const dim = texture ? lerp(0.55, 1, focus) : 0.22;
-    material.color.setRGB(dim, dim, dim * 1.02);
+    mat.color.setRGB(dim, dim, dim * 1.02);
   });
 
   return (
-    <mesh
-      ref={meshRef}
-      geometry={geometry}
-      material={material}
-      frustumCulled={false}
-    />
+    <mesh ref={meshRef} geometry={geometry} frustumCulled={false}>
+      <meshBasicMaterial
+        ref={matRef}
+        map={texture}
+        color="#ffffff"
+        transparent
+        opacity={0}
+        depthWrite={false}
+        side={THREE.FrontSide}
+        toneMapped={false}
+      />
+    </mesh>
   );
 }
