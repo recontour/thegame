@@ -109,6 +109,9 @@ export function loadMobileSafeTexture(
           `${naturalW}x${naturalH} → ${w}x${h} (scale=${scale.toFixed(3)})`,
         );
 
+        // Prefer Texture from the canvas source — same flags Hero/gallery use.
+        // Call sites MUST gl.initTexture(tex) on the live WebGL renderer or
+        // production/mobile can show a white plane with correct aspect only.
         const tex = new THREE.CanvasTexture(canvas);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.wrapS = THREE.ClampToEdgeWrapping;
@@ -119,15 +122,15 @@ export function loadMobileSafeTexture(
         tex.anisotropy = 1;
         tex.flipY = true;
         tex.premultiplyAlpha = false;
-        tex.needsUpdate = true;
-
-        // Keep a handle for aspect without relying on ImageBitmap quirks
+        // Keep canvas alive for GPU re-uploads (GC can blank live textures)
         tex.userData = {
           ...(tex.userData || {}),
           width: w,
           height: h,
           src,
+          canvas,
         };
+        tex.needsUpdate = true;
 
         log("ready", `canvas texture ${w}x${h}`);
         resolve(tex);

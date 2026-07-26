@@ -83,6 +83,9 @@ export function useCarouselTextures(
             tex.dispose();
             return;
           }
+          // Ensure flags survive transport into the scene (prod WebGL is picky)
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.needsUpdate = true;
           ownedMap.set(key, tex);
           setSlots((prev) => {
             const next = [...prev];
