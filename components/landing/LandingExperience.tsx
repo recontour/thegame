@@ -53,6 +53,9 @@ const UI_FONT =
 
 const PIECES_STEP = STORY_SLIDE_COUNT; // index 6 = 7th beat
 
+/** Survive /people navigation (browser back returns to the same beat). */
+const LANDING_STEP_KEY = "raconteur-landing-step";
+
 function prefersReducedMotion() {
   if (typeof window === "undefined") return false;
   try {
@@ -135,12 +138,20 @@ export default function LandingExperience() {
   const storyLockUntil = useRef(0);
   const STORY_STEP_MS = 700;
 
-  const enterPieces = useCallback(() => {
+  const enterPieces = useCallback((opts?: { restored?: boolean }) => {
+    gsap.killTweensOf(introRef.current);
+    if (opts?.restored) {
+      // Returning from /people — skip the long intro, land already assembled-ready
+      introRef.current.pieces = 1;
+      piecesProgress.current = 0.04;
+      piecesTarget.current = 0.04;
+      setPiecesUi(0.04);
+      return;
+    }
     introRef.current.pieces = 0;
     piecesProgress.current = 0;
     piecesTarget.current = 0.04;
     setPiecesUi(0);
-    gsap.killTweensOf(introRef.current);
     gsap.to(introRef.current, {
       pieces: 1,
       duration: 1.35,
@@ -452,7 +463,34 @@ export default function LandingExperience() {
     setMobile(isMobileDevice());
     setDpr(getMobileDpr());
     setScrollLocked(false);
-  }, []);
+
+    // Restore beat after /people (or any client remount of this page)
+    try {
+      const raw = sessionStorage.getItem(LANDING_STEP_KEY);
+      if (raw == null) return;
+      const saved = Number(raw);
+      if (!Number.isInteger(saved) || saved < 0 || saved >= TOTAL_STEPS) return;
+      if (saved === 0) return;
+      stepRef.current = saved;
+      setStep(saved);
+      if (saved === PIECES_STEP) {
+        // Defer so refs/state settle before shatter intro
+        requestAnimationFrame(() => enterPieces({ restored: true }));
+      }
+    } catch {
+      /* private mode / blocked storage */
+    }
+  }, [enterPieces]);
+
+  // Persist step so back-from-/people returns here (not slide 0)
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      sessionStorage.setItem(LANDING_STEP_KEY, String(step));
+    } catch {
+      /* ignore */
+    }
+  }, [step, mounted]);
 
   // Every time we land on image 1 (including first load)
   useEffect(() => {
@@ -744,7 +782,15 @@ export default function LandingExperience() {
             </p>
             <Link
               href="/people"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                // Explicit save before leave (covers fast navigation)
+                try {
+                  sessionStorage.setItem(LANDING_STEP_KEY, String(PIECES_STEP));
+                } catch {
+                  /* ignore */
+                }
+              }}
               style={{
                 pointerEvents: "auto",
                 display: "inline-flex",
