@@ -60,7 +60,7 @@ export default function FocusTextBand({
 
     // Must stay in sync with FloatingCard focus sizing / placement
     const frameW = Math.max(viewport.width, 0.5);
-    const maxFocusW = frameW * 0.86;
+    const maxFocusW = frameW * 0.94;
     const scaleY = maxFocusW / aspect;
     const tallBoost = Math.max(0, 1 / aspect - 1) * 0.1;
     const shortBoost = Math.max(0, aspect - 1) * 0.08;

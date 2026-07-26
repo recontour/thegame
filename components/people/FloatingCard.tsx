@@ -93,7 +93,8 @@ export default function FloatingCard({
     const mid = smoothstep(2.6, 0.9, ad);
 
     const frameW = Math.max(viewport.width, 0.5);
-    const maxFocusW = frameW * 0.86;
+    // 3% side inset each side → 94% of stage width
+    const maxFocusW = frameW * 0.94;
     const maxFarW = frameW * 0.42;
     const baseW = lerp(maxFarW, maxFocusW, focus);
     const scaleX = baseW;
