@@ -1,6 +1,21 @@
 "use client";
 
+import { Cormorant_Upright, Special_Elite } from "next/font/google";
 import type { StoryCard } from "@/data/people";
+
+/** Title / header under each photo */
+const specialElite = Special_Elite({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+/** Photo description body */
+const cormorantUpright = Cormorant_Upright({
+  weight: ["400", "500", "600"],
+  subsets: ["latin"],
+  display: "swap",
+});
 
 type CardTextOverlayProps = {
   card: StoryCard | null;
@@ -52,7 +67,7 @@ export default function CardTextOverlay({
         boxSizing: "border-box",
       }}
     >
-      {/* Title — centered in the gap under the image */}
+      {/* Title — Special Elite, centered under the image */}
       <div
         style={{
           display: "flex",
@@ -63,19 +78,17 @@ export default function CardTextOverlay({
         }}
       >
         <p
+          className={specialElite.className}
           style={{
             margin: 0,
             width: "100%",
             textAlign: "center",
-            fontFamily:
-              'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
-            // Clearly larger than before (~0.65–0.72)
             fontSize: "clamp(1.05rem, 4.6vw, 1.35rem)",
-            lineHeight: 1.25,
-            letterSpacing: "0.12em",
+            lineHeight: 1.3,
+            letterSpacing: "0.06em",
             textTransform: "uppercase",
-            fontWeight: 600,
-            color: "rgba(235,240,250,0.88)",
+            fontWeight: 400,
+            color: "rgba(235,240,250,0.9)",
             textShadow: "0 1px 12px rgba(0,0,0,0.55)",
           }}
         >
@@ -83,19 +96,17 @@ export default function CardTextOverlay({
         </p>
       </div>
 
-      {/* Description — left aligned, modestly larger */}
+      {/* Description — Cormorant Upright, left aligned */}
       <p
+        className={cormorantUpright.className}
         style={{
           margin: 0,
           width: "100%",
           textAlign: "left",
-          fontFamily:
-            'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
-          // Was ~0.72–0.86; step up without eating the band
-          fontSize: "clamp(0.95rem, 4vw, 1.12rem)",
-          lineHeight: 1.45,
+          fontSize: "clamp(1.05rem, 4.4vw, 1.28rem)",
+          lineHeight: 1.4,
           letterSpacing: "0.01em",
-          fontWeight: 400,
+          fontWeight: 500,
           color: "rgba(248,248,252,0.94)",
           whiteSpace: "pre-line",
           textShadow: "0 1px 12px rgba(0,0,0,0.55)",
