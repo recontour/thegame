@@ -297,26 +297,27 @@ export default function ShatterPlane({
        */
       const vh = Math.max(viewport.height, 0.01);
 
-      // 0 top → 1 bottom of stage; default ~mid if measure not ready
+      // 0 top → 1 bottom of stage; default leaves room under ~30% copy band
       const clearFromTop = getTextClearFromTop
         ? getTextClearFromTop()
-        : 0.48;
+        : 0.58;
       // World Y of the clear line (Three: +Y up, 0 = center)
       const clearWorldY = vh * (0.5 - clearFromTop);
 
-      const finalRestScale = 0.62;
+      const finalRestScale = 0.58;
       // Visible pile is tighter than full viewport height — don't use 0.5*vh
       // or the rest pose sinks way too low under the copy.
-      const pileHalf = finalRestScale * vh * 0.28;
-      const pad = vh * 0.004;
+      const pileHalf = finalRestScale * vh * 0.26;
+      // Keep pieces clearly BELOW copy (no upward bias into the text)
+      const pad = vh * 0.03;
       let finalRestY = clearWorldY - pad - pileHalf;
-      // Bias upward; allow sitting close under the text band
-      finalRestY += vh * 0.06;
-      finalRestY = THREE.MathUtils.clamp(finalRestY, -vh * 0.42, -vh * 0.02);
+      // Slight sink so idle float still can't kiss the about-me block
+      finalRestY -= vh * 0.03;
+      finalRestY = THREE.MathUtils.clamp(finalRestY, -vh * 0.48, -vh * 0.08);
 
-      const startScale = 0.48;
-      // First appear (after 3s lock): just barely in the bottom of the frame
-      const startY = Math.min(finalRestY - vh * 0.16, -vh * 0.58);
+      const startScale = 0.46;
+      // First appear: lower in the frame so text stays unobstructed during travel
+      const startY = Math.min(finalRestY - vh * 0.12, -vh * 0.62);
 
       const introY = THREE.MathUtils.lerp(startY, finalRestY, travel);
       const introScale = THREE.MathUtils.lerp(startScale, finalRestScale, travel);

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Inter, Monsieur_La_Doulaise, Tangerine } from "next/font/google";
+import Link from "next/link";
 import gsap from "gsap";
 import {
   getMobileDpr,
@@ -115,8 +116,9 @@ export default function LandingExperience() {
     const sr = stage.getBoundingClientRect();
     if (sr.height < 1) return;
     const cr = copy.getBoundingClientRect();
+    // Extra air under the about-me block so shatter pieces never sit under copy
     const ratio = (cr.bottom - sr.top) / sr.height;
-    textClearFromTopRef.current = Math.min(0.85, Math.max(0.35, ratio + 0.01));
+    textClearFromTopRef.current = Math.min(0.88, Math.max(0.38, ratio + 0.045));
   }, []);
 
   // Preload hero for pieces while still on late story slides
@@ -476,8 +478,9 @@ export default function LandingExperience() {
   const showBody = !isPieces && step > 0 && step < PIECES_STEP;
   const showAbout = isPieces;
   // Per-slide vertical placement (from top of stage)
-  const copyTop =
-    showTitle || (showBody && step === 5)
+  const copyTop = showAbout
+    ? "30%"
+    : showTitle || (showBody && step === 5)
       ? "65%"
       : showBody && step === 3
         ? "40%"
@@ -707,18 +710,73 @@ export default function LandingExperience() {
 
           <div
             ref={showAbout ? bodyRef : undefined}
-            className={monsieur.className}
             style={{
-              display: showAbout ? "block" : "none",
+              display: showAbout ? "flex" : "none",
+              flexDirection: "column",
+              alignItems: "center",
+              // Match body-slide breathing room between lines / beats
+              gap: "0.85rem",
               margin: 0,
               textAlign: "center",
-              fontSize: "clamp(2.2rem, 9vw, 2.9rem)",
-              fontWeight: 400,
-              letterSpacing: "0.04em",
-              color: "#ffffff",
+              width: "100%",
             }}
           >
-            about me.
+            {/* Same type as landing story body (Tangerine) */}
+            <p
+              className={tangerine.className}
+              style={{
+                margin: 0,
+                maxWidth: "100%",
+                fontSize: "clamp(2.3rem, 8.7vw, 2.85rem)",
+                fontWeight: 700,
+                letterSpacing: "0.02em",
+                lineHeight: 1.35,
+                color: "rgba(255,255,255,0.95)",
+                textAlign: "center",
+              }}
+            >
+              Here is one of the stories I want to tell
+            </p>
+            {/* Entry to /people — same vertical rhythm as line spacing above */}
+            <Link
+              href="/people"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                pointerEvents: "auto",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: "0.15rem",
+                padding: "0.72rem 1.55rem",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.38)",
+                background: "rgba(255,255,255,0.08)",
+                color: "#ffffff",
+                textDecoration: "none",
+                fontFamily: UI_FONT,
+                fontSize: "clamp(0.72rem, 3.1vw, 0.82rem)",
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+                WebkitTapHighlightColor: "transparent",
+                backdropFilter: "blur(8px)",
+                boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+              }}
+            >
+              people
+            </Link>
+            <div
+              className={monsieur.className}
+              style={{
+                margin: "0.15rem 0 0",
+                fontSize: "clamp(2.2rem, 9vw, 2.9rem)",
+                fontWeight: 400,
+                letterSpacing: "0.04em",
+                color: "#ffffff",
+              }}
+            >
+              about me.
+            </div>
           </div>
         </div>
 

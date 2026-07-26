@@ -24,6 +24,11 @@
 .DS_Store
 *.pem
 
+# image optimizer working dirs (full-size outputs live in public/photos/)
+/public/photos/originals/
+/public/photos/ready/
+/public/landing/ready/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

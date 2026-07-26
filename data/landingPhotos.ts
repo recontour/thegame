@@ -39,8 +39,8 @@ export const LANDING_SLIDES: LandingSlide[] = [
     src: "/landing/5.webp",
     mode: "body",
     lines: [
-      "These are moments that almost never get a camera pointed at them —",
-      "the people who carry the weight, take the risk, and still go unnamed.",
+      "These are moments that almost never get a camera pointed at them",
+      "The people who carry the weight, take the risk, and still go unnamed.",
     ],
   },
   {
