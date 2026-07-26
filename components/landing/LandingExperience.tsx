@@ -86,6 +86,8 @@ export default function LandingExperience() {
 
   const stageRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
+  /** “about me.” — used so shatter pile clears the lower label, not the top story line */
+  const aboutMeRef = useRef<HTMLDivElement>(null);
   const textClearFromTopRef = useRef(0.72);
 
   const titleLeadRef = useRef<HTMLSpanElement>(null);
@@ -111,14 +113,15 @@ export default function LandingExperience() {
 
   const measureTextClear = useCallback(() => {
     const stage = stageRef.current;
-    const copy = copyRef.current;
-    if (!stage || !copy) return;
+    // Prefer about-me label so pieces park under it (not under the top story line)
+    const mark = aboutMeRef.current ?? copyRef.current;
+    if (!stage || !mark) return;
     const sr = stage.getBoundingClientRect();
     if (sr.height < 1) return;
-    const cr = copy.getBoundingClientRect();
-    // Extra air under the about-me block so shatter pieces never sit under copy
+    const cr = mark.getBoundingClientRect();
+    // Air under “about me.” so the pile sits mid-lower, clear of the label
     const ratio = (cr.bottom - sr.top) / sr.height;
-    textClearFromTopRef.current = Math.min(0.88, Math.max(0.38, ratio + 0.045));
+    textClearFromTopRef.current = Math.min(0.9, Math.max(0.42, ratio + 0.05));
   }, []);
 
   // Preload hero for pieces while still on late story slides
@@ -471,6 +474,9 @@ export default function LandingExperience() {
       { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" },
     );
     measureTextClear();
+    // Remeasure after layout (about-me is in a separate lower band)
+    const id = requestAnimationFrame(() => measureTextClear());
+    return () => cancelAnimationFrame(id);
   }, [step, measureTextClear]);
 
   const slide = LANDING_SLIDES[storySlide] ?? LANDING_SLIDES[0];
@@ -714,7 +720,6 @@ export default function LandingExperience() {
               display: showAbout ? "flex" : "none",
               flexDirection: "column",
               alignItems: "center",
-              // Match body-slide breathing room between lines / beats
               gap: "0.85rem",
               margin: 0,
               textAlign: "center",
@@ -737,7 +742,6 @@ export default function LandingExperience() {
             >
               Here is one of the stories I want to tell
             </p>
-            {/* Entry to /people — same vertical rhythm as line spacing above */}
             <Link
               href="/people"
               onClick={(e) => e.stopPropagation()}
@@ -765,20 +769,51 @@ export default function LandingExperience() {
             >
               people
             </Link>
+          </div>
+        </div>
+
+        {/*
+          “about me.” sits in the band between the people button and the bottom —
+          vertically centered in that lower half so pieces have room underneath.
+        */}
+        {showAbout && (
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              // Starts roughly under the people CTA; ends above progress dots
+              top: "48%",
+              bottom: "max(2.75rem, env(safe-area-inset-bottom))",
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              opacity: piecesLeave,
+              transform: `translate3d(0, ${copyScrollY}px, 0)`,
+              willChange: "opacity, transform",
+              padding: "0 1.25rem",
+              boxSizing: "border-box",
+            }}
+          >
             <div
+              ref={aboutMeRef}
               className={monsieur.className}
               style={{
-                margin: "0.15rem 0 0",
+                margin: 0,
                 fontSize: "clamp(2.2rem, 9vw, 2.9rem)",
                 fontWeight: 400,
                 letterSpacing: "0.04em",
                 color: "#ffffff",
+                textAlign: "center",
               }}
             >
               about me.
             </div>
           </div>
-        </div>
+        )}
 
         {/* 7-step progress (6 photos + pieces) */}
         {storyReady && (
