@@ -44,12 +44,12 @@ export default function FloatingCard({
 
     if (texture) {
       try {
+        // Do not reassign texture props here (lint/immutability) —
+        // colorSpace is set in loadMobileSafeTexture / useCarouselTextures.
         gl.initTexture(texture);
       } catch (e) {
         console.warn("[FloatingCard] initTexture", e);
       }
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.needsUpdate = true;
       mat.map = texture;
       mat.needsUpdate = true;
     } else {
