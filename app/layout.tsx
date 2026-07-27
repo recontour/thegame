@@ -23,12 +23,12 @@ export const metadata: Metadata = {
     siteName: "raconteur",
     title: "raconteur",
     description: "raconteur — for those who care",
-    // Hero portrait for link previews (WhatsApp, iMessage, Instagram in-app, etc.)
+    // Link previews (WhatsApp, iMessage, Instagram in-app, etc.)
     images: [
       {
-        url: "/hero.webp",
-        width: 1200,
-        height: 1600,
+        url: "/OG.webp",
+        width: 2660,
+        height: 2660,
         alt: "raconteur",
         type: "image/webp",
       },
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "raconteur",
     description: "raconteur — for those who care",
-    images: ["/hero.webp"],
+    images: ["/OG.webp"],
   },
   // Helps some crawlers / PWA chrome
   icons: {
