@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
@@ -91,6 +92,7 @@ const PEOPLE_LAYOUT_CSS = `
  * the R3F tree mid-transition (that was flashing the material black on mobile).
  */
 export default function StoryCarousel() {
+  const router = useRouter();
   const stageRef = useRef<HTMLDivElement>(null);
   const [cap] = useState<StoryCapability>(() => detectStoryCapability());
   const [index, setIndex] = useState(0);
@@ -107,6 +109,12 @@ export default function StoryCarousel() {
   const paceRef = useRef<"calm" | "rush">("calm");
   /** Scene sets true while present/position still chasing targets */
   const animatingRef = useRef(false);
+  /**
+   * Indices that reached the framed+text phase this page load.
+   * Full tour complete only when size === n; then next from last → home.
+   * Reverse wrap (1→12) never redirects.
+   */
+  const seenSettledRef = useRef<Set<number>>(new Set());
   const [webglError, setWebglError] = useState<string | null>(null);
   const [textBandTop, setTextBandTop] = useState(0.55);
 
@@ -127,25 +135,41 @@ export default function StoryCarousel() {
     }
   }, []);
 
+  const markSettledSeen = useCallback((i: number) => {
+    seenSettledRef.current.add(i);
+  }, []);
+
   /**
    * Next beat:
    *   full    → settle this image (text arrives after the morph)
-   *   settled → next image, full-bleed again
+   *   settled → next image full-bleed
+   *   settled on last + all 12 seen this visit → home (/)
    */
   const goNext = useCallback(() => {
     noteIntent();
     if (phaseRef.current === "full") {
       phaseRef.current = "settled";
+      markSettledSeen(index);
+      return;
+    }
+    // Framed+text on last image, and every card was settled this session
+    // → end of the story loop, leave for main page (not wrap to #1)
+    if (
+      index === n - 1 &&
+      seenSettledRef.current.size >= n
+    ) {
+      router.push("/");
       return;
     }
     phaseRef.current = "full";
     setIndex((i) => (i + 1) % n);
-  }, [n, noteIntent]);
+  }, [n, noteIntent, markSettledSeen, index, router]);
 
   /**
    * Prev beat (mirror of next):
    *   settled → expand this image full again
    *   full    → previous image, already settled
+   * Never redirects — reverse wrap 1→12 is a free loop.
    */
   const goPrev = useCallback(() => {
     noteIntent();
@@ -153,9 +177,11 @@ export default function StoryCarousel() {
       phaseRef.current = "full";
       return;
     }
+    const prev = (index - 1 + n) % n;
     phaseRef.current = "settled";
-    setIndex((i) => (i - 1 + n) % n);
-  }, [n, noteIntent]);
+    markSettledSeen(prev);
+    setIndex(prev);
+  }, [n, noteIntent, markSettledSeen, index]);
 
   useVerticalSwipe({
     enabled: !webglError,
