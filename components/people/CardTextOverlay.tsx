@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Cormorant_Upright, Special_Elite } from "next/font/google";
 import type { StoryCard } from "@/data/people";
 
@@ -19,6 +19,7 @@ const cormorantUpright = Cormorant_Upright({
 });
 
 type CardTextOverlayProps = {
+  /** Desired card for the current story index (may change mid-swipe) */
   card: StoryCard | null;
   /**
    * Live presentation 0 = full-bleed, 1 = framed.
@@ -43,7 +44,6 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Soft overshoot at the end of the rise */
 function easeOutBack(t: number): number {
   const c1 = 1.35;
   const c3 = c1 + 1;
@@ -52,11 +52,17 @@ function easeOutBack(t: number): number {
 }
 
 /**
- * Copy under the photo — rises from fully below the stage (out of frame /
- * out of focus), then settles. Exit reverses: drops back under the fold.
+ * Only swap title/body/quote once present is essentially 0 — content is
+ * parked under the fold so the user never sees words rewrite mid-screen.
+ */
+const SWAP_BELOW = 0.05;
+
+/**
+ * Copy under the photo.
  *
- * Important: offsets are in *band height* / stage px, not a tiny 100px nudge
- * (that looked like text spawning mid-page).
+ * Story `card` can change the moment you swipe. We keep painting the previous
+ * copy until present has dropped (exit down complete), swap off-screen, then
+ * the new copy rises on the next settle. No mid-page text reload.
  */
 export default function CardTextOverlay({
   card,
@@ -65,10 +71,20 @@ export default function CardTextOverlay({
   bandTop = 0.55,
   enabled = true,
 }: CardTextOverlayProps) {
+  /** What is actually painted (lags story index until safe) */
+  const [shown, setShown] = useState<StoryCard | null>(card);
+  const pendingRef = useRef<StoryCard | null>(card);
+  const shownIdRef = useRef<string | null>(card?.id ?? null);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLParagraphElement>(null);
   const quoteRef = useRef<HTMLDivElement>(null);
+
+  // Remember latest desired card; never paint it until off-screen
+  useEffect(() => {
+    pendingRef.current = card;
+  }, [card]);
 
   useEffect(() => {
     let raf = 0;
@@ -77,18 +93,27 @@ export default function CardTextOverlay({
       const present = enabled ? clamp01(presentRef.current) : 0;
       const motion = motionRef.current;
       const root = rootRef.current;
+      const pending = pendingRef.current;
 
-      // How far "below the fold" is — at least the full band height so copy
-      // starts completely under the stage bottom, never mid-screen.
+      // Swap only when fully under the fold (invisible)
+      if (
+        pending &&
+        pending.id !== shownIdRef.current &&
+        present <= SWAP_BELOW
+      ) {
+        shownIdRef.current = pending.id;
+        setShown(pending);
+      }
+
+      // Always animate with real present — old copy rides present 1→0 down,
+      // then new copy rides 0→1 up after the silent swap.
       let offPx = 280;
       if (root) {
         const bandH = root.clientHeight || 0;
         const stageH = root.parentElement?.clientHeight ?? 0;
-        // Prefer full band; also clear a chunk of stage so it feels off-frame
-        offPx = Math.max(bandH + 24, stageH * 0.42, 200);
+        offPx = Math.max(bandH + 32, stageH * 0.48, 220);
       }
 
-      // Stagger: title leads, body, then quote — all share the same path up
       const titleT = smoothstep(0.05, 0.48, present);
       const bodyT = easeOutBack(smoothstep(0.18, 0.62, present));
       const quoteT = smoothstep(0.32, 0.72, present);
@@ -96,25 +121,24 @@ export default function CardTextOverlay({
       const titleEl = titleRef.current;
       if (titleEl) {
         const t = titleT;
-        // Fully below when t=0; rest when t=1. Parallax only once visible.
-        const y = (1 - t) * offPx - motion * 12 * t;
-        const blur = (1 - t) * 10;
+        const y = (1 - t) * offPx - motion * 10 * t;
+        const blur = (1 - t) * 12;
         titleEl.style.opacity = String(t);
-        titleEl.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+        titleEl.style.filter =
+          blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : "none";
         titleEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
 
       const bodyEl = bodyRef.current;
       if (bodyEl) {
         const t = clamp01(bodyT);
-        // easeOutBack can overshoot >1 → slight lift past rest
         const y =
-          (1 - t) * (offPx * 1.05) -
-          (bodyT > 1 ? (bodyT - 1) * 14 : 0);
-        const blur = (1 - t) * 12;
+          (1 - t) * (offPx * 1.05) - (bodyT > 1 ? (bodyT - 1) * 12 : 0);
+        const blur = (1 - t) * 14;
         const scale = 0.97 + t * 0.03;
         bodyEl.style.opacity = String(t);
-        bodyEl.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+        bodyEl.style.filter =
+          blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : "none";
         bodyEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       }
 
@@ -122,15 +146,16 @@ export default function CardTextOverlay({
       if (quoteEl) {
         const t = quoteT;
         const y = (1 - t) * (offPx * 1.08);
-        const blur = (1 - t) * 8;
+        const blur = (1 - t) * 10;
         quoteEl.style.opacity = String(t);
-        quoteEl.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+        quoteEl.style.filter =
+          blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : "none";
         quoteEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
 
       if (root) {
-        // Visible for enter *and* exit (while still sliding under the fold)
-        root.style.visibility = present > 0.015 ? "visible" : "hidden";
+        root.style.visibility =
+          enabled && present > 0.02 ? "visible" : "hidden";
       }
 
       raf = requestAnimationFrame(tick);
@@ -138,9 +163,9 @@ export default function CardTextOverlay({
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [presentRef, motionRef, enabled, card?.id]);
+  }, [presentRef, motionRef, enabled]);
 
-  if (!card) return null;
+  if (!shown) return null;
 
   const topPct = `${(bandTop * 100).toFixed(2)}%`;
 
@@ -161,7 +186,6 @@ export default function CardTextOverlay({
         gridTemplateRows: "auto auto 1fr",
         alignItems: "stretch",
         rowGap: "0.15rem",
-        // Clip so rising copy never paints over the photo mid-rise
         overflow: "hidden",
         boxSizing: "border-box",
         transition: "top 0.35s ease-out",
@@ -196,7 +220,7 @@ export default function CardTextOverlay({
             textShadow: "0 1px 12px rgba(0,0,0,0.55)",
           }}
         >
-          {card.title}
+          {shown.title}
         </p>
       </div>
 
@@ -219,7 +243,7 @@ export default function CardTextOverlay({
           willChange: "transform, opacity, filter",
         }}
       >
-        {card.body}
+        {shown.body}
       </p>
 
       <div
@@ -251,9 +275,9 @@ export default function CardTextOverlay({
             textShadow: "0 1px 10px rgba(0,0,0,0.5)",
           }}
         >
-          {card.quote}
+          {shown.quote}
         </p>
-        {card.attribution ? (
+        {shown.attribution ? (
           <p
             style={{
               margin: "0.28rem 0 0",
@@ -269,7 +293,7 @@ export default function CardTextOverlay({
               textShadow: "0 1px 8px rgba(0,0,0,0.45)",
             }}
           >
-            {card.attribution}
+            {shown.attribution}
           </p>
         ) : null}
       </div>
