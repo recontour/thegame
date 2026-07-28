@@ -16,18 +16,44 @@ import { useCarouselTextures } from "@/components/people/useCarouselTextures";
 import { useVerticalSwipe } from "@/components/people/useVerticalSwipe";
 import { PEOPLE_CARDS } from "@/data/people";
 
-/** Portrait frame — 9:19.5 (tall modern phone). Letterboxed on desktop. */
+/** Portrait frame — 9:19.5. Desktop only; phones fill the real viewport. */
 const PORTRAIT_ASPECT = 9 / 19.5;
+
+/** True phones/tablets — not the desktop letterbox column. */
+function useFillViewport(): boolean {
+  const [fill, setFill] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(
+      "(hover: none) and (pointer: coarse), (max-width: 820px)",
+    ).matches;
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia(
+      "(hover: none) and (pointer: coarse), (max-width: 820px)",
+    );
+    const apply = () => setFill(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  return fill;
+}
 
 /**
  * Root shell: black page + centered portrait stage + WebGL + HTML copy.
  * Swipe / wheel only. No chrome, no buttons.
+ *
+ * Mobile: stage is 100vw × 100dvh (edge to edge).
+ * Desktop: tall letterboxed phone frame.
  *
  * Important: drag bias + phase live in refs so the morph does not re-render
  * the R3F tree mid-transition (that was flashing the material black on mobile).
  */
 export default function StoryCarousel() {
   const stageRef = useRef<HTMLDivElement>(null);
+  const fillViewport = useFillViewport();
   const [cap] = useState<StoryCapability>(() => detectStoryCapability());
   const [index, setIndex] = useState(0);
   /** Story phase — mutated synchronously; scene reads the ref every frame */
@@ -130,15 +156,22 @@ export default function StoryCarousel() {
         ref={stageRef}
         style={{
           position: "relative",
-          width: `min(100vw, calc(100dvh * ${PORTRAIT_ASPECT}))`,
-          height: `min(100dvh, calc(100vw / ${PORTRAIT_ASPECT}))`,
+          // Mobile: own the whole screen. Desktop: tall phone column.
+          width: fillViewport
+            ? "100vw"
+            : `min(100vw, calc(100dvh * ${PORTRAIT_ASPECT}))`,
+          height: fillViewport
+            ? "100dvh"
+            : `min(100dvh, calc(100vw / ${PORTRAIT_ASPECT}))`,
           maxWidth: "100vw",
           maxHeight: "100dvh",
           background: "#050508",
           overflow: "hidden",
           touchAction: "none",
-          boxShadow:
-            "0 0 0 1px rgba(255,255,255,0.04), 0 24px 80px rgba(0,0,0,0.65)",
+          // Column edge only on desktop letterbox — no fake chrome on phone
+          boxShadow: fillViewport
+            ? "none"
+            : "0 0 0 1px rgba(255,255,255,0.04), 0 24px 80px rgba(0,0,0,0.65)",
         }}
       >
         <WebGLErrorBoundary onError={setWebglError}>
