@@ -100,6 +100,12 @@ export default function StoryCarousel() {
   const presentRef = useRef(0);
   /** Parallax from *committed* travel only — never from live finger scrub */
   const motionRef = useRef(0);
+  /**
+   * calm = cinematic slow morph (default).
+   * rush = impatient second flick — speed up so the UI never feels "stuck".
+   */
+  const paceRef = useRef<"calm" | "rush">("calm");
+  const lastIntentAt = useRef(0);
   const [webglError, setWebglError] = useState<string | null>(null);
   const [textBandTop, setTextBandTop] = useState(0.55);
 
@@ -108,19 +114,29 @@ export default function StoryCarousel() {
 
   const textures = useCarouselTextures(cards, index, cap);
 
+  /** First beat is calm; another within ~1.4s rushes the animation. */
+  const noteIntent = useCallback(() => {
+    const now = performance.now();
+    if (now - lastIntentAt.current < 1400) {
+      paceRef.current = "rush";
+    }
+    lastIntentAt.current = now;
+  }, []);
+
   /**
    * Next beat:
    *   full    → settle this image (text arrives after the morph)
    *   settled → next image, full-bleed again
    */
   const goNext = useCallback(() => {
+    noteIntent();
     if (phaseRef.current === "full") {
       phaseRef.current = "settled";
       return;
     }
     phaseRef.current = "full";
     setIndex((i) => (i + 1) % n);
-  }, [n]);
+  }, [n, noteIntent]);
 
   /**
    * Prev beat (mirror of next):
@@ -128,22 +144,23 @@ export default function StoryCarousel() {
    *   full    → previous image, already settled
    */
   const goPrev = useCallback(() => {
+    noteIntent();
     if (phaseRef.current === "settled") {
       phaseRef.current = "full";
       return;
     }
     phaseRef.current = "settled";
     setIndex((i) => (i - 1 + n) % n);
-  }, [n]);
+  }, [n, noteIntent]);
 
   useVerticalSwipe({
     enabled: !webglError,
     onNext: goNext,
     onPrev: goPrev,
-    // Pure trigger: no onDrag — finger never bobs the photo mid-hold.
-    // Short flick is enough; cooldown only blocks double-fires mid-animation.
+    // Pure trigger. Micro-debounce only (pointer+touch dual-fire on iOS).
+    // Impatient multi-flicks always advance; paceRef rushes the morph.
     threshold: 24,
-    cooldownMs: 1400,
+    cooldownMs: 90,
     targetRef: stageRef,
   });
 
@@ -214,6 +231,7 @@ export default function StoryCarousel() {
                   phaseRef={phaseRef}
                   presentRef={presentRef}
                   motionRef={motionRef}
+                  paceRef={paceRef}
                   textures={textures}
                   cap={cap}
                   onTextBandTop={onTextBandTop}

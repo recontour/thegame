@@ -15,8 +15,9 @@ type Options = {
    */
   threshold?: number;
   /**
-   * Minimum ms between accepted beats (lets the slow animation breathe).
-   * Does not make the swipe harder — only blocks double-fires.
+   * Micro-debounce only (default ~90ms) so pointer+touch dual-firing on iOS
+   * doesn’t double-step. Does NOT wait for animations to finish — impatient
+   * flicks always advance (scene may rush the morph).
    */
   cooldownMs?: number;
   /** Element to attach listeners; defaults to window */
@@ -40,7 +41,7 @@ export function useVerticalSwipe({
   onPrev,
   onDrag,
   threshold = 24,
-  cooldownMs = 1400,
+  cooldownMs = 90,
   targetRef,
 }: Options) {
   const start = useRef<{ x: number; y: number; t: number } | null>(null);
