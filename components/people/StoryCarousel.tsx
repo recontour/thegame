@@ -16,44 +16,77 @@ import { useCarouselTextures } from "@/components/people/useCarouselTextures";
 import { useVerticalSwipe } from "@/components/people/useVerticalSwipe";
 import { PEOPLE_CARDS } from "@/data/people";
 
-/** Portrait frame — 9:19.5. Desktop only; phones fill the real viewport. */
-const PORTRAIT_ASPECT = 9 / 19.5;
+/**
+ * Layout CSS — media queries, not JS.
+ * JS matchMedia was leaving the tall PC column on some phones
+ * (hydration + hover/pointer quirks). CSS always wins.
+ */
+const PEOPLE_LAYOUT_CSS = `
+  .people-shell {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #030306;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
 
-/** True phones/tablets — not the desktop letterbox column. */
-function useFillViewport(): boolean {
-  const [fill, setFill] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(
-      "(hover: none) and (pointer: coarse), (max-width: 820px)",
-    ).matches;
-  });
+  /* Desktop: tall letterboxed phone column */
+  .people-stage {
+    position: relative;
+    width: min(100vw, calc(100dvh * 9 / 19.5));
+    height: min(100dvh, calc(100vw / (9 / 19.5)));
+    max-width: 100%;
+    max-height: 100%;
+    background: #050508;
+    overflow: hidden;
+    touch-action: none;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 24px 80px rgba(0, 0, 0, 0.65);
+  }
 
-  useEffect(() => {
-    const mq = window.matchMedia(
-      "(hover: none) and (pointer: coarse), (max-width: 820px)",
-    );
-    const apply = () => setFill(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
+  /*
+   * Real devices + narrow windows: fill the shell edge-to-edge.
+   * Use 100% of the fixed shell (not 100vw) — 100vw can leave side gutters
+   * on iOS Safari when the scrollbar/safe-area math differs.
+   */
+  @media (max-width: 900px), (hover: none) and (pointer: coarse) {
+    .people-stage {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      box-shadow: none !important;
+      border-radius: 0;
+    }
+  }
 
-  return fill;
-}
+  .people-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    touch-action: none;
+  }
+`;
 
 /**
- * Root shell: black page + centered portrait stage + WebGL + HTML copy.
+ * Root shell: black page + stage + WebGL + HTML copy.
  * Swipe / wheel only. No chrome, no buttons.
- *
- * Mobile: stage is 100vw × 100dvh (edge to edge).
- * Desktop: tall letterboxed phone frame.
  *
  * Important: drag bias + phase live in refs so the morph does not re-render
  * the R3F tree mid-transition (that was flashing the material black on mobile).
  */
 export default function StoryCarousel() {
   const stageRef = useRef<HTMLDivElement>(null);
-  const fillViewport = useFillViewport();
   const [cap] = useState<StoryCapability>(() => detectStoryCapability());
   const [index, setIndex] = useState(0);
   /** Story phase — mutated synchronously; scene reads the ref every frame */
@@ -105,7 +138,6 @@ export default function StoryCarousel() {
       dragBiasRef.current = 0;
       return;
     }
-    // Gentle preview only — never steal the full-screen beat
     dragBiasRef.current = THREE.MathUtils.clamp(-deltaY / 420, -0.22, 0.22);
   }, []);
 
@@ -120,7 +152,6 @@ export default function StoryCarousel() {
 
   const onFocusSettled = useCallback((i: number, settled: boolean) => {
     setFocusIndex(i);
-    // Copy only after the morph into the framed rest pose
     setTextVisible(settled);
   }, []);
 
@@ -128,6 +159,18 @@ export default function StoryCarousel() {
     setTextBandTop((prev) =>
       Math.abs(prev - topFrac) > 0.008 ? topFrac : prev,
     );
+  }, []);
+
+  // Kick R3F resize after mount — mobile browser chrome can change the shell
+  // size after first paint, leaving a non-full canvas.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const fire = () => window.dispatchEvent(new Event("resize"));
+    fire();
+    const ro = new ResizeObserver(() => fire());
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   const dpr = useMemo(() => {
@@ -138,94 +181,64 @@ export default function StoryCarousel() {
   const activeCard = cards[focusIndex] ?? cards[0];
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "#030306",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        touchAction: "none",
-        overscrollBehavior: "none",
-        userSelect: "none",
-        WebkitUserSelect: "none",
-      }}
-    >
-      <div
-        ref={stageRef}
-        style={{
-          position: "relative",
-          // Mobile: own the whole screen. Desktop: tall phone column.
-          width: fillViewport
-            ? "100vw"
-            : `min(100vw, calc(100dvh * ${PORTRAIT_ASPECT}))`,
-          height: fillViewport
-            ? "100dvh"
-            : `min(100dvh, calc(100vw / ${PORTRAIT_ASPECT}))`,
-          maxWidth: "100vw",
-          maxHeight: "100dvh",
-          background: "#050508",
-          overflow: "hidden",
-          touchAction: "none",
-          // Column edge only on desktop letterbox — no fake chrome on phone
-          boxShadow: fillViewport
-            ? "none"
-            : "0 0 0 1px rgba(255,255,255,0.04), 0 24px 80px rgba(0,0,0,0.65)",
-        }}
-      >
-        <WebGLErrorBoundary onError={setWebglError}>
-          {!webglError && (
-            <Canvas
-              dpr={dpr}
-              gl={{
-                antialias: cap.tier !== "low",
-                alpha: false,
-                powerPreference: "default",
-                stencil: false,
-                depth: true,
-              }}
-              camera={{
-                position: [0, 0.15, 5.2],
-                fov: 42,
-                near: 0.1,
-                far: 40,
-              }}
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                touchAction: "none",
-              }}
-              onCreated={({ gl }) => {
-                gl.setClearColor(0x050508, 1);
-                gl.outputColorSpace = THREE.SRGBColorSpace;
-              }}
-            >
-              <CarouselScene
-                cards={cards}
-                targetIndex={index}
-                phaseRef={phaseRef}
-                dragBiasRef={dragBiasRef}
-                textures={textures}
-                cap={cap}
-                onFocusSettled={onFocusSettled}
-                onTextBandTop={onTextBandTop}
-              />
-            </Canvas>
-          )}
-        </WebGLErrorBoundary>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: PEOPLE_LAYOUT_CSS }} />
+      <div className="people-shell">
+        <div ref={stageRef} className="people-stage">
+          <WebGLErrorBoundary onError={setWebglError}>
+            {!webglError && (
+              <Canvas
+                className="people-canvas"
+                dpr={dpr}
+                gl={{
+                  antialias: cap.tier !== "low",
+                  alpha: false,
+                  powerPreference: "default",
+                  stencil: false,
+                  depth: true,
+                }}
+                camera={{
+                  position: [0, 0.15, 5.2],
+                  fov: 42,
+                  near: 0.1,
+                  far: 40,
+                }}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  touchAction: "none",
+                }}
+                onCreated={({ gl }) => {
+                  gl.setClearColor(0x050508, 1);
+                  gl.outputColorSpace = THREE.SRGBColorSpace;
+                }}
+              >
+                <CarouselScene
+                  cards={cards}
+                  targetIndex={index}
+                  phaseRef={phaseRef}
+                  dragBiasRef={dragBiasRef}
+                  textures={textures}
+                  cap={cap}
+                  onFocusSettled={onFocusSettled}
+                  onTextBandTop={onTextBandTop}
+                />
+              </Canvas>
+            )}
+          </WebGLErrorBoundary>
 
-        <CardTextOverlay
-          card={activeCard}
-          visible={textVisible && !webglError}
-          bandTop={textBandTop}
-        />
+          <CardTextOverlay
+            card={activeCard}
+            visible={textVisible && !webglError}
+            bandTop={textBandTop}
+          />
 
-        <SwipeHint />
+          <SwipeHint />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
