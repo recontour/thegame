@@ -99,20 +99,33 @@ export default function CarouselScene({
       dragBiasRef.current = 0;
     }
 
-    const presentTarget = phaseNow === "settled" ? 1 : 0;
     const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
     const traveling = posErr > 0.03;
     const dragging = Math.abs(drag) > 0.001;
 
+    /**
+     * Reverse fix (full N → settled N-1 was choppy):
+     * Don't settle while still traveling between cards.
+     * Stay full-bleed until we're home, then morph to framed.
+     * Forward (settled → next full) still targets present 0 immediately.
+     */
+    let presentTarget = 0;
+    if (phaseNow === "settled") {
+      presentTarget = traveling && posErr > 0.2 ? 0 : 1;
+    }
+
     // —— carousel position ——
-    let tgt = targetIndexNow + (traveling && !dragging ? 0 : drag);
+    // Allow light scrub while traveling so reverse doesn't feel locked
+    let tgt = targetIndexNow + (dragging ? drag * (traveling ? 0.35 : 1) : 0);
     const cur = positionRef.current;
     const diff = wrapDelta(cur, tgt, n);
     tgt = cur + diff;
 
-    let smoothTime = 0.42;
-    if (traveling) smoothTime = 0.62;
-    if (dragging) smoothTime = 0.16;
+    // Symmetric smooth times for forward / reverse travel
+    let smoothTime = 0.44;
+    if (traveling) smoothTime = 0.58;
+    if (dragging && !traveling) smoothTime = 0.16;
+    if (dragging && traveling) smoothTime = 0.4;
 
     const stepped = smoothDamp(
       cur,
@@ -120,28 +133,32 @@ export default function CarouselScene({
       positionVelRef.current,
       smoothTime,
       capped,
-      traveling ? 2.2 : 5,
+      traveling ? 2.4 : 5,
     );
     positionRef.current = stepped.value;
     positionVelRef.current = stepped.velocity;
 
-    if (!dragging && posErr < 0.08) {
-      positionVelRef.current *= 0.88;
+    // Soft park near home — same both directions, no hard snap
+    if (!dragging && posErr < 0.1) {
+      positionVelRef.current *= 0.9;
     }
 
     if (positionRef.current >= n) positionRef.current -= n;
     if (positionRef.current < 0) positionRef.current += n;
 
-    // —— presentation: settle a touch quicker so staggered copy can ride it ——
+    // —— presentation ——
+    // Quicker once reverse has arrived home and we're allowed to settle
     const presentSmooth =
-      traveling ? 0.45 : presentTarget === 1 ? 0.28 : 0.36;
+      traveling || presentTarget === 0
+        ? 0.34
+        : 0.3;
     const presentStep = smoothDamp(
       presentRef.current,
       presentTarget,
       presentVelRef.current,
       presentSmooth,
       capped,
-      4,
+      4.2,
     );
     presentRef.current = presentStep.value;
     presentVelRef.current = presentStep.velocity;

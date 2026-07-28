@@ -43,23 +43,23 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** easeOutBack — soft bounce into place */
+/** easeOutBack — soft bounce into place from below */
 function easeOutBack(t: number): number {
-  const c1 = 1.55;
+  const c1 = 1.45;
   const c3 = c1 + 1;
   const u = clamp01(t);
   return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
 }
 
 /**
- * HTML copy under the photo, timed to the same present/motion bus as WebGL.
+ * Copy lives under the photo and is timed to present/motion.
  *
- * Stagger:
- *   1. Title rides in early with parallax (same energy as the photo stack)
- *   2. Body bounces into place
- *   3. Quote + attribution settle quickly after
+ * Enter (present ↑): slides up from below the frame, staggered.
+ * Exit  (present ↓): same path reversed — drops back down out of focus.
  *
- * Imperative DOM updates — avoids React setState delay on live mobile.
+ *   1. Title first (parallax)
+ *   2. Body bounce
+ *   3. Quote quick
  */
 export default function CardTextOverlay({
   card,
@@ -80,42 +80,45 @@ export default function CardTextOverlay({
       const present = enabled ? clamp01(presentRef.current) : 0;
       const motion = motionRef.current;
 
-      // Title: early, with parallax — appears as the frame starts forming
-      const titleT = smoothstep(0.08, 0.4, present);
-      // Body: bounce in mid-settle
-      const bodyT = easeOutBack(smoothstep(0.28, 0.62, present));
-      // Quote: quick settle after body
-      const quoteT = smoothstep(0.42, 0.72, present);
+      // Staggered rise from bottom (and reverse exit downward when present falls)
+      const titleT = smoothstep(0.06, 0.42, present);
+      const bodyRaw = smoothstep(0.22, 0.6, present);
+      const bodyT = easeOutBack(bodyRaw);
+      const quoteT = smoothstep(0.38, 0.7, present);
+
+      // Off-frame distance (px) — enough to clear the band
+      const OFF = 110;
 
       const titleEl = titleRef.current;
       if (titleEl) {
-        // Parallax: title lags opposite the stack a touch — depth between photo & type
-        const paraY = -motion * 14 * (0.35 + titleT * 0.65);
-        const rise = (1 - titleT) * 22;
+        // Start fully below; settle at 0. Light parallax on top.
+        const fromBottom = (1 - titleT) * OFF;
+        const paraY = -motion * 10 * titleT;
         titleEl.style.opacity = String(titleT);
-        titleEl.style.transform = `translate3d(0, ${rise + paraY}px, 0)`;
+        titleEl.style.transform = `translate3d(0, ${fromBottom + paraY}px, 0)`;
       }
 
       const bodyEl = bodyRef.current;
       if (bodyEl) {
-        // Bounce: slight overshoot on Y from easeOutBack scale
-        const y = (1 - bodyT) * 28;
-        const scale = 0.94 + bodyT * 0.06;
+        // Bounce uses overshoot of bodyT (>1 briefly) as a slight lift past rest
+        const fromBottom = (1 - clamp01(bodyT)) * (OFF + 16);
+        const overshootY = bodyT > 1 ? -(bodyT - 1) * 18 : 0;
+        const scale = 0.96 + clamp01(bodyT) * 0.04;
         bodyEl.style.opacity = String(clamp01(bodyT));
-        bodyEl.style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`;
+        bodyEl.style.transform = `translate3d(0, ${fromBottom + overshootY}px, 0) scale(${scale})`;
       }
 
       const quoteEl = quoteRef.current;
       if (quoteEl) {
-        const y = (1 - quoteT) * 16;
+        const fromBottom = (1 - quoteT) * (OFF + 8);
         quoteEl.style.opacity = String(quoteT);
-        quoteEl.style.transform = `translate3d(0, ${y}px, 0)`;
+        quoteEl.style.transform = `translate3d(0, ${fromBottom}px, 0)`;
       }
 
-      // Whole band only blocks layout when anything is visible
       const root = rootRef.current;
       if (root) {
-        root.style.visibility = present > 0.04 ? "visible" : "hidden";
+        // Keep visible while anything is mid-enter or mid-exit
+        root.style.visibility = present > 0.02 ? "visible" : "hidden";
       }
 
       raf = requestAnimationFrame(tick);
@@ -146,14 +149,14 @@ export default function CardTextOverlay({
         gridTemplateRows: "auto auto 1fr",
         alignItems: "stretch",
         rowGap: "0.15rem",
+        // Clip so rising/falling copy stays out of the photo
         overflow: "hidden",
         boxSizing: "border-box",
-        // top can still ease when band reports a new photo bottom
         transition: "top 0.35s ease-out",
         visibility: "hidden",
       }}
     >
-      {/* Title — parallax layer */}
+      {/* Title — from bottom + parallax */}
       <div
         ref={titleRef}
         style={{
@@ -186,7 +189,7 @@ export default function CardTextOverlay({
         </p>
       </div>
 
-      {/* Body — bounce */}
+      {/* Body — from bottom with bounce */}
       <p
         ref={bodyRef}
         className={cormorantUpright.className}
@@ -202,14 +205,14 @@ export default function CardTextOverlay({
           whiteSpace: "pre-line",
           textShadow: "0 1px 12px rgba(0,0,0,0.55)",
           opacity: 0,
-          transformOrigin: "left center",
+          transformOrigin: "center bottom",
           willChange: "transform, opacity",
         }}
       >
         {card.body}
       </p>
 
-      {/* Quote — quick settle */}
+      {/* Quote — from bottom, quick */}
       <div
         ref={quoteRef}
         style={{
