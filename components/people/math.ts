@@ -28,10 +28,9 @@ export function springStep(
 }
 
 /**
- * SmoothDamp (Game Programming Gems) — second-order, less choppy than
- * exponential springs for travel / camera / parallax follow.
- * `smoothTime` ≈ time to approach target (seconds). Mutates nothing;
- * pass velocity in/out.
+ * SmoothDamp (Game Programming Gems style) — second-order ease.
+ * No hard overshoot kill: that felt like a "snap into place" on mobile.
+ * Velocity simply bleeds out as we approach the target.
  */
 export function smoothDamp(
   current: number,
@@ -52,10 +51,10 @@ export function smoothDamp(
   let newVel = (velocity - omega * temp) * exp;
   let newVal = target + (change + temp) * exp;
 
-  // Prevent overshoot past target
-  if (target - current > 0 === newVal > target) {
-    newVal = target;
-    newVel = 0;
+  // Soft park when basically there — no hard snap of value/velocity
+  const err = newVal - target;
+  if (Math.abs(err) < 1e-5 && Math.abs(newVel) < 1e-4) {
+    return { value: target, velocity: 0 };
   }
   return { value: newVal, velocity: newVel };
 }

@@ -109,12 +109,14 @@ export default function FloatingCard({
     const present = clamp01(presentRef.current);
 
     const immerse = focus * (1 - present);
+    // Single hermite on immerse only — no second "snap" curve on present
     const blend = immerse * immerse * (3 - 2 * immerse);
 
-    const locked = ad < 0.12;
-    const layoutD = locked ? 0 : d;
-    const layoutAd = locked ? 0 : ad;
-    const layoutFocus = locked ? 1 : focus;
+    // Soft park near focus (was a hard ad < 0.12 lock → visible chop)
+    const park = smoothstep(0.35, 0.06, ad);
+    const layoutD = d * (1 - park);
+    const layoutAd = ad * (1 - park);
+    const layoutFocus = lerp(focus, 1, park);
 
     const frameW = Math.max(viewport.width, 0.5);
     const frameH = Math.max(viewport.height, 0.5);

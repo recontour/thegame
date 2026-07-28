@@ -36,8 +36,8 @@ function wrapDelta(from: number, to: number, n: number): number {
 /**
  * Camera + cards + parallax motion bus.
  *
- * `motionRef` is a smoothed scroll energy (finger + travel) that cards and
- * stars sample at different depths — classic mobile multiplane feel.
+ * No hard "snap into place" — position/present always ease with smoothDamp.
+ * Parallax rides `motionRef` (finger + travel energy).
  */
 export default function CarouselScene({
   cards,
@@ -54,12 +54,6 @@ export default function CarouselScene({
   const positionVelRef = useRef(0);
   const presentRef = useRef(phaseRef.current === "settled" ? 1 : 0);
   const presentVelRef = useRef(0);
-  /**
-   * Smoothed parallax driver:
-   *   + = story advancing (swipe up / next)
-   *   − = going back
-   * Cards sample this with depth weights; stars sample slower.
-   */
   const motionRef = useRef(0);
   const lastSettled = useRef(false);
   const targetRef = useRef(targetIndex);
@@ -80,6 +74,7 @@ export default function CarouselScene({
       prevIndexRef.current = targetIndex;
       prevPhaseRef.current = phaseRef.current;
       lastSettled.current = false;
+      // Don't zero velocity — let the damp carry the travel
       dragBiasRef.current = 0;
     }
   }, [targetIndex, phaseRef, dragBiasRef]);
@@ -106,96 +101,96 @@ export default function CarouselScene({
     if (phaseNow !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseNow;
       lastSettled.current = false;
-      const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
-      if (posErr < 0.08) {
-        positionRef.current = targetIndexNow;
-        positionVelRef.current = 0;
-        dragBiasRef.current = 0;
-      }
+      // Soft: only clear finger bias — never hard-teleport the carousel
+      dragBiasRef.current = 0;
     }
 
     const presentTarget = phaseNow === "settled" ? 1 : 0;
     const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
-    const presentErr = Math.abs(presentRef.current - presentTarget);
-    const traveling = posErr > 0.04;
-    const morphingPose = !traveling && presentErr > 0.008;
+    const traveling = posErr > 0.03;
+    const dragging = Math.abs(drag) > 0.001;
 
-    // —— carousel position (smoothDamp = less choppy than exp spring) ——
-    if (morphingPose) {
-      positionRef.current = targetIndexNow;
-      positionVelRef.current = 0;
-    } else {
-      let tgt = targetIndexNow + (traveling ? 0 : drag);
-      const cur = positionRef.current;
-      const diff = wrapDelta(cur, tgt, n);
-      tgt = cur + diff;
+    // —— carousel position: always damp, never hard-lock ——
+    // Shortest-path target on the ring (+ live scrub when not mid long-haul)
+    let tgt = targetIndexNow + (traveling && !dragging ? 0 : drag);
+    const cur = positionRef.current;
+    const diff = wrapDelta(cur, tgt, n);
+    tgt = cur + diff;
 
-      // Travel: floaty. Scrubbing with finger: tighter follow.
-      const smoothTime = traveling ? 0.55 : drag !== 0 ? 0.14 : 0.32;
-      const stepped = smoothDamp(
-        cur,
-        tgt,
-        positionVelRef.current,
-        smoothTime,
-        capped,
-        traveling ? 2.8 : 6,
-      );
-      positionRef.current = stepped.value;
-      positionVelRef.current = stepped.velocity;
+    // Longer smoothTime = gentler arrive (no bounce-snap at the end)
+    let smoothTime = 0.42;
+    if (traveling) smoothTime = 0.62;
+    if (dragging) smoothTime = 0.16;
 
-      if (positionRef.current >= n) positionRef.current -= n;
-      if (positionRef.current < 0) positionRef.current += n;
+    const stepped = smoothDamp(
+      cur,
+      tgt,
+      positionVelRef.current,
+      smoothTime,
+      capped,
+      traveling ? 2.2 : 5,
+    );
+    positionRef.current = stepped.value;
+    positionVelRef.current = stepped.velocity;
+
+    // Extra ease when almost home — bleed velocity, don't slam
+    if (!dragging && posErr < 0.08) {
+      positionVelRef.current *= 0.88;
     }
 
-    // —— presentation (full ↔ framed) ——
-    const presentSmooth = traveling ? 0.42 : morphingPose ? 0.48 : 0.38;
+    if (positionRef.current >= n) positionRef.current -= n;
+    if (positionRef.current < 0) positionRef.current += n;
+
+    // —— presentation (full ↔ framed): soft ease, no snap ——
+    const presentSmooth = traveling ? 0.5 : 0.55;
     const presentStep = smoothDamp(
       presentRef.current,
       presentTarget,
       presentVelRef.current,
       presentSmooth,
       capped,
-      3.5,
+      2.8,
     );
     presentRef.current = presentStep.value;
     presentVelRef.current = presentStep.velocity;
+    if (Math.abs(presentRef.current - presentTarget) < 0.04) {
+      presentVelRef.current *= 0.9;
+    }
 
     // —— parallax motion bus ——
-    // Combine finger scrub + actual scroll velocity into one soft signal.
     let posDelta = positionRef.current - prevPosRef.current;
-    // unwrap jump across ring
     if (posDelta > n / 2) posDelta -= n;
     if (posDelta < -n / 2) posDelta += n;
     prevPosRef.current = positionRef.current;
 
     const scrollVel = posDelta / Math.max(capped, 1 / 120);
-    // Finger up (next) → positive dragBias in StoryCarousel is -deltaY/… so
-    // drag > 0 means next. Align motion so + = advancing.
     const finger = drag;
-    const rawMotion = finger * 1.15 + THREE.MathUtils.clamp(scrollVel * 0.22, -1.4, 1.4);
+    const rawMotion =
+      finger * 1.15 + THREE.MathUtils.clamp(scrollVel * 0.22, -1.4, 1.4);
     motionRef.current = springStep(motionRef.current, rawMotion, capped, 7.5);
-    // Soft settle to 0 when idle so planes rest
-    if (Math.abs(drag) < 0.001 && !traveling && !morphingPose) {
-      motionRef.current = springStep(motionRef.current, 0, capped, 4.5);
+    if (!dragging && !traveling) {
+      motionRef.current = springStep(motionRef.current, 0, capped, 3.8);
     }
 
     const p = positionRef.current;
     const nearest = ((Math.round(p) % n) + n) % n;
-    const frac = Math.abs(p - Math.round(p));
+    const frac = Math.abs(p - nearest);
+    // unwrap frac for ring
+    const fracWrapped = Math.min(frac, n - frac);
     const present = presentRef.current;
     const presentNear =
-      phaseNow === "settled" ? present > 0.92 : present < 0.08;
+      phaseNow === "settled" ? present > 0.9 : present < 0.1;
     const settled =
       !traveling &&
-      frac < 0.025 &&
-      Math.abs(dragBiasRef.current) < 0.001 &&
+      fracWrapped < 0.03 &&
+      !dragging &&
       presentNear;
 
     if (settled !== lastSettled.current) {
       lastSettled.current = settled;
       settledCb.current?.(
         nearest,
-        settled && phaseNow === "settled" && present > 0.92,
+        settled && phaseNow === "settled" && present > 0.9,
       );
     }
   });
