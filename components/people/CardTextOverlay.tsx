@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Cormorant_Upright, Special_Elite } from "next/font/google";
 import type { StoryCard } from "@/data/people";
 
@@ -19,34 +20,118 @@ const cormorantUpright = Cormorant_Upright({
 
 type CardTextOverlayProps = {
   card: StoryCard | null;
-  /** 0..1 visibility after focus settles */
-  visible: boolean;
+  /**
+   * Live presentation 0 = full-bleed, 1 = framed.
+   * Driven every frame via rAF — no React lag on mobile.
+   */
+  presentRef: React.MutableRefObject<number>;
+  /** Live parallax energy from the scene (+ = advancing) */
+  motionRef: React.MutableRefObject<number>;
   /**
    * Top of free space under the focused image (0 = top of stage, 1 = bottom).
-   * Layout fills [bandTop … bottom]:
-   *   title  — tight under the image
-   *   body   — left-aligned description
-   *   quote  — remaining space toward the bottom
    */
   bandTop?: number;
+  enabled?: boolean;
 };
 
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+/** easeOutBack — soft bounce into place */
+function easeOutBack(t: number): number {
+  const c1 = 1.55;
+  const c3 = c1 + 1;
+  const u = clamp01(t);
+  return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
+}
+
 /**
- * HTML overlay under the focused card.
- * Title padding stays tight so copy fits on short mobile bands
- * (e.g. What Remains).
+ * HTML copy under the photo, timed to the same present/motion bus as WebGL.
+ *
+ * Stagger:
+ *   1. Title rides in early with parallax (same energy as the photo stack)
+ *   2. Body bounces into place
+ *   3. Quote + attribution settle quickly after
+ *
+ * Imperative DOM updates — avoids React setState delay on live mobile.
  */
 export default function CardTextOverlay({
   card,
-  visible,
+  presentRef,
+  motionRef,
   bandTop = 0.55,
+  enabled = true,
 }: CardTextOverlayProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLParagraphElement>(null);
+  const quoteRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let raf = 0;
+
+    const tick = () => {
+      const present = enabled ? clamp01(presentRef.current) : 0;
+      const motion = motionRef.current;
+
+      // Title: early, with parallax — appears as the frame starts forming
+      const titleT = smoothstep(0.08, 0.4, present);
+      // Body: bounce in mid-settle
+      const bodyT = easeOutBack(smoothstep(0.28, 0.62, present));
+      // Quote: quick settle after body
+      const quoteT = smoothstep(0.42, 0.72, present);
+
+      const titleEl = titleRef.current;
+      if (titleEl) {
+        // Parallax: title lags opposite the stack a touch — depth between photo & type
+        const paraY = -motion * 14 * (0.35 + titleT * 0.65);
+        const rise = (1 - titleT) * 22;
+        titleEl.style.opacity = String(titleT);
+        titleEl.style.transform = `translate3d(0, ${rise + paraY}px, 0)`;
+      }
+
+      const bodyEl = bodyRef.current;
+      if (bodyEl) {
+        // Bounce: slight overshoot on Y from easeOutBack scale
+        const y = (1 - bodyT) * 28;
+        const scale = 0.94 + bodyT * 0.06;
+        bodyEl.style.opacity = String(clamp01(bodyT));
+        bodyEl.style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`;
+      }
+
+      const quoteEl = quoteRef.current;
+      if (quoteEl) {
+        const y = (1 - quoteT) * 16;
+        quoteEl.style.opacity = String(quoteT);
+        quoteEl.style.transform = `translate3d(0, ${y}px, 0)`;
+      }
+
+      // Whole band only blocks layout when anything is visible
+      const root = rootRef.current;
+      if (root) {
+        root.style.visibility = present > 0.04 ? "visible" : "hidden";
+      }
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [presentRef, motionRef, enabled, card?.id]);
+
   if (!card) return null;
 
   const topPct = `${(bandTop * 100).toFixed(2)}%`;
 
   return (
     <div
+      ref={rootRef}
       aria-live="polite"
       style={{
         position: "absolute",
@@ -58,28 +143,28 @@ export default function CardTextOverlay({
         pointerEvents: "none",
         zIndex: 5,
         display: "grid",
-        // Title + body hug content; leftover air goes under the quote
         gridTemplateRows: "auto auto 1fr",
         alignItems: "stretch",
         rowGap: "0.15rem",
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translate3d(0,0,0)" : "translate3d(0, 10px, 0)",
-        transition:
-          "opacity 0.55s cubic-bezier(0.22, 0.61, 0.36, 1), transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1), top 0.4s ease-out",
         overflow: "hidden",
         boxSizing: "border-box",
+        // top can still ease when band reports a new photo bottom
+        transition: "top 0.35s ease-out",
+        visibility: "hidden",
       }}
     >
-      {/* Title — Special Elite, tight under the image */}
+      {/* Title — parallax layer */}
       <div
+        ref={titleRef}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           minHeight: 0,
           width: "100%",
-          // Space under the photo without reopening a huge flexible title zone
           padding: "0.55rem 0 0.18rem",
+          opacity: 0,
+          willChange: "transform, opacity",
         }}
       >
         <p
@@ -101,8 +186,9 @@ export default function CardTextOverlay({
         </p>
       </div>
 
-      {/* Description — Cormorant Upright, left aligned */}
+      {/* Body — bounce */}
       <p
+        ref={bodyRef}
         className={cormorantUpright.className}
         style={{
           margin: 0,
@@ -115,13 +201,17 @@ export default function CardTextOverlay({
           color: "rgba(248,248,252,0.94)",
           whiteSpace: "pre-line",
           textShadow: "0 1px 12px rgba(0,0,0,0.55)",
+          opacity: 0,
+          transformOrigin: "left center",
+          willChange: "transform, opacity",
         }}
       >
         {card.body}
       </p>
 
-      {/* Quote — sits in whatever room is left */}
+      {/* Quote — quick settle */}
       <div
+        ref={quoteRef}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -130,6 +220,8 @@ export default function CardTextOverlay({
           minHeight: 0,
           width: "100%",
           paddingTop: "0.2rem",
+          opacity: 0,
+          willChange: "transform, opacity",
         }}
       >
         <p

@@ -20,9 +20,15 @@ type CarouselSceneProps = {
   targetIndex: number;
   phaseRef: React.MutableRefObject<StoryPhase>;
   dragBiasRef: React.MutableRefObject<number>;
+  /**
+   * Shared with HTML copy overlay — 0 full-bleed → 1 framed.
+   * Owned by parent so DOM can rAF-sample without React lag.
+   */
+  presentRef: React.MutableRefObject<number>;
+  /** Shared parallax energy bus (+ = advancing) */
+  motionRef: React.MutableRefObject<number>;
   textures: SlotTexture[];
   cap: StoryCapability;
-  onFocusSettled?: (index: number, settled: boolean) => void;
   onTextBandTop?: (topFrac: number) => void;
 };
 
@@ -35,30 +41,24 @@ function wrapDelta(from: number, to: number, n: number): number {
 
 /**
  * Camera + cards + parallax motion bus.
- *
- * No hard "snap into place" — position/present always ease with smoothDamp.
- * Parallax rides `motionRef` (finger + travel energy).
+ * presentRef / motionRef are shared with the HTML text overlay.
  */
 export default function CarouselScene({
   cards,
   targetIndex,
   phaseRef,
   dragBiasRef,
+  presentRef,
+  motionRef,
   textures,
   cap,
-  onFocusSettled,
   onTextBandTop,
 }: CarouselSceneProps) {
   const n = cards.length;
   const positionRef = useRef(targetIndex);
   const positionVelRef = useRef(0);
-  const presentRef = useRef(phaseRef.current === "settled" ? 1 : 0);
   const presentVelRef = useRef(0);
-  const motionRef = useRef(0);
-  const lastTextReady = useRef(false);
-  const lastFocusIdx = useRef(0);
   const targetRef = useRef(targetIndex);
-  const settledCb = useRef(onFocusSettled);
   const prevIndexRef = useRef(targetIndex);
   const prevPhaseRef = useRef<StoryPhase>(phaseRef.current);
   const prevPosRef = useRef(targetIndex);
@@ -66,16 +66,11 @@ export default function CarouselScene({
   useEffect(() => {
     targetRef.current = targetIndex;
   }, [targetIndex]);
-  useEffect(() => {
-    settledCb.current = onFocusSettled;
-  }, [onFocusSettled]);
 
   useEffect(() => {
     if (targetIndex !== prevIndexRef.current) {
       prevIndexRef.current = targetIndex;
       prevPhaseRef.current = phaseRef.current;
-      lastTextReady.current = false;
-      // Don't zero velocity — let the damp carry the travel
       dragBiasRef.current = 0;
     }
   }, [targetIndex, phaseRef, dragBiasRef]);
@@ -101,8 +96,6 @@ export default function CarouselScene({
 
     if (phaseNow !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseNow;
-      lastTextReady.current = false;
-      // Soft: only clear finger bias — never hard-teleport the carousel
       dragBiasRef.current = 0;
     }
 
@@ -111,14 +104,12 @@ export default function CarouselScene({
     const traveling = posErr > 0.03;
     const dragging = Math.abs(drag) > 0.001;
 
-    // —— carousel position: always damp, never hard-lock ——
-    // Shortest-path target on the ring (+ live scrub when not mid long-haul)
+    // —— carousel position ——
     let tgt = targetIndexNow + (traveling && !dragging ? 0 : drag);
     const cur = positionRef.current;
     const diff = wrapDelta(cur, tgt, n);
     tgt = cur + diff;
 
-    // Longer smoothTime = gentler arrive (no bounce-snap at the end)
     let smoothTime = 0.42;
     if (traveling) smoothTime = 0.62;
     if (dragging) smoothTime = 0.16;
@@ -134,7 +125,6 @@ export default function CarouselScene({
     positionRef.current = stepped.value;
     positionVelRef.current = stepped.velocity;
 
-    // Extra ease when almost home — bleed velocity, don't slam
     if (!dragging && posErr < 0.08) {
       positionVelRef.current *= 0.88;
     }
@@ -142,17 +132,16 @@ export default function CarouselScene({
     if (positionRef.current >= n) positionRef.current -= n;
     if (positionRef.current < 0) positionRef.current += n;
 
-    // —— presentation (full ↔ framed): soft ease, no snap ——
-    // Settling toward framed is a bit quicker so copy can arrive with the pose
+    // —— presentation: settle a touch quicker so staggered copy can ride it ——
     const presentSmooth =
-      traveling ? 0.48 : presentTarget === 1 ? 0.36 : 0.42;
+      traveling ? 0.45 : presentTarget === 1 ? 0.28 : 0.36;
     const presentStep = smoothDamp(
       presentRef.current,
       presentTarget,
       presentVelRef.current,
       presentSmooth,
       capped,
-      3.2,
+      4,
     );
     presentRef.current = presentStep.value;
     presentVelRef.current = presentStep.velocity;
@@ -173,29 +162,6 @@ export default function CarouselScene({
     motionRef.current = springStep(motionRef.current, rawMotion, capped, 7.5);
     if (!dragging && !traveling) {
       motionRef.current = springStep(motionRef.current, 0, capped, 3.8);
-    }
-
-    const p = positionRef.current;
-    const nearest = ((Math.round(p) % n) + n) % n;
-    const frac = Math.abs(p - nearest);
-    const fracWrapped = Math.min(frac, n - frac);
-    const present = presentRef.current;
-
-    // Copy appears mid-settle (not at 0.9 — that waited ~2–3s with soft damp).
-    // Morph can keep finishing; text should already be readable.
-    const textReady =
-      phaseNow === "settled" &&
-      !traveling &&
-      fracWrapped < 0.15 &&
-      present > 0.38;
-
-    if (
-      textReady !== lastTextReady.current ||
-      (textReady && nearest !== lastFocusIdx.current)
-    ) {
-      lastTextReady.current = textReady;
-      lastFocusIdx.current = nearest;
-      settledCb.current?.(nearest, textReady);
     }
   });
 

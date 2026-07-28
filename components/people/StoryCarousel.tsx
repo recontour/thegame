@@ -93,8 +93,9 @@ export default function StoryCarousel() {
   const phaseRef = useRef<StoryPhase>("full");
   /** Finger drag preview in card units — ref only, never React state */
   const dragBiasRef = useRef(0);
-  const [textVisible, setTextVisible] = useState(false);
-  const [focusIndex, setFocusIndex] = useState(0);
+  /** Shared with WebGL + HTML copy (rAF) — no React lag on mobile */
+  const presentRef = useRef(0);
+  const motionRef = useRef(0);
   const [webglError, setWebglError] = useState<string | null>(null);
   const [textBandTop, setTextBandTop] = useState(0.55);
 
@@ -109,7 +110,6 @@ export default function StoryCarousel() {
    *   settled → next image, full-bleed again
    */
   const goNext = useCallback(() => {
-    setTextVisible(false);
     if (phaseRef.current === "full") {
       phaseRef.current = "settled";
       return;
@@ -124,7 +124,6 @@ export default function StoryCarousel() {
    *   full    → previous image, already settled
    */
   const goPrev = useCallback(() => {
-    setTextVisible(false);
     if (phaseRef.current === "settled") {
       phaseRef.current = "full";
       return;
@@ -152,11 +151,6 @@ export default function StoryCarousel() {
     targetRef: stageRef,
   });
 
-  const onFocusSettled = useCallback((i: number, settled: boolean) => {
-    setFocusIndex(i);
-    setTextVisible(settled);
-  }, []);
-
   const onTextBandTop = useCallback((topFrac: number) => {
     setTextBandTop((prev) =>
       Math.abs(prev - topFrac) > 0.008 ? topFrac : prev,
@@ -180,7 +174,8 @@ export default function StoryCarousel() {
     return cap.dpr;
   }, [cap]);
 
-  const activeCard = cards[focusIndex] ?? cards[0];
+  // Content follows story index; opacity/stagger is driven by presentRef (rAF)
+  const activeCard = cards[index] ?? cards[0];
 
   return (
     <>
@@ -222,9 +217,10 @@ export default function StoryCarousel() {
                   targetIndex={index}
                   phaseRef={phaseRef}
                   dragBiasRef={dragBiasRef}
+                  presentRef={presentRef}
+                  motionRef={motionRef}
                   textures={textures}
                   cap={cap}
-                  onFocusSettled={onFocusSettled}
                   onTextBandTop={onTextBandTop}
                 />
               </Canvas>
@@ -233,8 +229,10 @@ export default function StoryCarousel() {
 
           <CardTextOverlay
             card={activeCard}
-            visible={textVisible && !webglError}
+            presentRef={presentRef}
+            motionRef={motionRef}
             bandTop={textBandTop}
+            enabled={!webglError}
           />
 
           <SwipeHint />
