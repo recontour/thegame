@@ -100,6 +100,12 @@ export default function LandingExperience() {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const [webglError, setWebglError] = useState<string | null>(null);
+  /**
+   * People CTA only after the pieces beat has settled — clicking during the
+   * enter transition felt broken. Restored from /people → show immediately.
+   */
+  const [peopleCtaReady, setPeopleCtaReady] = useState(false);
+  const peopleCtaDelayMs = useRef(950);
   const [storyReady, setStoryReady] = useState(false);
 
   const isPieces = step === PIECES_STEP;
@@ -148,8 +154,10 @@ export default function LandingExperience() {
       piecesProgress.current = 0.04;
       piecesTarget.current = 0.04;
       setPiecesUi(0.04);
+      peopleCtaDelayMs.current = 0;
       return;
     }
+    peopleCtaDelayMs.current = 950;
     introRef.current.pieces = 0;
     piecesProgress.current = 0;
     piecesTarget.current = 0.04;
@@ -169,8 +177,25 @@ export default function LandingExperience() {
     piecesProgress.current = 0;
     piecesTarget.current = 0;
     setPiecesUi(0);
+    setPeopleCtaReady(false);
     storyLockUntil.current = performance.now() + STORY_STEP_MS;
   }, []);
+
+  // Reveal people CTA only after enter transition window (or immediately if restored)
+  useEffect(() => {
+    if (step !== PIECES_STEP) {
+      setPeopleCtaReady(false);
+      return;
+    }
+    const delay = peopleCtaDelayMs.current;
+    if (delay <= 0) {
+      setPeopleCtaReady(true);
+      return;
+    }
+    setPeopleCtaReady(false);
+    const t = window.setTimeout(() => setPeopleCtaReady(true), delay);
+    return () => window.clearTimeout(t);
+  }, [step]);
 
   const goNext = useCallback(() => {
     if (scrollLocked) return;
@@ -798,60 +823,105 @@ export default function LandingExperience() {
             >
               Here is one of the stories I want to tell
             </p>
-            {/*
-              People CTA: high z-index + explicit navigate.
-              No timer on the button — failures were hit-testing (WebGL canvas /
-              full-screen layers / parent opacity) eating taps on mobile.
-            */}
-            <Link
-              href="/people"
-              data-landing-cta="people"
-              onPointerDown={(e) => {
-                // Don't let window swipe handlers treat this as a pieces scrub
-                e.stopPropagation();
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                try {
-                  sessionStorage.setItem(LANDING_STEP_KEY, String(PIECES_STEP));
-                } catch {
-                  /* ignore */
-                }
-                router.push("/people");
-              }}
-              style={{
-                // Keep clickable while the beat is still readable; disable when faded out
-                pointerEvents: piecesLeave > 0.12 ? "auto" : "none",
-                position: "relative",
-                zIndex: 30,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginTop: "0.15rem",
-                // Larger tap target than the pill chrome
-                padding: "0.85rem 1.7rem",
-                minHeight: 44,
-                minWidth: 120,
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.38)",
-                background: "rgba(255,255,255,0.08)",
-                color: "#ffffff",
-                textDecoration: "none",
-                fontFamily: UI_FONT,
-                fontSize: "clamp(0.72rem, 3.1vw, 0.82rem)",
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                fontWeight: 500,
-                WebkitTapHighlightColor: "transparent",
-                backdropFilter: "blur(8px)",
-                boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
-                cursor: "pointer",
-                touchAction: "manipulation",
-              }}
-            >
-              people
-            </Link>
+
+            {/* CTA + hint only after enter settle — avoids dead taps mid-transition */}
+            {peopleCtaReady && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "0.55rem",
+                  marginTop: "0.35rem",
+                  opacity: piecesLeave,
+                  pointerEvents: piecesLeave > 0.12 ? "auto" : "none",
+                }}
+              >
+                <style>{`
+                  @keyframes people-hint-bounce {
+                    0%, 100% { transform: translate3d(0, 0, 0); }
+                    50% { transform: translate3d(0, 7px, 0); }
+                  }
+                  @keyframes people-cta-in {
+                    from {
+                      opacity: 0;
+                      transform: translate3d(0, 14px, 0) scale(0.94);
+                    }
+                    to {
+                      opacity: 1;
+                      transform: translate3d(0, 0, 0) scale(1);
+                    }
+                  }
+                `}</style>
+                <p
+                  aria-hidden
+                  style={{
+                    margin: 0,
+                    fontFamily: UI_FONT,
+                    fontSize: "clamp(0.68rem, 2.9vw, 0.78rem)",
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                    color: "rgba(255,255,255,0.72)",
+                    animation: reduced
+                      ? "none"
+                      : "people-hint-bounce 1.35s ease-in-out infinite",
+                  }}
+                >
+                  tap below
+                </p>
+                <Link
+                  href="/people"
+                  data-landing-cta="people"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                      sessionStorage.setItem(
+                        LANDING_STEP_KEY,
+                        String(PIECES_STEP),
+                      );
+                    } catch {
+                      /* ignore */
+                    }
+                    router.push("/people");
+                  }}
+                  style={{
+                    position: "relative",
+                    zIndex: 30,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0.85rem 1.7rem",
+                    minHeight: 44,
+                    minWidth: 120,
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.38)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "#ffffff",
+                    textDecoration: "none",
+                    fontFamily: UI_FONT,
+                    fontSize: "clamp(0.72rem, 3.1vw, 0.82rem)",
+                    letterSpacing: "0.22em",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                    WebkitTapHighlightColor: "transparent",
+                    backdropFilter: "blur(8px)",
+                    boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+                    cursor: "pointer",
+                    touchAction: "manipulation",
+                    animation: reduced
+                      ? "none"
+                      : "people-cta-in 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) both",
+                  }}
+                >
+                  people
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
