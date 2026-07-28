@@ -31,10 +31,15 @@ const PEOPLE_LAYOUT_CSS = `
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Kill iOS horizontal back-swipe / overscroll competing with our story */
     touch-action: none;
     overscroll-behavior: none;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: auto;
     user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
 
   /* Desktop: tall letterboxed phone column */

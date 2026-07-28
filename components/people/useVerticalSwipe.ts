@@ -10,7 +10,7 @@ type Options = {
   /** Optional live drag (px, positive = finger down) while gesturing */
   onDrag?: (deltaY: number, active: boolean) => void;
   /**
-   * Minimum vertical travel (px) to count as a committed swipe.
+   * Minimum *vertical* travel (px) to count as a committed swipe.
    * Kept low — gesture is a *trigger*, not a distance scrubber.
    */
   threshold?: number;
@@ -24,27 +24,34 @@ type Options = {
 };
 
 /**
- * Vertical swipe for stepped story navigation.
+ * Vertical-only story beats for a stepped (not free-scroll) experience.
  *
- * Intention: a light flick up/down is enough. We are NOT measuring a long
- * drag-to-scroll — distance thresholds stay small; velocity helps short flicks.
- * Cooldown only prevents stacking beats while a slow transition is mid-flight.
+ * Design (esp. iOS):
+ *  • There is no horizontal mode. Diagonals count as up/down by dy only.
+ *  • We never “discard” a gesture for being a bit sideways — that killed
+ *    Android-fine / iPhone-broken clients in the past.
+ *  • touch-action: none + non-passive preventDefault so Safari can’t steal
+ *    edge swipes / rubber-band the page.
+ *  • Pointer + Touch listeners: iOS Safari is flaky on pointer-only paths.
  */
 export function useVerticalSwipe({
   enabled = true,
   onNext,
   onPrev,
   onDrag,
-  threshold = 28,
+  threshold = 24,
   cooldownMs = 1400,
   targetRef,
 }: Options) {
   const start = useRef<{ x: number; y: number; t: number } | null>(null);
-  const locked = useRef<"h" | "v" | null>(null);
+  /** True once finger moved enough that we own the gesture (always vertical). */
+  const armed = useRef(false);
   const handlers = useRef({ onNext, onPrev, onDrag });
   const lastBeat = useRef(0);
   const wheelAcc = useRef(0);
   const wheelReset = useRef<number | null>(null);
+  /** Track last known point for touchcancel path */
+  const lastY = useRef(0);
 
   useEffect(() => {
     handlers.current = { onNext, onPrev, onDrag };
@@ -65,11 +72,71 @@ export function useVerticalSwipe({
       return true;
     };
 
-    const onDown = (e: Event) => {
+    const begin = (x: number, y: number, t: number) => {
+      start.current = { x, y, t };
+      lastY.current = y;
+      armed.current = false;
+    };
+
+    const move = (x: number, y: number, e: Event) => {
+      if (!start.current) return;
+      const dx = x - start.current.x;
+      const dy = y - start.current.y;
+      lastY.current = y;
+
+      // Arm on tiny movement — do NOT require |dy| >> |dx|
+      if (!armed.current) {
+        if (Math.hypot(dx, dy) < 6) return;
+        armed.current = true;
+      }
+
+      // Always claim the gesture from the browser (iOS back / overscroll)
+      if (e.cancelable) e.preventDefault();
+
+      // Parallax hint uses vertical component only
+      handlers.current.onDrag?.(dy, true);
+    };
+
+    const end = (x: number, y: number) => {
+      if (!start.current) return;
+      const dy = y - start.current.y;
+      const dx = x - start.current.x;
+      const dt = performance.now() - start.current.t;
+      const wasArmed = armed.current;
+      start.current = null;
+      armed.current = false;
+      handlers.current.onDrag?.(0, false);
+
+      if (!wasArmed) return;
+
+      // Direction = vertical only. Sideways is ignored for *direction*,
+      // not for discarding the swipe.
+      const distY = Math.abs(dy);
+      const distX = Math.abs(dx);
+
+      // Pure sideways with almost no vertical → ignore (not a story beat).
+      // Everything else with a vertical component is up/down.
+      if (distY < 8 && distX > distY * 2.5) return;
+
+      const velocity = distY / Math.max(dt, 1); // px/ms
+      const distanceOk = distY >= threshold;
+      const flickOk = distY >= threshold * 0.4 && velocity > 0.15;
+      const snapOk = distY >= 12 && velocity > 0.4;
+      // Diagonal: total path was intentional even if dy is a bit short
+      const diagonalOk =
+        Math.hypot(dx, dy) >= threshold * 1.1 && distY >= threshold * 0.35;
+
+      if (!distanceOk && !flickOk && !snapOk && !diagonalOk) return;
+
+      // Finger up (negative dy) → next; finger down → prev
+      tryBeat(dy < 0 ? "next" : "prev");
+    };
+
+    // —— Pointer (desktop + most mobile) ——
+    const onPointerDown = (e: Event) => {
       const pe = e as PointerEvent;
       if (pe.pointerType === "mouse" && pe.button !== 0) return;
-      start.current = { x: pe.clientX, y: pe.clientY, t: performance.now() };
-      locked.current = null;
+      begin(pe.clientX, pe.clientY, performance.now());
       try {
         (root as HTMLElement).setPointerCapture?.(pe.pointerId);
       } catch {
@@ -77,51 +144,40 @@ export function useVerticalSwipe({
       }
     };
 
-    const onMove = (e: Event) => {
-      if (!start.current) return;
+    const onPointerMove = (e: Event) => {
       const pe = e as PointerEvent;
-      const dx = pe.clientX - start.current.x;
-      const dy = pe.clientY - start.current.y;
-
-      if (!locked.current) {
-        // Lock axis early so a short flick still counts as vertical
-        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-        locked.current = Math.abs(dy) >= Math.abs(dx) * 0.75 ? "v" : "h";
-      }
-
-      if (locked.current === "v") {
-        if (e.cancelable) e.preventDefault();
-        // Drag is only a light parallax hint — not the commit mechanism
-        handlers.current.onDrag?.(dy, true);
-      }
+      move(pe.clientX, pe.clientY, e);
     };
 
-    const onUp = (e: Event) => {
-      if (!start.current) return;
+    const onPointerUp = (e: Event) => {
       const pe = e as PointerEvent;
-      const dy = pe.clientY - start.current.y;
-      const dt = performance.now() - start.current.t;
-      const wasVertical = locked.current === "v";
-      start.current = null;
-      locked.current = null;
-      handlers.current.onDrag?.(0, false);
+      end(pe.clientX, pe.clientY);
+    };
 
-      if (!wasVertical) return;
+    // —— Touch backup (iOS Safari is happier with these + non-passive) ——
+    const onTouchStart = (e: Event) => {
+      const te = e as TouchEvent;
+      if (te.touches.length !== 1) return;
+      const t = te.touches[0];
+      begin(t.clientX, t.clientY, performance.now());
+    };
 
-      const dist = Math.abs(dy);
-      const velocity = dist / Math.max(dt, 1); // px/ms
+    const onTouchMove = (e: Event) => {
+      const te = e as TouchEvent;
+      if (te.touches.length !== 1) return;
+      const t = te.touches[0];
+      move(t.clientX, t.clientY, e);
+    };
 
-      // Trigger logic — short intentional flick is enough:
-      //  • distance ≥ threshold, OR
-      //  • quick flick (≥ ~half threshold + mild velocity)
-      //  • very snappy flick (even less distance if fast)
-      const distanceOk = dist >= threshold;
-      const flickOk = dist >= threshold * 0.45 && velocity > 0.18;
-      const snapOk = dist >= 14 && velocity > 0.45;
-      if (!distanceOk && !flickOk && !snapOk) return;
-
-      // Finger up (negative dy) → next; finger down → prev
-      tryBeat(dy < 0 ? "next" : "prev");
+    const onTouchEnd = (e: Event) => {
+      const te = e as TouchEvent;
+      // changedTouches has the finger that lifted
+      const t = te.changedTouches[0];
+      if (!t) {
+        end(0, lastY.current);
+        return;
+      }
+      end(t.clientX, t.clientY);
     };
 
     const onWheel = (e: Event) => {
@@ -135,7 +191,6 @@ export function useVerticalSwipe({
         wheelAcc.current = 0;
       }, 160);
 
-      // Low accum — one notch / small trackpad gesture = one beat
       if (Math.abs(wheelAcc.current) < 18) return;
       const dir = wheelAcc.current > 0 ? "next" : "prev";
       if (tryBeat(dir)) wheelAcc.current = 0;
@@ -152,18 +207,26 @@ export function useVerticalSwipe({
     };
 
     const opts = { passive: false } as AddEventListenerOptions;
-    root.addEventListener("pointerdown", onDown, opts);
-    root.addEventListener("pointermove", onMove, opts);
-    root.addEventListener("pointerup", onUp, opts);
-    root.addEventListener("pointercancel", onUp, opts);
+    root.addEventListener("pointerdown", onPointerDown, opts);
+    root.addEventListener("pointermove", onPointerMove, opts);
+    root.addEventListener("pointerup", onPointerUp, opts);
+    root.addEventListener("pointercancel", onPointerUp, opts);
+    root.addEventListener("touchstart", onTouchStart, opts);
+    root.addEventListener("touchmove", onTouchMove, opts);
+    root.addEventListener("touchend", onTouchEnd, opts);
+    root.addEventListener("touchcancel", onTouchEnd, opts);
     root.addEventListener("wheel", onWheel, opts);
     window.addEventListener("keydown", onKey);
 
     return () => {
-      root.removeEventListener("pointerdown", onDown);
-      root.removeEventListener("pointermove", onMove);
-      root.removeEventListener("pointerup", onUp);
-      root.removeEventListener("pointercancel", onUp);
+      root.removeEventListener("pointerdown", onPointerDown);
+      root.removeEventListener("pointermove", onPointerMove);
+      root.removeEventListener("pointerup", onPointerUp);
+      root.removeEventListener("pointercancel", onPointerUp);
+      root.removeEventListener("touchstart", onTouchStart);
+      root.removeEventListener("touchmove", onTouchMove);
+      root.removeEventListener("touchend", onTouchEnd);
+      root.removeEventListener("touchcancel", onTouchEnd);
       root.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKey);
       if (wheelReset.current != null) window.clearTimeout(wheelReset.current);
