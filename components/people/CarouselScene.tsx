@@ -146,25 +146,19 @@ export default function CarouselScene({
     if (positionRef.current >= n) positionRef.current -= n;
     if (positionRef.current < 0) positionRef.current += n;
 
-    // —— presentation ——
-    // Quicker once reverse has arrived home and we're allowed to settle
-    const presentSmooth =
-      traveling || presentTarget === 0
-        ? 0.34
-        : 0.3;
-    const presentStep = smoothDamp(
+    // —— presentation (full ↔ framed) ——
+    // Stepped story beat: simple exp ease, not second-order damp.
+    // Text samples this same value — one clock for photo + copy.
+    // (Travel still uses smoothDamp on position; present stays snappy & shared.)
+    const presentLambda =
+      traveling ? 5.5 : presentTarget === 1 ? 4.6 : 5.0;
+    presentRef.current = springStep(
       presentRef.current,
       presentTarget,
-      presentVelRef.current,
-      presentSmooth,
       capped,
-      4.2,
+      presentLambda,
     );
-    presentRef.current = presentStep.value;
-    presentVelRef.current = presentStep.velocity;
-    if (Math.abs(presentRef.current - presentTarget) < 0.04) {
-      presentVelRef.current *= 0.9;
-    }
+    presentVelRef.current = 0;
 
     // —— parallax motion bus ——
     let posDelta = positionRef.current - prevPosRef.current;

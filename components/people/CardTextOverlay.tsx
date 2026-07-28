@@ -39,16 +39,18 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = clamp01((x - edge0) / (edge1 - edge0));
-  return t * t * (3 - 2 * t);
+/** Same hermite the photo morph uses — one shared ease curve */
+function hermite(t: number): number {
+  const u = clamp01(t);
+  return u * u * (3 - 2 * u);
 }
 
-function easeOutBack(t: number): number {
-  const c1 = 1.35;
-  const c3 = c1 + 1;
-  const u = clamp01(t);
-  return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
+/**
+ * Map present → layer progress with a small delay, same duration window.
+ * Keeps title/body/quote stitched to the photo beat (not independent physics).
+ */
+function layerT(present: number, delay: number, span = 0.78): number {
+  return hermite(clamp01((present - delay) / span));
 }
 
 /**
@@ -105,8 +107,8 @@ export default function CardTextOverlay({
         setShown(pending);
       }
 
-      // Always animate with real present — old copy rides present 1→0 down,
-      // then new copy rides 0→1 up after the silent swap.
+      // One clock with the photo: present 0 = full / text under fold,
+      // present 1 = framed / text home. Light stagger only — no bounce physics.
       let offPx = 280;
       if (root) {
         const bandH = root.clientHeight || 0;
@@ -114,42 +116,36 @@ export default function CardTextOverlay({
         offPx = Math.max(bandH + 32, stageH * 0.48, 220);
       }
 
-      const titleT = smoothstep(0.05, 0.48, present);
-      const bodyT = easeOutBack(smoothstep(0.18, 0.62, present));
-      const quoteT = smoothstep(0.32, 0.72, present);
+      // Shared ease (matches FloatingCard blend feel), tiny cascade
+      const titleT = layerT(present, 0.0, 0.78);
+      const bodyT = layerT(present, 0.1, 0.78);
+      const quoteT = layerT(present, 0.2, 0.78);
 
       const titleEl = titleRef.current;
       if (titleEl) {
         const t = titleT;
-        const y = (1 - t) * offPx - motion * 10 * t;
-        const blur = (1 - t) * 12;
+        // Pure rise from bottom; slight parallax only when nearly in
+        const y = (1 - t) * offPx - motion * 8 * t;
         titleEl.style.opacity = String(t);
-        titleEl.style.filter =
-          blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : "none";
+        titleEl.style.filter = "none";
         titleEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
 
       const bodyEl = bodyRef.current;
       if (bodyEl) {
-        const t = clamp01(bodyT);
-        const y =
-          (1 - t) * (offPx * 1.05) - (bodyT > 1 ? (bodyT - 1) * 12 : 0);
-        const blur = (1 - t) * 14;
-        const scale = 0.97 + t * 0.03;
+        const t = bodyT;
+        const y = (1 - t) * offPx;
         bodyEl.style.opacity = String(t);
-        bodyEl.style.filter =
-          blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : "none";
-        bodyEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+        bodyEl.style.filter = "none";
+        bodyEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
 
       const quoteEl = quoteRef.current;
       if (quoteEl) {
         const t = quoteT;
-        const y = (1 - t) * (offPx * 1.08);
-        const blur = (1 - t) * 10;
+        const y = (1 - t) * offPx;
         quoteEl.style.opacity = String(t);
-        quoteEl.style.filter =
-          blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : "none";
+        quoteEl.style.filter = "none";
         quoteEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
 
