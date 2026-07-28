@@ -55,7 +55,8 @@ export default function CarouselScene({
   const presentRef = useRef(phaseRef.current === "settled" ? 1 : 0);
   const presentVelRef = useRef(0);
   const motionRef = useRef(0);
-  const lastSettled = useRef(false);
+  const lastTextReady = useRef(false);
+  const lastFocusIdx = useRef(0);
   const targetRef = useRef(targetIndex);
   const settledCb = useRef(onFocusSettled);
   const prevIndexRef = useRef(targetIndex);
@@ -73,7 +74,7 @@ export default function CarouselScene({
     if (targetIndex !== prevIndexRef.current) {
       prevIndexRef.current = targetIndex;
       prevPhaseRef.current = phaseRef.current;
-      lastSettled.current = false;
+      lastTextReady.current = false;
       // Don't zero velocity — let the damp carry the travel
       dragBiasRef.current = 0;
     }
@@ -100,7 +101,7 @@ export default function CarouselScene({
 
     if (phaseNow !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseNow;
-      lastSettled.current = false;
+      lastTextReady.current = false;
       // Soft: only clear finger bias — never hard-teleport the carousel
       dragBiasRef.current = 0;
     }
@@ -142,14 +143,16 @@ export default function CarouselScene({
     if (positionRef.current < 0) positionRef.current += n;
 
     // —— presentation (full ↔ framed): soft ease, no snap ——
-    const presentSmooth = traveling ? 0.5 : 0.55;
+    // Settling toward framed is a bit quicker so copy can arrive with the pose
+    const presentSmooth =
+      traveling ? 0.48 : presentTarget === 1 ? 0.36 : 0.42;
     const presentStep = smoothDamp(
       presentRef.current,
       presentTarget,
       presentVelRef.current,
       presentSmooth,
       capped,
-      2.8,
+      3.2,
     );
     presentRef.current = presentStep.value;
     presentVelRef.current = presentStep.velocity;
@@ -175,23 +178,24 @@ export default function CarouselScene({
     const p = positionRef.current;
     const nearest = ((Math.round(p) % n) + n) % n;
     const frac = Math.abs(p - nearest);
-    // unwrap frac for ring
     const fracWrapped = Math.min(frac, n - frac);
     const present = presentRef.current;
-    const presentNear =
-      phaseNow === "settled" ? present > 0.9 : present < 0.1;
-    const settled =
-      !traveling &&
-      fracWrapped < 0.03 &&
-      !dragging &&
-      presentNear;
 
-    if (settled !== lastSettled.current) {
-      lastSettled.current = settled;
-      settledCb.current?.(
-        nearest,
-        settled && phaseNow === "settled" && present > 0.9,
-      );
+    // Copy appears mid-settle (not at 0.9 — that waited ~2–3s with soft damp).
+    // Morph can keep finishing; text should already be readable.
+    const textReady =
+      phaseNow === "settled" &&
+      !traveling &&
+      fracWrapped < 0.15 &&
+      present > 0.38;
+
+    if (
+      textReady !== lastTextReady.current ||
+      (textReady && nearest !== lastFocusIdx.current)
+    ) {
+      lastTextReady.current = textReady;
+      lastFocusIdx.current = nearest;
+      settledCb.current?.(nearest, textReady);
     }
   });
 

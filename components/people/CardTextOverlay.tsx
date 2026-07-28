@@ -63,9 +63,9 @@ export default function CardTextOverlay({
         alignItems: "stretch",
         rowGap: "0.15rem",
         opacity: visible ? 1 : 0,
-        transform: visible ? "translate3d(0,0,0)" : "translate3d(0, 14px, 0)",
+        transform: visible ? "translate3d(0,0,0)" : "translate3d(0, 10px, 0)",
         transition:
-          "opacity 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), transform 1.15s cubic-bezier(0.22, 0.61, 0.36, 1), top 0.55s ease-out",
+          "opacity 0.55s cubic-bezier(0.22, 0.61, 0.36, 1), transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1), top 0.4s ease-out",
         overflow: "hidden",
         boxSizing: "border-box",
       }}
