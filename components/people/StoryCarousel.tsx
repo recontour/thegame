@@ -147,7 +147,8 @@ export default function StoryCarousel() {
     onNext: goNext,
     onPrev: goPrev,
     onDrag,
-    cooldownMs: 900,
+    // Let each beat finish breathing before the next swipe lands
+    cooldownMs: 1400,
     targetRef: stageRef,
   });
 

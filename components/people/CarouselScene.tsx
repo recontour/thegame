@@ -121,11 +121,11 @@ export default function CarouselScene({
     const diff = wrapDelta(cur, tgt, n);
     tgt = cur + diff;
 
-    // Symmetric smooth times for forward / reverse travel
-    let smoothTime = 0.44;
-    if (traveling) smoothTime = 0.58;
-    if (dragging && !traveling) smoothTime = 0.16;
-    if (dragging && traveling) smoothTime = 0.4;
+    // Slow, cinematic travel — higher smoothTime = gentler arrive
+    let smoothTime = 0.7;
+    if (traveling) smoothTime = 0.95;
+    if (dragging && !traveling) smoothTime = 0.22;
+    if (dragging && traveling) smoothTime = 0.65;
 
     const stepped = smoothDamp(
       cur,
@@ -133,25 +133,24 @@ export default function CarouselScene({
       positionVelRef.current,
       smoothTime,
       capped,
-      traveling ? 2.4 : 5,
+      traveling ? 1.6 : 3.5,
     );
     positionRef.current = stepped.value;
     positionVelRef.current = stepped.velocity;
 
     // Soft park near home — same both directions, no hard snap
     if (!dragging && posErr < 0.1) {
-      positionVelRef.current *= 0.9;
+      positionVelRef.current *= 0.92;
     }
 
     if (positionRef.current >= n) positionRef.current -= n;
     if (positionRef.current < 0) positionRef.current += n;
 
     // —— presentation (full ↔ framed) ——
-    // Stepped story beat: simple exp ease, not second-order damp.
-    // Text samples this same value — one clock for photo + copy.
-    // (Travel still uses smoothDamp on position; present stays snappy & shared.)
+    // Lower lambda = slower exp ease. Text shares this clock.
+    // ~1.2–1.6s to settle / expand feels unhurried on mobile.
     const presentLambda =
-      traveling ? 5.5 : presentTarget === 1 ? 4.6 : 5.0;
+      traveling ? 2.8 : presentTarget === 1 ? 2.4 : 2.6;
     presentRef.current = springStep(
       presentRef.current,
       presentTarget,
@@ -160,7 +159,7 @@ export default function CarouselScene({
     );
     presentVelRef.current = 0;
 
-    // —— parallax motion bus ——
+    // —— parallax motion bus (also a bit softer) ——
     let posDelta = positionRef.current - prevPosRef.current;
     if (posDelta > n / 2) posDelta -= n;
     if (posDelta < -n / 2) posDelta += n;
@@ -170,9 +169,9 @@ export default function CarouselScene({
     const finger = drag;
     const rawMotion =
       finger * 1.15 + THREE.MathUtils.clamp(scrollVel * 0.22, -1.4, 1.4);
-    motionRef.current = springStep(motionRef.current, rawMotion, capped, 7.5);
+    motionRef.current = springStep(motionRef.current, rawMotion, capped, 5.5);
     if (!dragging && !traveling) {
-      motionRef.current = springStep(motionRef.current, 0, capped, 3.8);
+      motionRef.current = springStep(motionRef.current, 0, capped, 2.8);
     }
   });
 
