@@ -19,13 +19,15 @@ type CarouselSceneProps = {
   cards: StoryCard[];
   targetIndex: number;
   phaseRef: React.MutableRefObject<StoryPhase>;
-  dragBiasRef: React.MutableRefObject<number>;
   /**
    * Shared with HTML copy overlay — 0 full-bleed → 1 framed.
    * Owned by parent so DOM can rAF-sample without React lag.
    */
   presentRef: React.MutableRefObject<number>;
-  /** Shared parallax energy bus (+ = advancing) */
+  /**
+   * Parallax energy from *committed* travel only (index changes).
+   * Never live finger scrub — swipe is a pure next/prev trigger.
+   */
   motionRef: React.MutableRefObject<number>;
   textures: SlotTexture[];
   cap: StoryCapability;
@@ -40,14 +42,13 @@ function wrapDelta(from: number, to: number, n: number): number {
 }
 
 /**
- * Camera + cards + parallax motion bus.
- * presentRef / motionRef are shared with the HTML text overlay.
+ * Camera + cards.
+ * Swipe never feeds live drag into the scene — only discrete index/phase targets.
  */
 export default function CarouselScene({
   cards,
   targetIndex,
   phaseRef,
-  dragBiasRef,
   presentRef,
   motionRef,
   textures,
@@ -71,9 +72,8 @@ export default function CarouselScene({
     if (targetIndex !== prevIndexRef.current) {
       prevIndexRef.current = targetIndex;
       prevPhaseRef.current = phaseRef.current;
-      dragBiasRef.current = 0;
     }
-  }, [targetIndex, phaseRef, dragBiasRef]);
+  }, [targetIndex, phaseRef]);
 
   const sharedGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
@@ -92,41 +92,29 @@ export default function CarouselScene({
     const capped = Math.min(dt, 0.05);
     const targetIndexNow = targetRef.current;
     const phaseNow = phaseRef.current;
-    const drag = dragBiasRef.current;
 
     if (phaseNow !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseNow;
-      dragBiasRef.current = 0;
     }
 
     const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
     const traveling = posErr > 0.03;
-    const dragging = Math.abs(drag) > 0.001;
 
     /**
-     * Reverse fix (full N → settled N-1 was choppy):
-     * Don't settle while still traveling between cards.
-     * Stay full-bleed until we're home, then morph to framed.
-     * Forward (settled → next full) still targets present 0 immediately.
+     * Reverse: stay full while traveling between cards, then settle home.
+     * Forward settle on same card: present → 1 immediately.
      */
     let presentTarget = 0;
     if (phaseNow === "settled") {
       presentTarget = traveling && posErr > 0.2 ? 0 : 1;
     }
 
-    // —— carousel position ——
-    // Allow light scrub while traveling so reverse doesn't feel locked
-    let tgt = targetIndexNow + (dragging ? drag * (traveling ? 0.35 : 1) : 0);
+    // —— carousel position: integer targets only (no finger bias) ——
     const cur = positionRef.current;
-    const diff = wrapDelta(cur, tgt, n);
-    tgt = cur + diff;
+    const diff = wrapDelta(cur, targetIndexNow, n);
+    const tgt = cur + diff;
 
-    // Slow, cinematic travel — higher smoothTime = gentler arrive
-    let smoothTime = 0.7;
-    if (traveling) smoothTime = 0.95;
-    if (dragging && !traveling) smoothTime = 0.22;
-    if (dragging && traveling) smoothTime = 0.65;
-
+    const smoothTime = traveling ? 0.95 : 0.7;
     const stepped = smoothDamp(
       cur,
       tgt,
@@ -138,17 +126,14 @@ export default function CarouselScene({
     positionRef.current = stepped.value;
     positionVelRef.current = stepped.velocity;
 
-    // Soft park near home — same both directions, no hard snap
-    if (!dragging && posErr < 0.1) {
+    if (posErr < 0.1) {
       positionVelRef.current *= 0.92;
     }
 
     if (positionRef.current >= n) positionRef.current -= n;
     if (positionRef.current < 0) positionRef.current += n;
 
-    // —— presentation (full ↔ framed) ——
-    // Lower lambda = slower exp ease. Text shares this clock.
-    // ~1.2–1.6s to settle / expand feels unhurried on mobile.
+    // —— presentation (full ↔ framed) — shared clock with text ——
     const presentLambda =
       traveling ? 2.8 : presentTarget === 1 ? 2.4 : 2.6;
     presentRef.current = springStep(
@@ -159,18 +144,16 @@ export default function CarouselScene({
     );
     presentVelRef.current = 0;
 
-    // —— parallax motion bus (also a bit softer) ——
+    // —— parallax from committed travel only (not finger) ——
     let posDelta = positionRef.current - prevPosRef.current;
     if (posDelta > n / 2) posDelta -= n;
     if (posDelta < -n / 2) posDelta += n;
     prevPosRef.current = positionRef.current;
 
     const scrollVel = posDelta / Math.max(capped, 1 / 120);
-    const finger = drag;
-    const rawMotion =
-      finger * 1.15 + THREE.MathUtils.clamp(scrollVel * 0.22, -1.4, 1.4);
+    const rawMotion = THREE.MathUtils.clamp(scrollVel * 0.22, -1.4, 1.4);
     motionRef.current = springStep(motionRef.current, rawMotion, capped, 5.5);
-    if (!dragging && !traveling) {
+    if (!traveling) {
       motionRef.current = springStep(motionRef.current, 0, capped, 2.8);
     }
   });
@@ -188,7 +171,6 @@ export default function CarouselScene({
           positionRef={positionRef}
           presentRef={presentRef}
           motionRef={motionRef}
-          dragBiasRef={dragBiasRef}
           texture={textures[i]?.texture ?? null}
           geometry={sharedGeo}
           seed={seeds[i]}

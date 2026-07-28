@@ -10,10 +10,8 @@ type FloatingCardProps = {
   count: number;
   positionRef: React.MutableRefObject<number>;
   presentRef: React.MutableRefObject<number>;
-  /** Smoothed scroll energy from the scene (+ = advancing) */
+  /** Smoothed travel energy from the scene (+ = advancing) — never live finger */
   motionRef: React.MutableRefObject<number>;
-  /** Live finger bias (card units) */
-  dragBiasRef: React.MutableRefObject<number>;
   texture: THREE.Texture | null;
   geometry: THREE.PlaneGeometry;
   seed: number;
@@ -37,7 +35,6 @@ export default function FloatingCard({
   positionRef,
   presentRef,
   motionRef,
-  dragBiasRef,
   texture,
   geometry,
   seed,
@@ -196,11 +193,10 @@ export default function FloatingCard({
 
     const fullZ = 0.02;
 
-    // ——— Multiplane parallax from swipe / travel ———
-    // motion + = advancing (finger up). Foreground moves more; depth lags.
+    // ——— Multiplane parallax from committed travel only ———
+    // (No live finger scrub — that bobbed the photo while holding to swipe.)
     const motion = motionRef.current;
-    const drag = dragBiasRef.current;
-    const energy = motion + drag * 0.35;
+    const energy = motion;
 
     // 1 near camera … 0 far in the stack
     const nearness = clamp01(1 - ad / 2.4);

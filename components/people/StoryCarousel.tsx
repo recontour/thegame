@@ -96,10 +96,9 @@ export default function StoryCarousel() {
   const [index, setIndex] = useState(0);
   /** Story phase — mutated synchronously; scene reads the ref every frame */
   const phaseRef = useRef<StoryPhase>("full");
-  /** Finger drag preview in card units — ref only, never React state */
-  const dragBiasRef = useRef(0);
   /** Shared with WebGL + HTML copy (rAF) — no React lag on mobile */
   const presentRef = useRef(0);
+  /** Parallax from *committed* travel only — never from live finger scrub */
   const motionRef = useRef(0);
   const [webglError, setWebglError] = useState<string | null>(null);
   const [textBandTop, setTextBandTop] = useState(0.55);
@@ -137,23 +136,12 @@ export default function StoryCarousel() {
     setIndex((i) => (i - 1 + n) % n);
   }, [n]);
 
-  const onDrag = useCallback((deltaY: number, active: boolean) => {
-    if (!active) {
-      dragBiasRef.current = 0;
-      return;
-    }
-    // Light parallax hint only — swipe is a *trigger*, not a long scrub.
-    // Finger up (negative dy) → positive bias → next
-    dragBiasRef.current = THREE.MathUtils.clamp(-deltaY / 420, -0.2, 0.2);
-  }, []);
-
   useVerticalSwipe({
     enabled: !webglError,
     onNext: goNext,
     onPrev: goPrev,
-    onDrag,
-    // Short flick is enough (default ~28px); cooldown only blocks double-fires
-    // while the slow animation is still breathing — does not make swipe harder.
+    // Pure trigger: no onDrag — finger never bobs the photo mid-hold.
+    // Short flick is enough; cooldown only blocks double-fires mid-animation.
     threshold: 24,
     cooldownMs: 1400,
     targetRef: stageRef,
@@ -224,7 +212,6 @@ export default function StoryCarousel() {
                   cards={cards}
                   targetIndex={index}
                   phaseRef={phaseRef}
-                  dragBiasRef={dragBiasRef}
                   presentRef={presentRef}
                   motionRef={motionRef}
                   textures={textures}
