@@ -4,20 +4,25 @@ import { useEffect, useRef } from "react";
 
 type Options = {
   enabled?: boolean;
-  /** Swipe up → next; swipe down → prev */
+  /** Swipe up / scroll down → next beat */
   onNext: () => void;
   onPrev: () => void;
   /** Optional live drag (px, positive = finger down) while gesturing */
   onDrag?: (deltaY: number, active: boolean) => void;
   threshold?: number;
+  /**
+   * Minimum ms between accepted beats (swipe, wheel, key).
+   * Keeps the story slow — one intentional gesture at a time.
+   */
+  cooldownMs?: number;
   /** Element to attach listeners; defaults to window */
   targetRef?: React.RefObject<HTMLElement | null>;
 };
 
 /**
- * Vertical swipe / drag for carousel navigation.
- * Touch + mouse (pointer events). Keyboard ↑/↓ as accessibility fallback only —
- * primary UX is swipe. Prevents scroll bounce while dragging on the target.
+ * Vertical swipe / wheel / drag for story navigation.
+ * Touch + mouse (pointer events) + wheel. Keyboard ↑/↓ as accessibility fallback.
+ * Cooldown enforces a cinematic pace — no rapid-fire flips.
  */
 export function useVerticalSwipe({
   enabled = true,
@@ -25,11 +30,15 @@ export function useVerticalSwipe({
   onPrev,
   onDrag,
   threshold = 52,
+  cooldownMs = 850,
   targetRef,
 }: Options) {
   const start = useRef<{ x: number; y: number; t: number } | null>(null);
   const locked = useRef<"h" | "v" | null>(null);
   const handlers = useRef({ onNext, onPrev, onDrag });
+  const lastBeat = useRef(0);
+  const wheelAcc = useRef(0);
+  const wheelReset = useRef<number | null>(null);
 
   useEffect(() => {
     handlers.current = { onNext, onPrev, onDrag };
@@ -40,6 +49,15 @@ export function useVerticalSwipe({
 
     const el: HTMLElement | Window = targetRef?.current ?? window;
     const root = el instanceof Window ? window : el;
+
+    const tryBeat = (dir: "next" | "prev") => {
+      const now = performance.now();
+      if (now - lastBeat.current < cooldownMs) return false;
+      lastBeat.current = now;
+      if (dir === "next") handlers.current.onNext();
+      else handlers.current.onPrev();
+      return true;
+    };
 
     const onDown = (e: Event) => {
       const pe = e as PointerEvent;
@@ -84,21 +102,37 @@ export function useVerticalSwipe({
 
       const velocity = Math.abs(dy) / Math.max(dt, 1);
       const distanceOk = Math.abs(dy) >= threshold;
-      const flickOk = Math.abs(dy) >= threshold * 0.5 && velocity > 0.4;
+      const flickOk = Math.abs(dy) >= threshold * 0.5 && velocity > 0.35;
       if (!distanceOk && !flickOk) return;
 
       // Finger up (negative dy) → next; finger down → prev
-      if (dy < 0) handlers.current.onNext();
-      else handlers.current.onPrev();
+      tryBeat(dy < 0 ? "next" : "prev");
+    };
+
+    const onWheel = (e: Event) => {
+      const we = e as WheelEvent;
+      if (e.cancelable) e.preventDefault();
+
+      // Trackpad inertia: accumulate, then one beat, then cool down
+      wheelAcc.current += we.deltaY;
+
+      if (wheelReset.current != null) window.clearTimeout(wheelReset.current);
+      wheelReset.current = window.setTimeout(() => {
+        wheelAcc.current = 0;
+      }, 180);
+
+      if (Math.abs(wheelAcc.current) < 28) return;
+      const dir = wheelAcc.current > 0 ? "next" : "prev";
+      if (tryBeat(dir)) wheelAcc.current = 0;
     };
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowUp" || e.key === "PageUp") {
         e.preventDefault();
-        handlers.current.onNext();
+        tryBeat("next");
       } else if (e.key === "ArrowDown" || e.key === "PageDown") {
         e.preventDefault();
-        handlers.current.onPrev();
+        tryBeat("prev");
       }
     };
 
@@ -107,6 +141,7 @@ export function useVerticalSwipe({
     root.addEventListener("pointermove", onMove, opts);
     root.addEventListener("pointerup", onUp, opts);
     root.addEventListener("pointercancel", onUp, opts);
+    root.addEventListener("wheel", onWheel, opts);
     window.addEventListener("keydown", onKey);
 
     return () => {
@@ -114,7 +149,9 @@ export function useVerticalSwipe({
       root.removeEventListener("pointermove", onMove);
       root.removeEventListener("pointerup", onUp);
       root.removeEventListener("pointercancel", onUp);
+      root.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKey);
+      if (wheelReset.current != null) window.clearTimeout(wheelReset.current);
     };
-  }, [enabled, threshold, targetRef]);
+  }, [enabled, threshold, cooldownMs, targetRef]);
 }

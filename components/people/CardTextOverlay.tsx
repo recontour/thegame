@@ -24,15 +24,17 @@ type CardTextOverlayProps = {
   /**
    * Top of free space under the focused image (0 = top of stage, 1 = bottom).
    * Layout fills [bandTop … bottom]:
-   *   title  — vertically centered between image and description
+   *   title  — tight under the image
    *   body   — left-aligned description
-   *   quote  — vertically centered between description and bottom
+   *   quote  — remaining space toward the bottom
    */
   bandTop?: number;
 };
 
 /**
  * HTML overlay under the focused card.
+ * Title padding stays tight so copy fits on short mobile bands
+ * (e.g. What Remains).
  */
 export default function CardTextOverlay({
   card,
@@ -51,23 +53,24 @@ export default function CardTextOverlay({
         left: 0,
         right: 0,
         top: topPct,
-        bottom: "max(0.75rem, env(safe-area-inset-bottom))",
+        bottom: "max(0.5rem, env(safe-area-inset-bottom))",
         padding: "0 3%",
         pointerEvents: "none",
         zIndex: 5,
         display: "grid",
-        // Title zone | body (content) | quote zone — equal air above/below body
-        gridTemplateRows: "1fr auto 1fr",
+        // Title + body hug content; leftover air goes under the quote
+        gridTemplateRows: "auto auto 1fr",
         alignItems: "stretch",
+        rowGap: "0.15rem",
         opacity: visible ? 1 : 0,
-        transform: visible ? "translate3d(0,0,0)" : "translate3d(0, 10px, 0)",
+        transform: visible ? "translate3d(0,0,0)" : "translate3d(0, 14px, 0)",
         transition:
-          "opacity 0.55s ease, transform 0.55s ease, top 0.35s ease-out",
+          "opacity 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), transform 1.15s cubic-bezier(0.22, 0.61, 0.36, 1), top 0.55s ease-out",
         overflow: "hidden",
         boxSizing: "border-box",
       }}
     >
-      {/* Title — Special Elite, centered under the image */}
+      {/* Title — Special Elite, tight under the image */}
       <div
         style={{
           display: "flex",
@@ -75,6 +78,8 @@ export default function CardTextOverlay({
           justifyContent: "center",
           minHeight: 0,
           width: "100%",
+          // Space under the photo without reopening a huge flexible title zone
+          padding: "0.55rem 0 0.18rem",
         }}
       >
         <p
@@ -83,8 +88,8 @@ export default function CardTextOverlay({
             margin: 0,
             width: "100%",
             textAlign: "center",
-            fontSize: "clamp(1.05rem, 4.6vw, 1.35rem)",
-            lineHeight: 1.3,
+            fontSize: "clamp(0.98rem, 4.2vw, 1.28rem)",
+            lineHeight: 1.2,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
             fontWeight: 400,
@@ -103,8 +108,8 @@ export default function CardTextOverlay({
           margin: 0,
           width: "100%",
           textAlign: "left",
-          fontSize: "clamp(1.05rem, 4.4vw, 1.28rem)",
-          lineHeight: 1.4,
+          fontSize: "clamp(0.98rem, 4.1vw, 1.22rem)",
+          lineHeight: 1.35,
           letterSpacing: "0.01em",
           fontWeight: 500,
           color: "rgba(248,248,252,0.94)",
@@ -115,7 +120,7 @@ export default function CardTextOverlay({
         {card.body}
       </p>
 
-      {/* Quote — centered in the gap above the bottom */}
+      {/* Quote — sits in whatever room is left */}
       <div
         style={{
           display: "flex",
@@ -124,6 +129,7 @@ export default function CardTextOverlay({
           justifyContent: "center",
           minHeight: 0,
           width: "100%",
+          paddingTop: "0.2rem",
         }}
       >
         <p
@@ -132,8 +138,8 @@ export default function CardTextOverlay({
             width: "100%",
             textAlign: "center",
             fontFamily: 'ui-serif, Georgia, "Times New Roman", serif',
-            fontSize: "clamp(0.82rem, 3.5vw, 0.98rem)",
-            lineHeight: 1.4,
+            fontSize: "clamp(0.78rem, 3.3vw, 0.95rem)",
+            lineHeight: 1.35,
             fontStyle: "italic",
             letterSpacing: "0.01em",
             color: "rgba(210,218,235,0.85)",
@@ -146,13 +152,13 @@ export default function CardTextOverlay({
         {card.attribution ? (
           <p
             style={{
-              margin: "0.4rem 0 0",
+              margin: "0.28rem 0 0",
               width: "100%",
               textAlign: "center",
               fontFamily:
                 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
-              fontSize: "clamp(0.68rem, 2.8vw, 0.78rem)",
-              lineHeight: 1.3,
+              fontSize: "clamp(0.64rem, 2.6vw, 0.75rem)",
+              lineHeight: 1.25,
               letterSpacing: "0.04em",
               fontStyle: "normal",
               color: "rgba(180,190,210,0.58)",

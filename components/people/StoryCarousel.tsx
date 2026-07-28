@@ -8,7 +8,9 @@ import {
   detectStoryCapability,
   type StoryCapability,
 } from "@/components/people/capability";
-import CarouselScene from "@/components/people/CarouselScene";
+import CarouselScene, {
+  type StoryPhase,
+} from "@/components/people/CarouselScene";
 import CardTextOverlay from "@/components/people/CardTextOverlay";
 import { useCarouselTextures } from "@/components/people/useCarouselTextures";
 import { useVerticalSwipe } from "@/components/people/useVerticalSwipe";
@@ -19,13 +21,14 @@ const PORTRAIT_ASPECT = 9 / 19.5;
 
 /**
  * Root shell: black page + centered portrait stage + WebGL + HTML copy.
- * Swipe up/down only. No chrome, no buttons.
+ * Swipe / wheel only. No chrome, no buttons.
  */
 export default function StoryCarousel() {
   const stageRef = useRef<HTMLDivElement>(null);
   // Lazy init on client — SSR falls back to mid tier defaults inside detect
   const [cap] = useState<StoryCapability>(() => detectStoryCapability());
   const [index, setIndex] = useState(0);
+  const [phase, setPhase] = useState<StoryPhase>("full");
   const [dragBias, setDragBias] = useState(0);
   const [textVisible, setTextVisible] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
@@ -38,23 +41,43 @@ export default function StoryCarousel() {
 
   const textures = useCarouselTextures(cards, index, cap);
 
+  /**
+   * Next beat:
+   *   full    → settle this image (text arrives after the morph)
+   *   settled → next image, full-bleed again
+   */
   const goNext = useCallback(() => {
+    setTextVisible(false);
+    if (phase === "full") {
+      setPhase("settled");
+      return;
+    }
     setIndex((i) => (i + 1) % n);
-    setTextVisible(false);
-  }, [n]);
+    setPhase("full");
+  }, [n, phase]);
 
+  /**
+   * Prev beat (mirror of next):
+   *   settled → expand this image full again
+   *   full    → previous image, already settled
+   */
   const goPrev = useCallback(() => {
-    setIndex((i) => (i - 1 + n) % n);
     setTextVisible(false);
-  }, [n]);
+    if (phase === "settled") {
+      setPhase("full");
+      return;
+    }
+    setIndex((i) => (i - 1 + n) % n);
+    setPhase("settled");
+  }, [n, phase]);
 
   const onDrag = useCallback((deltaY: number, active: boolean) => {
     if (!active) {
       setDragBias(0);
       return;
     }
-    // Finger up (negative dy) previews next → positive bias
-    const bias = THREE.MathUtils.clamp(-deltaY / 280, -0.4, 0.4);
+    // Gentle preview only — never steal the full-screen beat
+    const bias = THREE.MathUtils.clamp(-deltaY / 420, -0.22, 0.22);
     setDragBias(bias);
   }, []);
 
@@ -63,11 +86,13 @@ export default function StoryCarousel() {
     onNext: goNext,
     onPrev: goPrev,
     onDrag,
+    cooldownMs: 900,
     targetRef: stageRef,
   });
 
   const onFocusSettled = useCallback((i: number, settled: boolean) => {
     setFocusIndex(i);
+    // Copy only after the morph into the framed rest pose
     setTextVisible(settled);
   }, []);
 
@@ -150,6 +175,7 @@ export default function StoryCarousel() {
               <CarouselScene
                 cards={cards}
                 targetIndex={index}
+                phase={phase}
                 dragBias={dragBias}
                 textures={textures}
                 cap={cap}
@@ -166,25 +192,28 @@ export default function StoryCarousel() {
           bandTop={textBandTop}
         />
 
-        {/* Quiet hint — fades after first interaction via CSS only on mount */}
-        <SwipeHint />
+        <SwipeHint phase={phase} />
       </div>
     </div>
   );
 }
 
-function SwipeHint() {
+function SwipeHint({ phase }: { phase: StoryPhase }) {
   const [show, setShow] = useState(true);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setShow(false), 4200);
+    const t = window.setTimeout(() => setShow(false), 5200);
     const hide = () => setShow(false);
     window.addEventListener("pointerdown", hide, { once: true });
+    window.addEventListener("wheel", hide, { once: true, passive: true });
     return () => {
       window.clearTimeout(t);
       window.removeEventListener("pointerdown", hide);
+      window.removeEventListener("wheel", hide);
     };
   }, []);
+
+  const label = phase === "full" ? "scroll" : "scroll";
 
   return (
     <div
@@ -196,17 +225,17 @@ function SwipeHint() {
         textAlign: "center",
         pointerEvents: "none",
         zIndex: 4,
-        opacity: show ? 0.45 : 0,
-        transition: "opacity 1.2s ease",
+        opacity: show ? 0.4 : 0,
+        transition: "opacity 1.6s ease",
         fontFamily:
           'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
         fontSize: 11,
-        letterSpacing: "0.22em",
+        letterSpacing: "0.28em",
         textTransform: "uppercase",
-        color: "rgba(230,235,245,0.75)",
+        color: "rgba(230,235,245,0.72)",
       }}
     >
-      swipe
+      {label}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import type { SlotTexture } from "@/components/people/useCarouselTextures";
 type FocusTextBandProps = {
   /** Continuous carousel position (same ref cards use) */
   positionRef: React.MutableRefObject<number>;
+  /** 0 full-bleed → 1 settled; text band only meaningful near 1 */
+  presentRef: React.MutableRefObject<number>;
   textures: SlotTexture[];
   cardCount: number;
   /**
@@ -18,11 +20,15 @@ type FocusTextBandProps = {
 };
 
 /**
- * Mirrors FloatingCard focus layout and projects the focused card’s bottom
- * edge into screen space so HTML copy can center in the leftover gap.
+ * Mirrors FloatingCard settled focus layout and projects the focused card’s
+ * bottom edge into screen space so HTML copy can center in the leftover gap.
+ *
+ * Uses the settled pose only (present → 1) so the band never jumps while
+ * the image is still full-bleed.
  */
 export default function FocusTextBand({
   positionRef,
+  presentRef,
   textures,
   cardCount,
   onBandTop,
@@ -38,10 +44,11 @@ export default function FocusTextBand({
 
   useFrame(() => {
     const p = positionRef.current;
+    const present = presentRef.current;
     const nearest = ((Math.round(p) % cardCount) + cardCount) % cardCount;
     const frac = Math.abs(p - Math.round(p));
-    // Only pin text band when nearly focused (avoids thrash mid-swipe)
-    if (frac > 0.12) return;
+    // Only pin text band when nearly focused and mostly settled
+    if (frac > 0.12 || present < 0.55) return;
 
     const tex = textures[nearest]?.texture ?? null;
     let aspect = 3 / 4;
@@ -58,7 +65,7 @@ export default function FocusTextBand({
     }
     aspect = THREE.MathUtils.clamp(aspect, 0.35, 2.8);
 
-    // Must stay in sync with FloatingCard focus sizing / placement
+    // Must stay in sync with FloatingCard settled sizing / placement
     const frameW = Math.max(viewport.width, 0.5);
     const maxFocusW = frameW * 0.94;
     const scaleY = maxFocusW / aspect;
@@ -73,8 +80,8 @@ export default function FocusTextBand({
 
     // NDC y: +1 top → −1 bottom  →  CSS top fraction
     const topFrac = THREE.MathUtils.clamp((1 - v.y) * 0.5, 0.28, 0.78);
-    // Small gap under the image so copy isn’t glued to the edge
-    const withGap = Math.min(0.82, topFrac + 0.018);
+    // Breathing room under the image before the title
+    const withGap = Math.min(0.84, topFrac + 0.022);
 
     if (Math.abs(withGap - lastSent.current) > 0.006) {
       lastSent.current = withGap;
