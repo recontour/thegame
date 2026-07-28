@@ -22,18 +22,21 @@ const PORTRAIT_ASPECT = 9 / 19.5;
 /**
  * Root shell: black page + centered portrait stage + WebGL + HTML copy.
  * Swipe / wheel only. No chrome, no buttons.
+ *
+ * Important: drag bias + phase live in refs so the morph does not re-render
+ * the R3F tree mid-transition (that was flashing the material black on mobile).
  */
 export default function StoryCarousel() {
   const stageRef = useRef<HTMLDivElement>(null);
-  // Lazy init on client — SSR falls back to mid tier defaults inside detect
   const [cap] = useState<StoryCapability>(() => detectStoryCapability());
   const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<StoryPhase>("full");
-  const [dragBias, setDragBias] = useState(0);
+  /** Story phase — mutated synchronously; scene reads the ref every frame */
+  const phaseRef = useRef<StoryPhase>("full");
+  /** Finger drag preview in card units — ref only, never React state */
+  const dragBiasRef = useRef(0);
   const [textVisible, setTextVisible] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const [webglError, setWebglError] = useState<string | null>(null);
-  /** Free space under focused image starts here (stage height fraction) */
   const [textBandTop, setTextBandTop] = useState(0.55);
 
   const cards = PEOPLE_CARDS;
@@ -48,13 +51,13 @@ export default function StoryCarousel() {
    */
   const goNext = useCallback(() => {
     setTextVisible(false);
-    if (phase === "full") {
-      setPhase("settled");
+    if (phaseRef.current === "full") {
+      phaseRef.current = "settled";
       return;
     }
+    phaseRef.current = "full";
     setIndex((i) => (i + 1) % n);
-    setPhase("full");
-  }, [n, phase]);
+  }, [n]);
 
   /**
    * Prev beat (mirror of next):
@@ -63,22 +66,21 @@ export default function StoryCarousel() {
    */
   const goPrev = useCallback(() => {
     setTextVisible(false);
-    if (phase === "settled") {
-      setPhase("full");
+    if (phaseRef.current === "settled") {
+      phaseRef.current = "full";
       return;
     }
+    phaseRef.current = "settled";
     setIndex((i) => (i - 1 + n) % n);
-    setPhase("settled");
-  }, [n, phase]);
+  }, [n]);
 
   const onDrag = useCallback((deltaY: number, active: boolean) => {
     if (!active) {
-      setDragBias(0);
+      dragBiasRef.current = 0;
       return;
     }
     // Gentle preview only — never steal the full-screen beat
-    const bias = THREE.MathUtils.clamp(-deltaY / 420, -0.22, 0.22);
-    setDragBias(bias);
+    dragBiasRef.current = THREE.MathUtils.clamp(-deltaY / 420, -0.22, 0.22);
   }, []);
 
   useVerticalSwipe({
@@ -118,14 +120,12 @@ export default function StoryCarousel() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        // Kill overscroll on the page chrome
         touchAction: "none",
         overscrollBehavior: "none",
         userSelect: "none",
         WebkitUserSelect: "none",
       }}
     >
-      {/* Portrait stage — mobile fills width; desktop is a centered tall frame */}
       <div
         ref={stageRef}
         style={{
@@ -137,7 +137,6 @@ export default function StoryCarousel() {
           background: "#050508",
           overflow: "hidden",
           touchAction: "none",
-          // Subtle edge so letterboxing reads as intentional on desktop
           boxShadow:
             "0 0 0 1px rgba(255,255,255,0.04), 0 24px 80px rgba(0,0,0,0.65)",
         }}
@@ -168,15 +167,14 @@ export default function StoryCarousel() {
               }}
               onCreated={({ gl }) => {
                 gl.setClearColor(0x050508, 1);
-                // sRGB output for correct WebP colors
                 gl.outputColorSpace = THREE.SRGBColorSpace;
               }}
             >
               <CarouselScene
                 cards={cards}
                 targetIndex={index}
-                phase={phase}
-                dragBias={dragBias}
+                phaseRef={phaseRef}
+                dragBiasRef={dragBiasRef}
                 textures={textures}
                 cap={cap}
                 onFocusSettled={onFocusSettled}
@@ -192,13 +190,13 @@ export default function StoryCarousel() {
           bandTop={textBandTop}
         />
 
-        <SwipeHint phase={phase} />
+        <SwipeHint />
       </div>
     </div>
   );
 }
 
-function SwipeHint({ phase }: { phase: StoryPhase }) {
+function SwipeHint() {
   const [show, setShow] = useState(true);
 
   useEffect(() => {
@@ -212,8 +210,6 @@ function SwipeHint({ phase }: { phase: StoryPhase }) {
       window.removeEventListener("wheel", hide);
     };
   }, []);
-
-  const label = phase === "full" ? "scroll" : "scroll";
 
   return (
     <div
@@ -235,7 +231,7 @@ function SwipeHint({ phase }: { phase: StoryPhase }) {
         color: "rgba(230,235,245,0.72)",
       }}
     >
-      {label}
+      scroll
     </div>
   );
 }

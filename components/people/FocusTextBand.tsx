@@ -47,8 +47,9 @@ export default function FocusTextBand({
     const present = presentRef.current;
     const nearest = ((Math.round(p) % cardCount) + cardCount) % cardCount;
     const frac = Math.abs(p - Math.round(p));
-    // Only pin text band when nearly focused and mostly settled
-    if (frac > 0.12 || present < 0.55) return;
+    // Only pin text band near the end of the settle morph —
+    // updating React earlier re-rendered the canvas mid-transition.
+    if (frac > 0.12 || present < 0.88) return;
 
     const tex = textures[nearest]?.texture ?? null;
     let aspect = 3 / 4;

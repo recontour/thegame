@@ -58,7 +58,9 @@ export default function FloatingCard({
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const { viewport, gl } = useThree();
 
-  // Upload + bind map when texture arrives (must run against this Canvas's gl)
+  // Upload + bind map when texture arrives (must run against this Canvas's gl).
+  // Opacity / color are owned exclusively by useFrame — never set them in JSX,
+  // or React re-renders reset them to defaults and flash black on mobile.
   useEffect(() => {
     const mat = matRef.current;
     if (!mat) return;
@@ -205,8 +207,8 @@ export default function FloatingCard({
       fullY = (0.5 - fy) * overflowY;
     }
 
-    // Slightly forward so it owns the void over neighbors
-    const fullZ = 0.35;
+    // Stay near z=0 — large Z jumps + transparent materials z-fight on mobile
+    const fullZ = 0.05;
 
     // Blend rest ↔ full by immerse (only the focused card fully immerses)
     const scaleX = lerp(restW, fullW, immerse);
@@ -270,11 +272,11 @@ export default function FloatingCard({
     <mesh ref={meshRef} geometry={geometry} frustumCulled={false}>
       <meshBasicMaterial
         ref={matRef}
-        map={texture}
+        map={texture ?? undefined}
         color="#ffffff"
         transparent
-        opacity={0}
         depthWrite={false}
+        depthTest
         side={THREE.FrontSide}
         toneMapped={false}
       />

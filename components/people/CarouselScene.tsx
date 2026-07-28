@@ -19,10 +19,13 @@ type CarouselSceneProps = {
   cards: StoryCard[];
   /** Integer target index (0..n-1) */
   targetIndex: number;
-  /** full = immersive cover; settled = framed card + copy */
-  phase: StoryPhase;
-  /** Live drag bias in “card units” (−0.22..0.22) while finger is down */
-  dragBias: number;
+  /**
+   * Story phase — ref so full→settled morph does not re-render R3F
+   * (re-renders were resetting material opacity → black flash on mobile).
+   */
+  phaseRef: React.MutableRefObject<StoryPhase>;
+  /** Live drag bias in card units — ref only */
+  dragBiasRef: React.MutableRefObject<number>;
   textures: SlotTexture[];
   cap: StoryCapability;
   /** Fires when spring is near integer and presentation is near target */
@@ -41,8 +44,8 @@ type CarouselSceneProps = {
 export default function CarouselScene({
   cards,
   targetIndex,
-  phase,
-  dragBias,
+  phaseRef,
+  dragBiasRef,
   textures,
   cap,
   onFocusSettled,
@@ -51,41 +54,34 @@ export default function CarouselScene({
   const n = cards.length;
   const positionRef = useRef(targetIndex);
   /** 0 = full-bleed immersive, 1 = settled framed pose */
-  const presentRef = useRef(phase === "settled" ? 1 : 0);
+  const presentRef = useRef(phaseRef.current === "settled" ? 1 : 0);
   const lastSettled = useRef(false);
-  const dragBiasRef = useRef(dragBias);
   const targetRef = useRef(targetIndex);
-  const phaseRef = useRef(phase);
   const settledCb = useRef(onFocusSettled);
   const prevIndexRef = useRef(targetIndex);
+  const prevPhaseRef = useRef<StoryPhase>(phaseRef.current);
 
-  useEffect(() => {
-    dragBiasRef.current = dragBias;
-  }, [dragBias]);
   useEffect(() => {
     targetRef.current = targetIndex;
   }, [targetIndex]);
   useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-  useEffect(() => {
     settledCb.current = onFocusSettled;
   }, [onFocusSettled]);
 
-  // When the story jumps to a new image at full-bleed, snap presentation
-  // so the incoming frame doesn't expand out of the previous rest pose.
+  // New image: snap presentation to match the beat we arrived on.
+  // Runs when React index changes (settled→next full, or reverse).
   useEffect(() => {
     if (targetIndex !== prevIndexRef.current) {
-      if (phase === "full") {
+      if (phaseRef.current === "full") {
         presentRef.current = 0;
       } else {
-        // Arriving on a previous image already settled (reverse)
         presentRef.current = 1;
       }
       prevIndexRef.current = targetIndex;
+      prevPhaseRef.current = phaseRef.current;
       lastSettled.current = false;
     }
-  }, [targetIndex, phase]);
+  }, [targetIndex, phaseRef]);
 
   const sharedGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
@@ -106,7 +102,13 @@ export default function CarouselScene({
     const phaseNow = phaseRef.current;
     const drag = dragBiasRef.current;
 
-    // —— carousel index spring (slower than before) ——
+    // Detect same-index phase flips (full↔settled) without React
+    if (phaseNow !== prevPhaseRef.current) {
+      prevPhaseRef.current = phaseNow;
+      lastSettled.current = false;
+    }
+
+    // —— carousel index spring ——
     let tgt = targetIndexNow + drag;
     const cur = positionRef.current;
     let diff = tgt - cur;
@@ -119,7 +121,6 @@ export default function CarouselScene({
       diff = tgt - cur;
     }
 
-    // Drag tracks the finger; free flight is lazy and floaty
     positionRef.current = springStep(cur, tgt, capped, drag !== 0 ? 12 : 5.2);
 
     if (positionRef.current >= n) positionRef.current -= n;
@@ -127,7 +128,6 @@ export default function CarouselScene({
 
     // —— full ↔ settled presentation spring ——
     const presentTarget = phaseNow === "settled" ? 1 : 0;
-    // Morph is the star of the show — keep it unhurried
     presentRef.current = springStep(
       presentRef.current,
       presentTarget,
@@ -146,7 +146,6 @@ export default function CarouselScene({
 
     if (settled !== lastSettled.current) {
       lastSettled.current = settled;
-      // "settled" for text means: on index, and in the framed rest pose
       settledCb.current?.(
         nearest,
         settled && phaseNow === "settled" && present > 0.92,
