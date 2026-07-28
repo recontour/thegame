@@ -29,8 +29,10 @@ type CarouselSceneProps = {
    * Never live finger scrub — swipe is a pure next/prev trigger.
    */
   motionRef: React.MutableRefObject<number>;
-  /** calm = slow cinematic; rush = impatient multi-flick speeds the morph */
+  /** calm = slow cinematic; rush = mid-transition flick speeds a little */
   paceRef: React.MutableRefObject<"calm" | "rush">;
+  /** True while present/position still easing — parent uses this for rush intent */
+  animatingRef: React.MutableRefObject<boolean>;
   textures: SlotTexture[];
   cap: StoryCapability;
   onTextBandTop?: (topFrac: number) => void;
@@ -54,6 +56,7 @@ export default function CarouselScene({
   presentRef,
   motionRef,
   paceRef,
+  animatingRef,
   textures,
   cap,
   onTextBandTop,
@@ -119,15 +122,15 @@ export default function CarouselScene({
     const diff = wrapDelta(cur, targetIndexNow, n);
     const tgt = cur + diff;
 
-    // calm = unhurried; rush = impatient multi-flick (still eases, not a hard cut)
+    // calm = full cinematic. rush = only ~1.6–2× (mid-flick nudge, not a snap)
     const smoothTime = rush
       ? traveling
-        ? 0.22
-        : 0.16
+        ? 0.52
+        : 0.4
       : traveling
         ? 0.95
         : 0.7;
-    const maxSpeed = rush ? (traveling ? 6 : 8) : traveling ? 1.6 : 3.5;
+    const maxSpeed = rush ? (traveling ? 2.8 : 4) : traveling ? 1.6 : 3.5;
     const stepped = smoothDamp(
       cur,
       tgt,
@@ -140,7 +143,7 @@ export default function CarouselScene({
     positionVelRef.current = stepped.velocity;
 
     if (posErr < 0.1) {
-      positionVelRef.current *= rush ? 0.8 : 0.92;
+      positionVelRef.current *= rush ? 0.88 : 0.92;
     }
 
     if (positionRef.current >= n) positionRef.current -= n;
@@ -149,8 +152,8 @@ export default function CarouselScene({
     // —— presentation (full ↔ framed) — shared clock with text ——
     const presentLambda = rush
       ? presentTarget === 1
-        ? 9
-        : 10
+        ? 4.2
+        : 4.6
       : traveling
         ? 2.8
         : presentTarget === 1
@@ -164,9 +167,11 @@ export default function CarouselScene({
     );
     presentVelRef.current = 0;
 
-    // Back to calm once this beat has landed (so the next quiet viewer gets slow again)
+    // Report busy state + restore calm when landed
     const presentErr = Math.abs(presentRef.current - presentTarget);
-    if (presentErr < 0.04 && posErr < 0.04) {
+    const busy = presentErr > 0.05 || posErr > 0.05;
+    animatingRef.current = busy;
+    if (!busy) {
       paceRef.current = "calm";
     }
 
@@ -182,14 +187,14 @@ export default function CarouselScene({
       motionRef.current,
       rawMotion,
       capped,
-      rush ? 10 : 5.5,
+      rush ? 7 : 5.5,
     );
     if (!traveling) {
       motionRef.current = springStep(
         motionRef.current,
         0,
         capped,
-        rush ? 6 : 2.8,
+        rush ? 4 : 2.8,
       );
     }
   });

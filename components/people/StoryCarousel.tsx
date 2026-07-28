@@ -101,11 +101,12 @@ export default function StoryCarousel() {
   /** Parallax from *committed* travel only — never from live finger scrub */
   const motionRef = useRef(0);
   /**
-   * calm = cinematic slow morph (default).
-   * rush = impatient second flick — speed up so the UI never feels "stuck".
+   * calm = default slow cinematic morph.
+   * rush = only when a flick lands *during* an in-flight transition.
    */
   const paceRef = useRef<"calm" | "rush">("calm");
-  const lastIntentAt = useRef(0);
+  /** Scene sets true while present/position still chasing targets */
+  const animatingRef = useRef(false);
   const [webglError, setWebglError] = useState<string | null>(null);
   const [textBandTop, setTextBandTop] = useState(0.55);
 
@@ -114,13 +115,16 @@ export default function StoryCarousel() {
 
   const textures = useCarouselTextures(cards, index, cap);
 
-  /** First beat is calm; another within ~1.4s rushes the animation. */
+  /**
+   * At rest → always calm (slow).
+   * Mid-transition flick → rush a bit + still advance (impatient path).
+   */
   const noteIntent = useCallback(() => {
-    const now = performance.now();
-    if (now - lastIntentAt.current < 1400) {
+    if (animatingRef.current) {
       paceRef.current = "rush";
+    } else {
+      paceRef.current = "calm";
     }
-    lastIntentAt.current = now;
   }, []);
 
   /**
@@ -157,10 +161,10 @@ export default function StoryCarousel() {
     enabled: !webglError,
     onNext: goNext,
     onPrev: goPrev,
-    // Pure trigger. Micro-debounce only (pointer+touch dual-fire on iOS).
-    // Impatient multi-flicks always advance; paceRef rushes the morph.
+    // Pure trigger. Slightly longer micro-debounce so iOS pointer+touch
+    // doesn't double-fire and accidentally enter rush.
     threshold: 24,
-    cooldownMs: 90,
+    cooldownMs: 140,
     targetRef: stageRef,
   });
 
@@ -232,6 +236,7 @@ export default function StoryCarousel() {
                   presentRef={presentRef}
                   motionRef={motionRef}
                   paceRef={paceRef}
+                  animatingRef={animatingRef}
                   textures={textures}
                   cap={cap}
                   onTextBandTop={onTextBandTop}
