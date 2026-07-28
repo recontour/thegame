@@ -801,27 +801,27 @@ export default function LandingExperience() {
               display: showAbout ? "flex" : "none",
               flexDirection: "column",
               alignItems: "center",
-              gap: "0.85rem",
+              gap: "1.75rem",
               margin: 0,
               textAlign: "center",
               width: "100%",
             }}
           >
-            {/* Same type as landing story body (Tangerine) */}
+            {/* Quiet gallery line — room to breathe before the CTA */}
             <p
               className={tangerine.className}
               style={{
                 margin: 0,
-                maxWidth: "100%",
-                fontSize: "clamp(2.3rem, 8.7vw, 2.85rem)",
+                maxWidth: "18em",
+                fontSize: "clamp(2.1rem, 8vw, 2.65rem)",
                 fontWeight: 700,
                 letterSpacing: "0.02em",
-                lineHeight: 1.35,
+                lineHeight: 1.3,
                 color: "rgba(255,255,255,0.95)",
                 textAlign: "center",
               }}
             >
-              Here is one of the stories I want to tell
+              A photo gallery
             </p>
 
             {/* CTA + hint only after enter settle — avoids dead taps mid-transition */}
@@ -831,8 +831,8 @@ export default function LandingExperience() {
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
-                  gap: "0.55rem",
-                  marginTop: "0.35rem",
+                  gap: "1.15rem",
+                  marginTop: "0.25rem",
                   opacity: piecesLeave,
                   pointerEvents: piecesLeave > 0.12 ? "auto" : "none",
                 }}
@@ -862,7 +862,7 @@ export default function LandingExperience() {
                     letterSpacing: "0.2em",
                     textTransform: "uppercase",
                     fontWeight: 500,
-                    color: "rgba(255,255,255,0.72)",
+                    color: "rgba(255,255,255,0.65)",
                     animation: reduced
                       ? "none"
                       : "people-hint-bounce 1.35s ease-in-out infinite",
