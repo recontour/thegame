@@ -15,6 +15,8 @@ type FloatingCardProps = {
    * 1 = settled framed pose (existing layout with room for copy)
    */
   presentRef: React.MutableRefObject<number>;
+  /** Active story index — hero morph uses this, not floaty position drift */
+  targetIndexRef: React.MutableRefObject<number>;
   texture: THREE.Texture | null;
   /** Shared unit plane; we scale the mesh */
   geometry: THREE.PlaneGeometry;
@@ -32,18 +34,17 @@ type FloatingCardProps = {
 };
 
 /**
- * One image card. MeshBasicMaterial only (mobile-stable color path).
+ * One image card — same mesh for full-bleed and framed rest.
+ * The hero only changes scale/position/rotation; opacity stays solid.
  *
- * Focused card morphs slowly between full-stage cover and the settled frame.
- * Settled pose math is unchanged so the text band still lines up.
- *
- * Production: CanvasTextures need gl.initTexture() on the live WebGL context.
+ * Production: textures need gl.initTexture() on the live WebGL context.
  */
 export default function FloatingCard({
   index,
   count,
   positionRef,
   presentRef,
+  targetIndexRef,
   texture,
   geometry,
   seed,
@@ -57,13 +58,16 @@ export default function FloatingCard({
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const { viewport, gl } = useThree();
+  /** Last texture we bound — avoid needsUpdate thrash */
+  const boundTex = useRef<THREE.Texture | null>(null);
 
-  // Upload + bind map when texture arrives (must run against this Canvas's gl).
-  // Opacity / color are owned exclusively by useFrame — never set them in JSX,
-  // or React re-renders reset them to defaults and flash black on mobile.
+  // Bind map only when the texture object actually changes
   useEffect(() => {
     const mat = matRef.current;
     if (!mat) return;
+
+    if (texture === boundTex.current) return;
+    boundTex.current = texture;
 
     if (texture) {
       try {
@@ -90,7 +94,14 @@ export default function FloatingCard({
     if (d > count / 2) d -= count;
     const ad = Math.abs(d);
 
-    const visible = ad < 3.2;
+    // Active story card (the one we're morphing) — not "nearest by float"
+    const target = targetIndexRef.current;
+    let td = index - target;
+    td = ((td % count) + count) % count;
+    if (td > count / 2) td -= count;
+    const isHero = Math.abs(td) < 0.001;
+
+    const visible = ad < 3.2 || isHero;
     mesh.visible = visible;
     if (!visible) return;
 
@@ -110,32 +121,37 @@ export default function FloatingCard({
     }
     aspect = THREE.MathUtils.clamp(aspect, 0.35, 2.8);
 
-    const focus = smoothstep(1.15, 0.05, ad);
-    const mid = smoothstep(2.6, 0.9, ad);
+    // Carousel focus for neighbors; hero is always fully focused for layout
+    const focus = isHero ? 1 : smoothstep(1.15, 0.05, ad);
+    const mid = isHero ? 1 : smoothstep(2.6, 0.9, ad);
 
-    // Ease the morph so it breathes, not snaps
-    const present = smoothstep(0, 1, clamp01(presentRef.current));
-    // How much this card participates in the full-bleed treatment
-    const immerse = focus * (1 - present);
+    // Linear present for scale (smoothstep made the first/last beats feel stuck)
+    const present = clamp01(presentRef.current);
+    // Hero: one continuous element, full (0) → framed (1)
+    // Neighbors: never immersive
+    const immerse = isHero ? 1 - present : 0;
+
+    // For hero layout, ignore residual carousel drift (d forced 0)
+    const layoutD = isHero ? 0 : d;
+    const layoutAd = isHero ? 0 : ad;
 
     const frameW = Math.max(viewport.width, 0.5);
     const frameH = Math.max(viewport.height, 0.5);
 
-    // ——— Settled framed layout (original — do not drift) ———
+    // ——— Settled framed layout (original) ———
     const maxFocusW = frameW * 0.94;
     const maxFarW = frameW * 0.42;
     const restW = lerp(maxFarW, maxFocusW, focus);
     const restH = restW / aspect;
     const tallBoost = focus * Math.max(0, 1 / aspect - 1) * 0.1;
     const shortBoost = focus * Math.max(0, aspect - 1) * 0.08;
-    const restY = -d * 1.05 + 0.62 + tallBoost + shortBoost;
-    const restZ = -ad * 1.35 - d * d * 0.08;
+    const restY = -layoutD * 1.05 + 0.62 + tallBoost + shortBoost;
+    const restZ = -layoutAd * 1.35 - layoutD * layoutD * 0.08;
     const restXWander =
-      (1 - focus) * (Math.sin(d * 0.9) * 0.1 + (seed - 0.5) * 0.06);
+      (1 - focus) *
+      (Math.sin(layoutD * 0.9) * 0.1 + (seed - 0.5) * 0.06);
 
-    // ——— Full-bleed cover (stage top → bottom) ———
-    // Optional 90° entry: landscape stands up to fill the tall frame,
-    // then eases back to natural orientation on settle.
+    // ——— Full-bleed cover ———
     const rotAmt = THREE.MathUtils.degToRad(immerseRotate);
     const useRot = Math.abs(rotAmt) > 0.001;
 
@@ -149,33 +165,25 @@ export default function FloatingCard({
     let fullY: number;
 
     if (useRot) {
-      // After ±90° Z, screen width ≈ mesh scaleY, screen height ≈ mesh scaleX.
-      // Keep mesh local aspect = image aspect (scaleX = aspect * scaleY).
       let scaleX0: number;
       let scaleY0: number;
       if (immerseFit === "height") {
-        // Full image top & bottom meet the screen — sides may breathe
         scaleX0 = frameH;
         scaleY0 = frameH / aspect;
       } else if (immerseFit === "width") {
-        // Full image left & right meet the screen — top/bottom may breathe
         scaleY0 = frameW;
         scaleX0 = frameW * aspect;
       } else {
-        // Cover the stage (may crop left/right or top/bottom)
         scaleY0 = Math.max(frameW, frameH / aspect);
         scaleX0 = scaleY0 * aspect;
       }
       fullW = scaleX0 * zoom;
       fullH = scaleY0 * zoom;
-      // Crop anchors in rotated space (swap axes for the offset)
-      const overflowX = Math.max(0, fullH - frameW); // visual X overflow
-      const overflowY = Math.max(0, fullW - frameH); // visual Y overflow
-      // Offsets applied in mesh-local space before rotation
+      const overflowX = Math.max(0, fullH - frameW);
+      const overflowY = Math.max(0, fullW - frameH);
       fullX = (0.5 - fy) * overflowY;
       fullY = (0.5 - fx) * overflowX;
     } else if (immerseFit === "height") {
-      // Unrotated: image top & bottom flush with stage, sides may letterbox
       fullH = frameH * zoom;
       fullW = fullH * aspect;
       const overflowX = Math.max(0, fullW - frameW);
@@ -183,7 +191,6 @@ export default function FloatingCard({
       fullX = (0.5 - fx) * overflowX;
       fullY = (0.5 - fy) * overflowY;
     } else if (immerseFit === "width") {
-      // Unrotated: image left & right flush with stage, top/bottom may letterbox
       fullW = frameW * zoom;
       fullH = fullW / aspect;
       const overflowX = Math.max(0, fullW - frameW);
@@ -193,11 +200,9 @@ export default function FloatingCard({
     } else {
       const frameAspect = frameW / frameH;
       if (aspect > frameAspect) {
-        // Image wider than stage — height fills, sides crop
         fullH = frameH * zoom;
         fullW = fullH * aspect;
       } else {
-        // Image taller / narrower — width fills, top/bottom crop
         fullW = frameW * zoom;
         fullH = fullW / aspect;
       }
@@ -207,16 +212,17 @@ export default function FloatingCard({
       fullY = (0.5 - fy) * overflowY;
     }
 
-    // Stay near z=0 — large Z jumps + transparent materials z-fight on mobile
-    const fullZ = 0.05;
+    const fullZ = 0.02;
 
-    // Blend rest ↔ full by immerse (only the focused card fully immerses)
-    const scaleX = lerp(restW, fullW, immerse);
-    const scaleY = lerp(restH, fullH, immerse);
+    // Smooth hermite only on the blend factor (not double-smoothed present)
+    const blend = immerse * immerse * (3 - 2 * immerse);
+
+    const scaleX = lerp(restW, fullW, blend);
+    const scaleY = lerp(restH, fullH, blend);
 
     const t = clock.elapsedTime;
-    // Float dies away as we go full-bleed — still, like a held breath
-    const floatMul = lerp(1, 0.05, immerse) * floatAmp;
+    // Float only when settled / non-hero — never during full-bleed
+    const floatMul = lerp(1, 0, blend) * floatAmp * (isHero ? present : 1);
     const bob =
       Math.sin(t * 0.48 + seed * 6.2) *
       0.024 *
@@ -229,10 +235,10 @@ export default function FloatingCard({
       (0.2 + (1 - focus) * 0.55);
 
     const x =
-      lerp(restXWander, fullX, immerse) +
-      sway * (1 - focus * 0.85) * (1 - immerse);
-    const y = lerp(restY + bob, fullY, immerse);
-    const z = lerp(restZ, fullZ, immerse);
+      lerp(restXWander, fullX, blend) +
+      sway * (1 - focus * 0.85) * (1 - blend);
+    const y = lerp(restY + bob, fullY, blend);
+    const z = lerp(restZ, fullZ, blend);
 
     mesh.position.set(x, y, z);
     mesh.scale.set(scaleX, scaleY, 1);
@@ -240,32 +246,35 @@ export default function FloatingCard({
     const restRotZ =
       (seed - 0.5) * 0.1 * (1 - focus) +
       Math.sin(t * 0.4 + seed) * 0.01 * floatMul * (1 - focus * 0.85);
-    // Immersive entry rotation eases out as we settle into the framed pose
-    const fullRotZ = rotAmt * immerse;
-    mesh.rotation.z = restRotZ * (1 - immerse) + fullRotZ;
-    mesh.rotation.x = (-0.03 * (1 - focus) + d * 0.025) * (1 - immerse);
-    mesh.rotation.y = restXWander * 0.2 * (1 - immerse);
+    const fullRotZ = rotAmt * blend;
+    mesh.rotation.z = restRotZ * (1 - blend) + fullRotZ;
+    mesh.rotation.x =
+      (-0.03 * (1 - focus) + layoutD * 0.025) * (1 - blend);
+    mesh.rotation.y = restXWander * 0.2 * (1 - blend);
 
-    const texReady = texture ? 1 : 0.28;
-    // Neighbors dissolve while the hero holds the frame
-    const hideOthers = lerp(
-      1,
-      0.05,
-      (1 - present) * (ad > 0.04 ? 1 : 0),
-    );
-
-    const opacity =
-      lerp(0.12, 1, focus) *
-      mid *
-      texReady *
-      clamp01(1.15 - ad * 0.28) *
-      hideOthers;
-    mat.opacity = opacity;
-
-    const dim = texture ? lerp(0.55, 1, focus) : 0.22;
-    // Full-bleed is pure — no desat/dim
-    const lit = lerp(dim, 1, immerse);
-    mat.color.setRGB(lit, lit, lit * lerp(1.02, 1, immerse));
+    // ——— Opacity: hero stays solid. Always. ———
+    // Old bug: "hide neighbors" used ad > 0.04, so a tiny drag offset on the
+    // hero made it nearly transparent while present was still low.
+    if (isHero) {
+      mat.opacity = texture ? 1 : 0.3;
+      mat.color.setRGB(1, 1, 1);
+      // Write depth as an opaque-feeling hero so nothing punches through
+      mat.depthWrite = present > 0.15;
+    } else {
+      const texReady = texture ? 1 : 0.28;
+      // Neighbors only exist in the settled world — fade with present
+      const settleReveal = smoothstep(0.15, 0.75, present);
+      const opacity =
+        lerp(0.12, 0.92, focus) *
+        mid *
+        texReady *
+        clamp01(1.15 - ad * 0.28) *
+        settleReveal;
+      mat.opacity = opacity;
+      const dim = texture ? lerp(0.55, 1, focus) : 0.22;
+      mat.color.setRGB(dim, dim, dim * 1.02);
+      mat.depthWrite = false;
+    }
   });
 
   return (

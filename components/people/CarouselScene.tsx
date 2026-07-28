@@ -37,9 +37,9 @@ type CarouselSceneProps = {
 /**
  * Camera + cards.
  *
- * `position` springs toward targetIndex (carousel ring).
- * `present` springs 0 → 1 for full-bleed → framed morph on the focused card.
- * Slow on purpose — this is a story, not a picker.
+ * One continuous hero plane morphs full ↔ framed via `present`.
+ * During that morph the carousel position is locked to the integer index
+ * so the photo never "loses focus" and goes transparent.
  */
 export default function CarouselScene({
   cards,
@@ -68,8 +68,7 @@ export default function CarouselScene({
     settledCb.current = onFocusSettled;
   }, [onFocusSettled]);
 
-  // New image: snap presentation to match the beat we arrived on.
-  // Runs when React index changes (settled→next full, or reverse).
+  // New image: snap presentation + park the carousel on the new index.
   useEffect(() => {
     if (targetIndex !== prevIndexRef.current) {
       if (phaseRef.current === "full") {
@@ -77,6 +76,8 @@ export default function CarouselScene({
       } else {
         presentRef.current = 1;
       }
+      // Hard park — no mid-index drift into the morph
+      positionRef.current = targetIndex;
       prevIndexRef.current = targetIndex;
       prevPhaseRef.current = phaseRef.current;
       lastSettled.current = false;
@@ -102,37 +103,49 @@ export default function CarouselScene({
     const phaseNow = phaseRef.current;
     const drag = dragBiasRef.current;
 
-    // Detect same-index phase flips (full↔settled) without React
+    // Same-index phase flip (full ↔ settled): lock the hero in place first
     if (phaseNow !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseNow;
       lastSettled.current = false;
+      // Kill residual drag offset so the same photo keeps continuous focus
+      positionRef.current = targetIndexNow;
+      dragBiasRef.current = 0;
     }
+
+    const presentTarget = phaseNow === "settled" ? 1 : 0;
+    const morphing =
+      Math.abs(presentRef.current - presentTarget) > 0.004;
 
     // —— carousel index spring ——
-    let tgt = targetIndexNow + drag;
-    const cur = positionRef.current;
-    let diff = tgt - cur;
-    while (diff > n / 2) {
-      tgt -= n;
-      diff = tgt - cur;
+    // While the hero is morphing full↔frame, do NOT let drag/position
+    // pull it off the integer — that was dimming opacity via "neighbor" logic.
+    if (morphing) {
+      positionRef.current = targetIndexNow;
+    } else {
+      let tgt = targetIndexNow + drag;
+      const cur = positionRef.current;
+      let diff = tgt - cur;
+      while (diff > n / 2) {
+        tgt -= n;
+        diff = tgt - cur;
+      }
+      while (diff < -n / 2) {
+        tgt += n;
+        diff = tgt - cur;
+      }
+
+      positionRef.current = springStep(cur, tgt, capped, drag !== 0 ? 12 : 5.2);
+
+      if (positionRef.current >= n) positionRef.current -= n;
+      if (positionRef.current < 0) positionRef.current += n;
     }
-    while (diff < -n / 2) {
-      tgt += n;
-      diff = tgt - cur;
-    }
 
-    positionRef.current = springStep(cur, tgt, capped, drag !== 0 ? 12 : 5.2);
-
-    if (positionRef.current >= n) positionRef.current -= n;
-    if (positionRef.current < 0) positionRef.current += n;
-
-    // —— full ↔ settled presentation spring ——
-    const presentTarget = phaseNow === "settled" ? 1 : 0;
+    // —— full ↔ settled presentation spring (the actual photo morph) ——
     presentRef.current = springStep(
       presentRef.current,
       presentTarget,
       capped,
-      3.4,
+      3.2,
     );
 
     const p = positionRef.current;
@@ -142,7 +155,7 @@ export default function CarouselScene({
     const presentNear =
       phaseNow === "settled" ? present > 0.92 : present < 0.08;
     const settled =
-      frac < 0.025 && Math.abs(drag) < 0.001 && presentNear;
+      frac < 0.025 && Math.abs(dragBiasRef.current) < 0.001 && presentNear;
 
     if (settled !== lastSettled.current) {
       lastSettled.current = settled;
@@ -165,6 +178,7 @@ export default function CarouselScene({
           count={n}
           positionRef={positionRef}
           presentRef={presentRef}
+          targetIndexRef={targetRef}
           texture={textures[i]?.texture ?? null}
           geometry={sharedGeo}
           seed={seeds[i]}
