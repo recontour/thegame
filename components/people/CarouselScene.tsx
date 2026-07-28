@@ -19,27 +19,30 @@ type CarouselSceneProps = {
   cards: StoryCard[];
   /** Integer target index (0..n-1) */
   targetIndex: number;
-  /**
-   * Story phase — ref so full→settled morph does not re-render R3F
-   * (re-renders were resetting material opacity → black flash on mobile).
-   */
+  /** Story phase — ref so morphs do not re-render R3F */
   phaseRef: React.MutableRefObject<StoryPhase>;
   /** Live drag bias in card units — ref only */
   dragBiasRef: React.MutableRefObject<number>;
   textures: SlotTexture[];
   cap: StoryCapability;
-  /** Fires when spring is near integer and presentation is near target */
   onFocusSettled?: (index: number, settled: boolean) => void;
-  /** 0..1 stage-top fraction where free space under the focused card begins */
   onTextBandTop?: (topFrac: number) => void;
 };
+
+/** Shortest signed distance on a ring of length n. */
+function wrapDelta(from: number, to: number, n: number): number {
+  let d = to - from;
+  d = ((d % n) + n) % n;
+  if (d > n / 2) d -= n;
+  return d;
+}
 
 /**
  * Camera + cards.
  *
- * One continuous hero plane morphs full ↔ framed via `present`.
- * During that morph the carousel position is locked to the integer index
- * so the photo never "loses focus" and goes transparent.
+ * - Same-card full ↔ framed: lock index, spring `present` (already feels right).
+ * - Between photos: spring carousel position slowly so the next image
+ *   eases in instead of popping.
  */
 export default function CarouselScene({
   cards,
@@ -68,21 +71,17 @@ export default function CarouselScene({
     settledCb.current = onFocusSettled;
   }, [onFocusSettled]);
 
-  // New image: snap presentation + park the carousel on the new index.
+  // Index change: keep current present/position — springs handle the handoff.
+  // (No hard snap — that was the instant cut between photos.)
   useEffect(() => {
     if (targetIndex !== prevIndexRef.current) {
-      if (phaseRef.current === "full") {
-        presentRef.current = 0;
-      } else {
-        presentRef.current = 1;
-      }
-      // Hard park — no mid-index drift into the morph
-      positionRef.current = targetIndex;
       prevIndexRef.current = targetIndex;
       prevPhaseRef.current = phaseRef.current;
       lastSettled.current = false;
+      // Drop residual finger bias so the travel is clean
+      dragBiasRef.current = 0;
     }
-  }, [targetIndex, phaseRef]);
+  }, [targetIndex, phaseRef, dragBiasRef]);
 
   const sharedGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
@@ -103,49 +102,56 @@ export default function CarouselScene({
     const phaseNow = phaseRef.current;
     const drag = dragBiasRef.current;
 
-    // Same-index phase flip (full ↔ settled): lock the hero in place first
+    // Same-card phase flip (full ↔ settled)
     if (phaseNow !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseNow;
       lastSettled.current = false;
-      // Kill residual drag offset so the same photo keeps continuous focus
-      positionRef.current = targetIndexNow;
-      dragBiasRef.current = 0;
+      // Only hard-park when we are already on this card (not mid-travel)
+      const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
+      if (posErr < 0.08) {
+        positionRef.current = targetIndexNow;
+        dragBiasRef.current = 0;
+      }
     }
 
     const presentTarget = phaseNow === "settled" ? 1 : 0;
-    const morphing =
-      Math.abs(presentRef.current - presentTarget) > 0.004;
+    const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
+    const presentErr = Math.abs(presentRef.current - presentTarget);
+    /** Traveling to another photo */
+    const traveling = posErr > 0.04;
+    /** Same card morphing full ↔ frame */
+    const morphingPose = !traveling && presentErr > 0.008;
 
-    // —— carousel index spring ——
-    // While the hero is morphing full↔frame, do NOT let drag/position
-    // pull it off the integer — that was dimming opacity via "neighbor" logic.
-    if (morphing) {
+    // —— carousel position ——
+    if (morphingPose) {
+      // Keep the hero planted while it scales full ↔ framed
       positionRef.current = targetIndexNow;
     } else {
-      let tgt = targetIndexNow + drag;
+      // Shortest-path target on the ring (+ optional drag preview)
+      let tgt = targetIndexNow + (traveling ? 0 : drag);
       const cur = positionRef.current;
-      let diff = tgt - cur;
-      while (diff > n / 2) {
-        tgt -= n;
-        diff = tgt - cur;
-      }
-      while (diff < -n / 2) {
-        tgt += n;
-        diff = tgt - cur;
-      }
+      let diff = wrapDelta(cur, tgt, n);
+      // Unwrap so spring can cross the ring without long-way travel
+      tgt = cur + diff;
 
-      positionRef.current = springStep(cur, tgt, capped, drag !== 0 ? 12 : 5.2);
+      // Between photos: slower, cinematic. Finger drag: snappier track.
+      const lambda = traveling ? 3.1 : drag !== 0 ? 11 : 5.5;
+      positionRef.current = springStep(cur, tgt, capped, lambda);
 
+      // Wrap into [0, n)
       if (positionRef.current >= n) positionRef.current -= n;
       if (positionRef.current < 0) positionRef.current += n;
     }
 
-    // —— full ↔ settled presentation spring (the actual photo morph) ——
+    // —— presentation spring (full ↔ framed) ——
+    // Slightly quicker when arriving as the next full image so the
+    // expand/contract and the slide finish in the same breath.
+    const presentLambda = traveling ? 4.2 : 3.2;
     presentRef.current = springStep(
       presentRef.current,
       presentTarget,
       capped,
-      3.2,
+      presentLambda,
     );
 
     const p = positionRef.current;
@@ -155,7 +161,10 @@ export default function CarouselScene({
     const presentNear =
       phaseNow === "settled" ? present > 0.92 : present < 0.08;
     const settled =
-      frac < 0.025 && Math.abs(dragBiasRef.current) < 0.001 && presentNear;
+      !traveling &&
+      frac < 0.025 &&
+      Math.abs(dragBiasRef.current) < 0.001 &&
+      presentNear;
 
     if (settled !== lastSettled.current) {
       lastSettled.current = settled;
@@ -178,7 +187,6 @@ export default function CarouselScene({
           count={n}
           positionRef={positionRef}
           presentRef={presentRef}
-          targetIndexRef={targetRef}
           texture={textures[i]?.texture ?? null}
           geometry={sharedGeo}
           seed={seeds[i]}

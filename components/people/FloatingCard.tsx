@@ -15,36 +15,29 @@ type FloatingCardProps = {
    * 1 = settled framed pose (existing layout with room for copy)
    */
   presentRef: React.MutableRefObject<number>;
-  /** Active story index — hero morph uses this, not floaty position drift */
-  targetIndexRef: React.MutableRefObject<number>;
   texture: THREE.Texture | null;
-  /** Shared unit plane; we scale the mesh */
   geometry: THREE.PlaneGeometry;
   seed: number;
   floatAmp: number;
-  /** Full-bleed crop anchor — subject left / center / right */
   focusX?: number;
   focusY?: number;
-  /** Degrees of Z rotation while full-bleed (0 when settled) */
   immerseRotate?: number;
-  /** Full-bleed scale vs cover (1 = flush, <1 = margin / zoom-out) */
   immerseZoom?: number;
-  /** cover | height (top/bottom) | width (left/right) */
   immerseFit?: "cover" | "height" | "width";
 };
 
 /**
- * One image card — same mesh for full-bleed and framed rest.
- * The hero only changes scale/position/rotation; opacity stays solid.
+ * One image card — same mesh morphs full-bleed ↔ framed.
+ * Between photos, focus rides the continuous carousel position so the
+ * next image eases in rather than popping.
  *
- * Production: textures need gl.initTexture() on the live WebGL context.
+ * Near-focus cards stay fully opaque (never transparent-flash).
  */
 export default function FloatingCard({
   index,
   count,
   positionRef,
   presentRef,
-  targetIndexRef,
   texture,
   geometry,
   seed,
@@ -58,14 +51,11 @@ export default function FloatingCard({
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const { viewport, gl } = useThree();
-  /** Last texture we bound — avoid needsUpdate thrash */
   const boundTex = useRef<THREE.Texture | null>(null);
 
-  // Bind map only when the texture object actually changes
   useEffect(() => {
     const mat = matRef.current;
     if (!mat) return;
-
     if (texture === boundTex.current) return;
     boundTex.current = texture;
 
@@ -94,14 +84,7 @@ export default function FloatingCard({
     if (d > count / 2) d -= count;
     const ad = Math.abs(d);
 
-    // Active story card (the one we're morphing) — not "nearest by float"
-    const target = targetIndexRef.current;
-    let td = index - target;
-    td = ((td % count) + count) % count;
-    if (td > count / 2) td -= count;
-    const isHero = Math.abs(td) < 0.001;
-
-    const visible = ad < 3.2 || isHero;
+    const visible = ad < 3.2;
     mesh.visible = visible;
     if (!visible) return;
 
@@ -121,40 +104,41 @@ export default function FloatingCard({
     }
     aspect = THREE.MathUtils.clamp(aspect, 0.35, 2.8);
 
-    // Carousel focus for neighbors; hero is always fully focused for layout
-    const focus = isHero ? 1 : smoothstep(1.15, 0.05, ad);
-    const mid = isHero ? 1 : smoothstep(2.6, 0.9, ad);
-
-    // Linear present for scale (smoothstep made the first/last beats feel stuck)
+    // Soft focus from continuous position — drives inter-photo travel
+    const focus = smoothstep(1.15, 0.05, ad);
+    const mid = smoothstep(2.6, 0.9, ad);
     const present = clamp01(presentRef.current);
-    // Hero: one continuous element, full (0) → framed (1)
-    // Neighbors: never immersive
-    const immerse = isHero ? 1 - present : 0;
 
-    // For hero layout, ignore residual carousel drift (d forced 0)
-    const layoutD = isHero ? 0 : d;
-    const layoutAd = isHero ? 0 : ad;
+    // Immersive amount: only the card in focus goes full-bleed
+    const immerse = focus * (1 - present);
+    const blend = immerse * immerse * (3 - 2 * immerse);
+
+    // Near-focus: treat layout as locked hero so scale morph stays clean
+    // (avoids tiny d jitter dimming/warping mid-settle)
+    const locked = ad < 0.12;
+    const layoutD = locked ? 0 : d;
+    const layoutAd = locked ? 0 : ad;
+    const layoutFocus = locked ? 1 : focus;
 
     const frameW = Math.max(viewport.width, 0.5);
     const frameH = Math.max(viewport.height, 0.5);
 
-    // ——— Settled framed layout (original) ———
+    // ——— Settled framed layout ———
     const maxFocusW = frameW * 0.94;
     const maxFarW = frameW * 0.42;
-    const restW = lerp(maxFarW, maxFocusW, focus);
+    const restW = lerp(maxFarW, maxFocusW, layoutFocus);
     const restH = restW / aspect;
-    const tallBoost = focus * Math.max(0, 1 / aspect - 1) * 0.1;
-    const shortBoost = focus * Math.max(0, aspect - 1) * 0.08;
+    const tallBoost = layoutFocus * Math.max(0, 1 / aspect - 1) * 0.1;
+    const shortBoost = layoutFocus * Math.max(0, aspect - 1) * 0.08;
     const restY = -layoutD * 1.05 + 0.62 + tallBoost + shortBoost;
     const restZ = -layoutAd * 1.35 - layoutD * layoutD * 0.08;
     const restXWander =
-      (1 - focus) *
+      (1 - layoutFocus) *
       (Math.sin(layoutD * 0.9) * 0.1 + (seed - 0.5) * 0.06);
 
     // ——— Full-bleed cover ———
     const rotAmt = THREE.MathUtils.degToRad(immerseRotate);
     const useRot = Math.abs(rotAmt) > 0.001;
-
     const zoom = THREE.MathUtils.clamp(immerseZoom, 0.5, 1.2);
     const fx = THREE.MathUtils.clamp(focusX, 0, 1);
     const fy = THREE.MathUtils.clamp(focusY, 0, 1);
@@ -214,29 +198,25 @@ export default function FloatingCard({
 
     const fullZ = 0.02;
 
-    // Smooth hermite only on the blend factor (not double-smoothed present)
-    const blend = immerse * immerse * (3 - 2 * immerse);
-
     const scaleX = lerp(restW, fullW, blend);
     const scaleY = lerp(restH, fullH, blend);
 
     const t = clock.elapsedTime;
-    // Float only when settled / non-hero — never during full-bleed
-    const floatMul = lerp(1, 0, blend) * floatAmp * (isHero ? present : 1);
+    const floatMul = lerp(1, 0, blend) * floatAmp * lerp(0.15, 1, present);
     const bob =
       Math.sin(t * 0.48 + seed * 6.2) *
       0.024 *
       floatMul *
-      (0.45 + focus * 0.55);
+      (0.45 + layoutFocus * 0.55);
     const sway =
       Math.sin(t * 0.3 + seed * 4.1) *
       0.012 *
       floatMul *
-      (0.2 + (1 - focus) * 0.55);
+      (0.2 + (1 - layoutFocus) * 0.55);
 
     const x =
       lerp(restXWander, fullX, blend) +
-      sway * (1 - focus * 0.85) * (1 - blend);
+      sway * (1 - layoutFocus * 0.85) * (1 - blend);
     const y = lerp(restY + bob, fullY, blend);
     const z = lerp(restZ, fullZ, blend);
 
@@ -244,34 +224,33 @@ export default function FloatingCard({
     mesh.scale.set(scaleX, scaleY, 1);
 
     const restRotZ =
-      (seed - 0.5) * 0.1 * (1 - focus) +
-      Math.sin(t * 0.4 + seed) * 0.01 * floatMul * (1 - focus * 0.85);
-    const fullRotZ = rotAmt * blend;
-    mesh.rotation.z = restRotZ * (1 - blend) + fullRotZ;
+      (seed - 0.5) * 0.1 * (1 - layoutFocus) +
+      Math.sin(t * 0.4 + seed) * 0.01 * floatMul * (1 - layoutFocus * 0.85);
+    mesh.rotation.z = restRotZ * (1 - blend) + rotAmt * blend;
     mesh.rotation.x =
-      (-0.03 * (1 - focus) + layoutD * 0.025) * (1 - blend);
+      (-0.03 * (1 - layoutFocus) + layoutD * 0.025) * (1 - blend);
     mesh.rotation.y = restXWander * 0.2 * (1 - blend);
 
-    // ——— Opacity: hero stays solid. Always. ———
-    // Old bug: "hide neighbors" used ad > 0.04, so a tiny drag offset on the
-    // hero made it nearly transparent while present was still low.
-    if (isHero) {
-      mat.opacity = texture ? 1 : 0.3;
-      mat.color.setRGB(1, 1, 1);
-      // Write depth as an opaque-feeling hero so nothing punches through
-      mat.depthWrite = present > 0.15;
+    // ——— Opacity ———
+    // Near focus: always solid (no transparent flash).
+    // Far cards: only visible once the story is in settled space.
+    const texReady = texture ? 1 : 0.28;
+    if (ad < 0.45) {
+      mat.opacity = texReady;
+      // Pure white near focus; slight cool dim only when half-focused mid-travel
+      const lit = lerp(0.82, 1, focus);
+      mat.color.setRGB(lit, lit, lit);
+      mat.depthWrite = focus > 0.75 && present > 0.12;
     } else {
-      const texReady = texture ? 1 : 0.28;
-      // Neighbors only exist in the settled world — fade with present
-      const settleReveal = smoothstep(0.15, 0.75, present);
+      const settleReveal = smoothstep(0.2, 0.85, present);
       const opacity =
-        lerp(0.12, 0.92, focus) *
+        lerp(0.1, 0.88, focus) *
         mid *
         texReady *
         clamp01(1.15 - ad * 0.28) *
         settleReveal;
       mat.opacity = opacity;
-      const dim = texture ? lerp(0.55, 1, focus) : 0.22;
+      const dim = texture ? lerp(0.5, 0.95, focus) : 0.22;
       mat.color.setRGB(dim, dim, dim * 1.02);
       mat.depthWrite = false;
     }
