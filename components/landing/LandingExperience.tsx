@@ -11,6 +11,7 @@ import {
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Inter, Monsieur_La_Doulaise, Tangerine } from "next/font/google";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import {
   getMobileDpr,
@@ -72,6 +73,7 @@ function prefersReducedMotion() {
  * Swipe up/down moves freely through all 7 beats.
  */
 export default function LandingExperience() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [mobile, setMobile] = useState(false);
@@ -279,6 +281,16 @@ export default function LandingExperience() {
     };
 
     const onTouchStart = (e: TouchEvent) => {
+      // Never hijack taps on real links/buttons (people CTA, Instagram)
+      const el = e.target as HTMLElement | null;
+      if (el?.closest?.("a[href], button, [data-landing-cta]")) {
+        touchY0 = null;
+        touchStartY = null;
+        touchAcc = 0;
+        piecesLeaveAcc = 0;
+        piecesDragging = false;
+        return;
+      }
       const y = e.touches[0]?.clientY ?? null;
       touchY0 = y;
       touchStartY = y;
@@ -616,7 +628,13 @@ export default function LandingExperience() {
         {showPiecesCanvas && (
           <WebGLErrorBoundary onError={setWebglError}>
             <Canvas
-              style={{ position: "absolute", inset: 0 }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 1,
+                // Never steal taps from the people CTA (intermittent miss on mobile)
+                pointerEvents: "none",
+              }}
               dpr={dpr}
               gl={{
                 antialias: !mobile,
@@ -780,24 +798,41 @@ export default function LandingExperience() {
             >
               Here is one of the stories I want to tell
             </p>
+            {/*
+              People CTA: high z-index + explicit navigate.
+              No timer on the button — failures were hit-testing (WebGL canvas /
+              full-screen layers / parent opacity) eating taps on mobile.
+            */}
             <Link
               href="/people"
-              onClick={(e) => {
+              data-landing-cta="people"
+              onPointerDown={(e) => {
+                // Don't let window swipe handlers treat this as a pieces scrub
                 e.stopPropagation();
-                // Explicit save before leave (covers fast navigation)
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 try {
                   sessionStorage.setItem(LANDING_STEP_KEY, String(PIECES_STEP));
                 } catch {
                   /* ignore */
                 }
+                router.push("/people");
               }}
               style={{
-                pointerEvents: "auto",
+                // Keep clickable while the beat is still readable; disable when faded out
+                pointerEvents: piecesLeave > 0.12 ? "auto" : "none",
+                position: "relative",
+                zIndex: 30,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 marginTop: "0.15rem",
-                padding: "0.72rem 1.55rem",
+                // Larger tap target than the pill chrome
+                padding: "0.85rem 1.7rem",
+                minHeight: 44,
+                minWidth: 120,
                 borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.38)",
                 background: "rgba(255,255,255,0.08)",
@@ -811,6 +846,8 @@ export default function LandingExperience() {
                 WebkitTapHighlightColor: "transparent",
                 backdropFilter: "blur(8px)",
                 boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+                cursor: "pointer",
+                touchAction: "manipulation",
               }}
             >
               people
