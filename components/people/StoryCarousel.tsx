@@ -137,9 +137,9 @@ export default function StoryCarousel() {
       dragBiasRef.current = 0;
       return;
     }
-    // Stronger scrub — feeds live parallax while the finger is down
+    // Light parallax hint only — swipe is a *trigger*, not a long scrub.
     // Finger up (negative dy) → positive bias → next
-    dragBiasRef.current = THREE.MathUtils.clamp(-deltaY / 280, -0.55, 0.55);
+    dragBiasRef.current = THREE.MathUtils.clamp(-deltaY / 420, -0.2, 0.2);
   }, []);
 
   useVerticalSwipe({
@@ -147,7 +147,9 @@ export default function StoryCarousel() {
     onNext: goNext,
     onPrev: goPrev,
     onDrag,
-    // Let each beat finish breathing before the next swipe lands
+    // Short flick is enough (default ~28px); cooldown only blocks double-fires
+    // while the slow animation is still breathing — does not make swipe harder.
+    threshold: 24,
     cooldownMs: 1400,
     targetRef: stageRef,
   });

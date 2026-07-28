@@ -4,15 +4,19 @@ import { useEffect, useRef } from "react";
 
 type Options = {
   enabled?: boolean;
-  /** Swipe up / scroll down → next beat */
+  /** Flick / swipe up → next beat */
   onNext: () => void;
   onPrev: () => void;
   /** Optional live drag (px, positive = finger down) while gesturing */
   onDrag?: (deltaY: number, active: boolean) => void;
+  /**
+   * Minimum vertical travel (px) to count as a committed swipe.
+   * Kept low — gesture is a *trigger*, not a distance scrubber.
+   */
   threshold?: number;
   /**
-   * Minimum ms between accepted beats (swipe, wheel, key).
-   * Keeps the story slow — one intentional gesture at a time.
+   * Minimum ms between accepted beats (lets the slow animation breathe).
+   * Does not make the swipe harder — only blocks double-fires.
    */
   cooldownMs?: number;
   /** Element to attach listeners; defaults to window */
@@ -20,17 +24,19 @@ type Options = {
 };
 
 /**
- * Vertical swipe / wheel / drag for story navigation.
- * Touch + mouse (pointer events) + wheel. Keyboard ↑/↓ as accessibility fallback.
- * Cooldown enforces a cinematic pace — no rapid-fire flips.
+ * Vertical swipe for stepped story navigation.
+ *
+ * Intention: a light flick up/down is enough. We are NOT measuring a long
+ * drag-to-scroll — distance thresholds stay small; velocity helps short flicks.
+ * Cooldown only prevents stacking beats while a slow transition is mid-flight.
  */
 export function useVerticalSwipe({
   enabled = true,
   onNext,
   onPrev,
   onDrag,
-  threshold = 52,
-  cooldownMs = 850,
+  threshold = 28,
+  cooldownMs = 1400,
   targetRef,
 }: Options) {
   const start = useRef<{ x: number; y: number; t: number } | null>(null);
@@ -78,12 +84,14 @@ export function useVerticalSwipe({
       const dy = pe.clientY - start.current.y;
 
       if (!locked.current) {
-        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-        locked.current = Math.abs(dy) >= Math.abs(dx) * 0.9 ? "v" : "h";
+        // Lock axis early so a short flick still counts as vertical
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        locked.current = Math.abs(dy) >= Math.abs(dx) * 0.75 ? "v" : "h";
       }
 
       if (locked.current === "v") {
         if (e.cancelable) e.preventDefault();
+        // Drag is only a light parallax hint — not the commit mechanism
         handlers.current.onDrag?.(dy, true);
       }
     };
@@ -100,10 +108,17 @@ export function useVerticalSwipe({
 
       if (!wasVertical) return;
 
-      const velocity = Math.abs(dy) / Math.max(dt, 1);
-      const distanceOk = Math.abs(dy) >= threshold;
-      const flickOk = Math.abs(dy) >= threshold * 0.5 && velocity > 0.35;
-      if (!distanceOk && !flickOk) return;
+      const dist = Math.abs(dy);
+      const velocity = dist / Math.max(dt, 1); // px/ms
+
+      // Trigger logic — short intentional flick is enough:
+      //  • distance ≥ threshold, OR
+      //  • quick flick (≥ ~half threshold + mild velocity)
+      //  • very snappy flick (even less distance if fast)
+      const distanceOk = dist >= threshold;
+      const flickOk = dist >= threshold * 0.45 && velocity > 0.18;
+      const snapOk = dist >= 14 && velocity > 0.45;
+      if (!distanceOk && !flickOk && !snapOk) return;
 
       // Finger up (negative dy) → next; finger down → prev
       tryBeat(dy < 0 ? "next" : "prev");
@@ -113,15 +128,15 @@ export function useVerticalSwipe({
       const we = e as WheelEvent;
       if (e.cancelable) e.preventDefault();
 
-      // Trackpad inertia: accumulate, then one beat, then cool down
       wheelAcc.current += we.deltaY;
 
       if (wheelReset.current != null) window.clearTimeout(wheelReset.current);
       wheelReset.current = window.setTimeout(() => {
         wheelAcc.current = 0;
-      }, 180);
+      }, 160);
 
-      if (Math.abs(wheelAcc.current) < 28) return;
+      // Low accum — one notch / small trackpad gesture = one beat
+      if (Math.abs(wheelAcc.current) < 18) return;
       const dir = wheelAcc.current > 0 ? "next" : "prev";
       if (tryBeat(dir)) wheelAcc.current = 0;
     };
