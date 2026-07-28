@@ -138,7 +138,9 @@ export default function StoryCarousel() {
       dragBiasRef.current = 0;
       return;
     }
-    dragBiasRef.current = THREE.MathUtils.clamp(-deltaY / 420, -0.22, 0.22);
+    // Stronger scrub — feeds live parallax while the finger is down
+    // Finger up (negative dy) → positive bias → next
+    dragBiasRef.current = THREE.MathUtils.clamp(-deltaY / 280, -0.55, 0.55);
   }, []);
 
   useVerticalSwipe({

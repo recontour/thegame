@@ -6,6 +6,8 @@ import * as THREE from "three";
 
 type StarfieldProps = {
   count: number;
+  /** Optional scroll energy — background drifts slower than the photos */
+  motionRef?: React.MutableRefObject<number>;
 };
 
 /** Deterministic 0..1 hash — keeps star layout stable across re-renders. */
@@ -60,9 +62,11 @@ const starFrag = /* glsl */ `
 /**
  * One-draw-call starfield with a tiny custom shader (twinkle + soft disc).
  * Mid-range Android: keep count ≤ ~160–200.
+ * Slow parallax lag vs the photo stack (farthest plane).
  */
-export default function Starfield({ count }: StarfieldProps) {
+export default function Starfield({ count, motionRef }: StarfieldProps) {
   const matRef = useRef<THREE.ShaderMaterial | null>(null);
+  const groupRef = useRef<THREE.Group>(null);
 
   const geometry = useMemo(() => {
     const positions = new Float32Array(count * 3);
@@ -120,9 +124,20 @@ export default function Starfield({ count }: StarfieldProps) {
   useFrame(({ clock }) => {
     const mat = matRef.current;
     if (mat) mat.uniforms.uTime.value = clock.elapsedTime;
+
+    const g = groupRef.current;
+    if (g && motionRef) {
+      // Stars lag hard — deep background plane
+      const m = motionRef.current;
+      g.position.y = -m * 0.22;
+      g.position.x = m * 0.04;
+      g.rotation.z = m * 0.012;
+    }
   });
 
   return (
-    <points geometry={geometry} material={material} frustumCulled={false} />
+    <group ref={groupRef}>
+      <points geometry={geometry} material={material} frustumCulled={false} />
+    </group>
   );
 }

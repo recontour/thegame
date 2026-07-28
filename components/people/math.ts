@@ -26,3 +26,36 @@ export function springStep(
   const t = 1 - Math.exp(-lambda * dt);
   return current + (target - current) * t;
 }
+
+/**
+ * SmoothDamp (Game Programming Gems) — second-order, less choppy than
+ * exponential springs for travel / camera / parallax follow.
+ * `smoothTime` ≈ time to approach target (seconds). Mutates nothing;
+ * pass velocity in/out.
+ */
+export function smoothDamp(
+  current: number,
+  target: number,
+  velocity: number,
+  smoothTime: number,
+  dt: number,
+  maxSpeed = Infinity,
+): { value: number; velocity: number } {
+  const st = Math.max(0.0001, smoothTime);
+  const omega = 2 / st;
+  const x = omega * dt;
+  const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  let change = current - target;
+  const maxChange = maxSpeed * st;
+  change = Math.max(-maxChange, Math.min(maxChange, change));
+  const temp = (velocity + omega * change) * dt;
+  let newVel = (velocity - omega * temp) * exp;
+  let newVal = target + (change + temp) * exp;
+
+  // Prevent overshoot past target
+  if (target - current > 0 === newVal > target) {
+    newVal = target;
+    newVel = 0;
+  }
+  return { value: newVal, velocity: newVel };
+}

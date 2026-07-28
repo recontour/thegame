@@ -7,7 +7,7 @@ import FloatingCard from "@/components/people/FloatingCard";
 import FocusTextBand from "@/components/people/FocusTextBand";
 import Starfield from "@/components/people/Starfield";
 import Atmosphere from "@/components/people/Atmosphere";
-import { springStep } from "@/components/people/math";
+import { smoothDamp, springStep } from "@/components/people/math";
 import type { SlotTexture } from "@/components/people/useCarouselTextures";
 import type { StoryCapability } from "@/components/people/capability";
 import type { StoryCard } from "@/data/people";
@@ -17,11 +17,8 @@ export type StoryPhase = "full" | "settled";
 
 type CarouselSceneProps = {
   cards: StoryCard[];
-  /** Integer target index (0..n-1) */
   targetIndex: number;
-  /** Story phase — ref so morphs do not re-render R3F */
   phaseRef: React.MutableRefObject<StoryPhase>;
-  /** Live drag bias in card units — ref only */
   dragBiasRef: React.MutableRefObject<number>;
   textures: SlotTexture[];
   cap: StoryCapability;
@@ -29,7 +26,6 @@ type CarouselSceneProps = {
   onTextBandTop?: (topFrac: number) => void;
 };
 
-/** Shortest signed distance on a ring of length n. */
 function wrapDelta(from: number, to: number, n: number): number {
   let d = to - from;
   d = ((d % n) + n) % n;
@@ -38,11 +34,10 @@ function wrapDelta(from: number, to: number, n: number): number {
 }
 
 /**
- * Camera + cards.
+ * Camera + cards + parallax motion bus.
  *
- * - Same-card full ↔ framed: lock index, spring `present` (already feels right).
- * - Between photos: spring carousel position slowly so the next image
- *   eases in instead of popping.
+ * `motionRef` is a smoothed scroll energy (finger + travel) that cards and
+ * stars sample at different depths — classic mobile multiplane feel.
  */
 export default function CarouselScene({
   cards,
@@ -56,13 +51,22 @@ export default function CarouselScene({
 }: CarouselSceneProps) {
   const n = cards.length;
   const positionRef = useRef(targetIndex);
-  /** 0 = full-bleed immersive, 1 = settled framed pose */
+  const positionVelRef = useRef(0);
   const presentRef = useRef(phaseRef.current === "settled" ? 1 : 0);
+  const presentVelRef = useRef(0);
+  /**
+   * Smoothed parallax driver:
+   *   + = story advancing (swipe up / next)
+   *   − = going back
+   * Cards sample this with depth weights; stars sample slower.
+   */
+  const motionRef = useRef(0);
   const lastSettled = useRef(false);
   const targetRef = useRef(targetIndex);
   const settledCb = useRef(onFocusSettled);
   const prevIndexRef = useRef(targetIndex);
   const prevPhaseRef = useRef<StoryPhase>(phaseRef.current);
+  const prevPosRef = useRef(targetIndex);
 
   useEffect(() => {
     targetRef.current = targetIndex;
@@ -71,14 +75,11 @@ export default function CarouselScene({
     settledCb.current = onFocusSettled;
   }, [onFocusSettled]);
 
-  // Index change: keep current present/position — springs handle the handoff.
-  // (No hard snap — that was the instant cut between photos.)
   useEffect(() => {
     if (targetIndex !== prevIndexRef.current) {
       prevIndexRef.current = targetIndex;
       prevPhaseRef.current = phaseRef.current;
       lastSettled.current = false;
-      // Drop residual finger bias so the travel is clean
       dragBiasRef.current = 0;
     }
   }, [targetIndex, phaseRef, dragBiasRef]);
@@ -102,14 +103,13 @@ export default function CarouselScene({
     const phaseNow = phaseRef.current;
     const drag = dragBiasRef.current;
 
-    // Same-card phase flip (full ↔ settled)
     if (phaseNow !== prevPhaseRef.current) {
       prevPhaseRef.current = phaseNow;
       lastSettled.current = false;
-      // Only hard-park when we are already on this card (not mid-travel)
       const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
       if (posErr < 0.08) {
         positionRef.current = targetIndexNow;
+        positionVelRef.current = 0;
         dragBiasRef.current = 0;
       }
     }
@@ -117,42 +117,67 @@ export default function CarouselScene({
     const presentTarget = phaseNow === "settled" ? 1 : 0;
     const posErr = Math.abs(wrapDelta(positionRef.current, targetIndexNow, n));
     const presentErr = Math.abs(presentRef.current - presentTarget);
-    /** Traveling to another photo */
     const traveling = posErr > 0.04;
-    /** Same card morphing full ↔ frame */
     const morphingPose = !traveling && presentErr > 0.008;
 
-    // —— carousel position ——
+    // —— carousel position (smoothDamp = less choppy than exp spring) ——
     if (morphingPose) {
-      // Keep the hero planted while it scales full ↔ framed
       positionRef.current = targetIndexNow;
+      positionVelRef.current = 0;
     } else {
-      // Shortest-path target on the ring (+ optional drag preview)
       let tgt = targetIndexNow + (traveling ? 0 : drag);
       const cur = positionRef.current;
-      let diff = wrapDelta(cur, tgt, n);
-      // Unwrap so spring can cross the ring without long-way travel
+      const diff = wrapDelta(cur, tgt, n);
       tgt = cur + diff;
 
-      // Between photos: slower, cinematic. Finger drag: snappier track.
-      const lambda = traveling ? 3.1 : drag !== 0 ? 11 : 5.5;
-      positionRef.current = springStep(cur, tgt, capped, lambda);
+      // Travel: floaty. Scrubbing with finger: tighter follow.
+      const smoothTime = traveling ? 0.55 : drag !== 0 ? 0.14 : 0.32;
+      const stepped = smoothDamp(
+        cur,
+        tgt,
+        positionVelRef.current,
+        smoothTime,
+        capped,
+        traveling ? 2.8 : 6,
+      );
+      positionRef.current = stepped.value;
+      positionVelRef.current = stepped.velocity;
 
-      // Wrap into [0, n)
       if (positionRef.current >= n) positionRef.current -= n;
       if (positionRef.current < 0) positionRef.current += n;
     }
 
-    // —— presentation spring (full ↔ framed) ——
-    // Slightly quicker when arriving as the next full image so the
-    // expand/contract and the slide finish in the same breath.
-    const presentLambda = traveling ? 4.2 : 3.2;
-    presentRef.current = springStep(
+    // —— presentation (full ↔ framed) ——
+    const presentSmooth = traveling ? 0.42 : morphingPose ? 0.48 : 0.38;
+    const presentStep = smoothDamp(
       presentRef.current,
       presentTarget,
+      presentVelRef.current,
+      presentSmooth,
       capped,
-      presentLambda,
+      3.5,
     );
+    presentRef.current = presentStep.value;
+    presentVelRef.current = presentStep.velocity;
+
+    // —— parallax motion bus ——
+    // Combine finger scrub + actual scroll velocity into one soft signal.
+    let posDelta = positionRef.current - prevPosRef.current;
+    // unwrap jump across ring
+    if (posDelta > n / 2) posDelta -= n;
+    if (posDelta < -n / 2) posDelta += n;
+    prevPosRef.current = positionRef.current;
+
+    const scrollVel = posDelta / Math.max(capped, 1 / 120);
+    // Finger up (next) → positive dragBias in StoryCarousel is -deltaY/… so
+    // drag > 0 means next. Align motion so + = advancing.
+    const finger = drag;
+    const rawMotion = finger * 1.15 + THREE.MathUtils.clamp(scrollVel * 0.22, -1.4, 1.4);
+    motionRef.current = springStep(motionRef.current, rawMotion, capped, 7.5);
+    // Soft settle to 0 when idle so planes rest
+    if (Math.abs(drag) < 0.001 && !traveling && !morphingPose) {
+      motionRef.current = springStep(motionRef.current, 0, capped, 4.5);
+    }
 
     const p = positionRef.current;
     const nearest = ((Math.round(p) % n) + n) % n;
@@ -178,7 +203,7 @@ export default function CarouselScene({
   return (
     <>
       <Atmosphere haze={cap.haze} />
-      <Starfield count={cap.starCount} />
+      <Starfield count={cap.starCount} motionRef={motionRef} />
 
       {cards.map((card, i) => (
         <FloatingCard
@@ -187,6 +212,8 @@ export default function CarouselScene({
           count={n}
           positionRef={positionRef}
           presentRef={presentRef}
+          motionRef={motionRef}
+          dragBiasRef={dragBiasRef}
           texture={textures[i]?.texture ?? null}
           geometry={sharedGeo}
           seed={seeds[i]}

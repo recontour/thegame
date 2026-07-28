@@ -8,13 +8,12 @@ import { clamp01, lerp, smoothstep } from "@/components/people/math";
 type FloatingCardProps = {
   index: number;
   count: number;
-  /** Continuous carousel position (mutated only in parent useFrame) */
   positionRef: React.MutableRefObject<number>;
-  /**
-   * 0 = full-bleed immersive (covers stage top→bottom)
-   * 1 = settled framed pose (existing layout with room for copy)
-   */
   presentRef: React.MutableRefObject<number>;
+  /** Smoothed scroll energy from the scene (+ = advancing) */
+  motionRef: React.MutableRefObject<number>;
+  /** Live finger bias (card units) */
+  dragBiasRef: React.MutableRefObject<number>;
   texture: THREE.Texture | null;
   geometry: THREE.PlaneGeometry;
   seed: number;
@@ -27,17 +26,18 @@ type FloatingCardProps = {
 };
 
 /**
- * One image card — same mesh morphs full-bleed ↔ framed.
- * Between photos, focus rides the continuous carousel position so the
- * next image eases in rather than popping.
+ * One image card — full ↔ framed morph + depth parallax from swipe motion.
  *
- * Near-focus cards stay fully opaque (never transparent-flash).
+ * Near cards ride the finger harder; far cards lag (multiplane parallax).
+ * Hero opacity stays solid so the morph never flashes.
  */
 export default function FloatingCard({
   index,
   count,
   positionRef,
   presentRef,
+  motionRef,
+  dragBiasRef,
   texture,
   geometry,
   seed,
@@ -104,17 +104,13 @@ export default function FloatingCard({
     }
     aspect = THREE.MathUtils.clamp(aspect, 0.35, 2.8);
 
-    // Soft focus from continuous position — drives inter-photo travel
     const focus = smoothstep(1.15, 0.05, ad);
     const mid = smoothstep(2.6, 0.9, ad);
     const present = clamp01(presentRef.current);
 
-    // Immersive amount: only the card in focus goes full-bleed
     const immerse = focus * (1 - present);
     const blend = immerse * immerse * (3 - 2 * immerse);
 
-    // Near-focus: treat layout as locked hero so scale morph stays clean
-    // (avoids tiny d jitter dimming/warping mid-settle)
     const locked = ad < 0.12;
     const layoutD = locked ? 0 : d;
     const layoutAd = locked ? 0 : ad;
@@ -198,11 +194,46 @@ export default function FloatingCard({
 
     const fullZ = 0.02;
 
+    // ——— Multiplane parallax from swipe / travel ———
+    // motion + = advancing (finger up). Foreground moves more; depth lags.
+    const motion = motionRef.current;
+    const drag = dragBiasRef.current;
+    const energy = motion + drag * 0.35;
+
+    // 1 near camera … 0 far in the stack
+    const nearness = clamp01(1 - ad / 2.4);
+    const depthWeight = lerp(0.22, 1, nearness * nearness);
+    // Immersive hero: gentle crop-shift feel, not a big slide
+    const paraAmp = lerp(0.55, 0.18, blend);
+    const paraY = -energy * paraAmp * depthWeight * frameH * 0.14;
+    // Far cards drift slightly sideways (depth cue) with opposite lag
+    const paraX =
+      energy *
+      (1 - nearness) *
+      0.08 *
+      (seed - 0.5) *
+      2 *
+      (1 - blend * 0.7);
+    // Push background deeper while scrubbing
+    const paraZ = -Math.abs(energy) * (1 - nearness) * 0.35 * (1 - blend);
+    // Subtle tilt into the swipe
+    const paraTiltX = energy * 0.045 * depthWeight * (1 - blend * 0.85);
+    const paraTiltZ =
+      energy * 0.02 * (seed - 0.5) * (1 - layoutFocus) * (1 - blend);
+
+    // Extra: during full-bleed, shift crop with motion (subject breathes)
+    const cropShiftY = blend * energy * 0.04 * frameH * (fy - 0.5 + 0.5);
+
     const scaleX = lerp(restW, fullW, blend);
     const scaleY = lerp(restH, fullH, blend);
+    // Micro scale pulse on neighbors during travel — soft depth pop
+    const scalePulse =
+      1 + (1 - nearness) * Math.abs(energy) * 0.04 * (1 - blend);
 
     const t = clock.elapsedTime;
-    const floatMul = lerp(1, 0, blend) * floatAmp * lerp(0.15, 1, present);
+    const floatMul =
+      lerp(1, 0, blend) * floatAmp * lerp(0.12, 1, present) *
+      (1 - Math.min(1, Math.abs(energy) * 0.8));
     const bob =
       Math.sin(t * 0.48 + seed * 6.2) *
       0.024 *
@@ -216,40 +247,45 @@ export default function FloatingCard({
 
     const x =
       lerp(restXWander, fullX, blend) +
-      sway * (1 - layoutFocus * 0.85) * (1 - blend);
-    const y = lerp(restY + bob, fullY, blend);
-    const z = lerp(restZ, fullZ, blend);
+      sway * (1 - layoutFocus * 0.85) * (1 - blend) +
+      paraX;
+    const y =
+      lerp(restY + bob, fullY, blend) + paraY + cropShiftY;
+    const z = lerp(restZ, fullZ, blend) + paraZ;
 
     mesh.position.set(x, y, z);
-    mesh.scale.set(scaleX, scaleY, 1);
+    mesh.scale.set(scaleX * scalePulse, scaleY * scalePulse, 1);
 
     const restRotZ =
       (seed - 0.5) * 0.1 * (1 - layoutFocus) +
       Math.sin(t * 0.4 + seed) * 0.01 * floatMul * (1 - layoutFocus * 0.85);
-    mesh.rotation.z = restRotZ * (1 - blend) + rotAmt * blend;
+    mesh.rotation.z =
+      restRotZ * (1 - blend) + rotAmt * blend + paraTiltZ;
     mesh.rotation.x =
-      (-0.03 * (1 - layoutFocus) + layoutD * 0.025) * (1 - blend);
-    mesh.rotation.y = restXWander * 0.2 * (1 - blend);
+      (-0.03 * (1 - layoutFocus) + layoutD * 0.025) * (1 - blend) +
+      paraTiltX;
+    mesh.rotation.y = restXWander * 0.2 * (1 - blend) + paraX * 0.15;
 
     // ——— Opacity ———
-    // Near focus: always solid (no transparent flash).
-    // Far cards: only visible once the story is in settled space.
     const texReady = texture ? 1 : 0.28;
     if (ad < 0.45) {
       mat.opacity = texReady;
-      // Pure white near focus; slight cool dim only when half-focused mid-travel
-      const lit = lerp(0.82, 1, focus);
+      const lit = lerp(0.84, 1, focus);
       mat.color.setRGB(lit, lit, lit);
       mat.depthWrite = focus > 0.75 && present > 0.12;
     } else {
-      const settleReveal = smoothstep(0.2, 0.85, present);
+      const settleReveal = smoothstep(0.18, 0.8, present);
+      // Keep a whisper of far cards during travel so parallax reads
+      const travelGhost =
+        (1 - present) * smoothstep(1.8, 0.5, ad) * 0.22;
       const opacity =
-        lerp(0.1, 0.88, focus) *
-        mid *
-        texReady *
-        clamp01(1.15 - ad * 0.28) *
-        settleReveal;
-      mat.opacity = opacity;
+        (lerp(0.1, 0.88, focus) *
+          mid *
+          texReady *
+          clamp01(1.15 - ad * 0.28) *
+          settleReveal) +
+        travelGhost * texReady;
+      mat.opacity = Math.min(1, opacity);
       const dim = texture ? lerp(0.5, 0.95, focus) : 0.22;
       mat.color.setRGB(dim, dim, dim * 1.02);
       mat.depthWrite = false;
