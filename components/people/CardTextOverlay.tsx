@@ -43,23 +43,20 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** easeOutBack — soft bounce into place from below */
+/** Soft overshoot at the end of the rise */
 function easeOutBack(t: number): number {
-  const c1 = 1.45;
+  const c1 = 1.35;
   const c3 = c1 + 1;
   const u = clamp01(t);
   return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
 }
 
 /**
- * Copy lives under the photo and is timed to present/motion.
+ * Copy under the photo — rises from fully below the stage (out of frame /
+ * out of focus), then settles. Exit reverses: drops back under the fold.
  *
- * Enter (present ↑): slides up from below the frame, staggered.
- * Exit  (present ↓): same path reversed — drops back down out of focus.
- *
- *   1. Title first (parallax)
- *   2. Body bounce
- *   3. Quote quick
+ * Important: offsets are in *band height* / stage px, not a tiny 100px nudge
+ * (that looked like text spawning mid-page).
  */
 export default function CardTextOverlay({
   card,
@@ -79,46 +76,61 @@ export default function CardTextOverlay({
     const tick = () => {
       const present = enabled ? clamp01(presentRef.current) : 0;
       const motion = motionRef.current;
+      const root = rootRef.current;
 
-      // Staggered rise from bottom (and reverse exit downward when present falls)
-      const titleT = smoothstep(0.06, 0.42, present);
-      const bodyRaw = smoothstep(0.22, 0.6, present);
-      const bodyT = easeOutBack(bodyRaw);
-      const quoteT = smoothstep(0.38, 0.7, present);
+      // How far "below the fold" is — at least the full band height so copy
+      // starts completely under the stage bottom, never mid-screen.
+      let offPx = 280;
+      if (root) {
+        const bandH = root.clientHeight || 0;
+        const stageH = root.parentElement?.clientHeight ?? 0;
+        // Prefer full band; also clear a chunk of stage so it feels off-frame
+        offPx = Math.max(bandH + 24, stageH * 0.42, 200);
+      }
 
-      // Off-frame distance (px) — enough to clear the band
-      const OFF = 110;
+      // Stagger: title leads, body, then quote — all share the same path up
+      const titleT = smoothstep(0.05, 0.48, present);
+      const bodyT = easeOutBack(smoothstep(0.18, 0.62, present));
+      const quoteT = smoothstep(0.32, 0.72, present);
 
       const titleEl = titleRef.current;
       if (titleEl) {
-        // Start fully below; settle at 0. Light parallax on top.
-        const fromBottom = (1 - titleT) * OFF;
-        const paraY = -motion * 10 * titleT;
-        titleEl.style.opacity = String(titleT);
-        titleEl.style.transform = `translate3d(0, ${fromBottom + paraY}px, 0)`;
+        const t = titleT;
+        // Fully below when t=0; rest when t=1. Parallax only once visible.
+        const y = (1 - t) * offPx - motion * 12 * t;
+        const blur = (1 - t) * 10;
+        titleEl.style.opacity = String(t);
+        titleEl.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+        titleEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
 
       const bodyEl = bodyRef.current;
       if (bodyEl) {
-        // Bounce uses overshoot of bodyT (>1 briefly) as a slight lift past rest
-        const fromBottom = (1 - clamp01(bodyT)) * (OFF + 16);
-        const overshootY = bodyT > 1 ? -(bodyT - 1) * 18 : 0;
-        const scale = 0.96 + clamp01(bodyT) * 0.04;
-        bodyEl.style.opacity = String(clamp01(bodyT));
-        bodyEl.style.transform = `translate3d(0, ${fromBottom + overshootY}px, 0) scale(${scale})`;
+        const t = clamp01(bodyT);
+        // easeOutBack can overshoot >1 → slight lift past rest
+        const y =
+          (1 - t) * (offPx * 1.05) -
+          (bodyT > 1 ? (bodyT - 1) * 14 : 0);
+        const blur = (1 - t) * 12;
+        const scale = 0.97 + t * 0.03;
+        bodyEl.style.opacity = String(t);
+        bodyEl.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+        bodyEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       }
 
       const quoteEl = quoteRef.current;
       if (quoteEl) {
-        const fromBottom = (1 - quoteT) * (OFF + 8);
-        quoteEl.style.opacity = String(quoteT);
-        quoteEl.style.transform = `translate3d(0, ${fromBottom}px, 0)`;
+        const t = quoteT;
+        const y = (1 - t) * (offPx * 1.08);
+        const blur = (1 - t) * 8;
+        quoteEl.style.opacity = String(t);
+        quoteEl.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+        quoteEl.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
 
-      const root = rootRef.current;
       if (root) {
-        // Keep visible while anything is mid-enter or mid-exit
-        root.style.visibility = present > 0.02 ? "visible" : "hidden";
+        // Visible for enter *and* exit (while still sliding under the fold)
+        root.style.visibility = present > 0.015 ? "visible" : "hidden";
       }
 
       raf = requestAnimationFrame(tick);
@@ -149,14 +161,13 @@ export default function CardTextOverlay({
         gridTemplateRows: "auto auto 1fr",
         alignItems: "stretch",
         rowGap: "0.15rem",
-        // Clip so rising/falling copy stays out of the photo
+        // Clip so rising copy never paints over the photo mid-rise
         overflow: "hidden",
         boxSizing: "border-box",
         transition: "top 0.35s ease-out",
         visibility: "hidden",
       }}
     >
-      {/* Title — from bottom + parallax */}
       <div
         ref={titleRef}
         style={{
@@ -167,7 +178,7 @@ export default function CardTextOverlay({
           width: "100%",
           padding: "0.55rem 0 0.18rem",
           opacity: 0,
-          willChange: "transform, opacity",
+          willChange: "transform, opacity, filter",
         }}
       >
         <p
@@ -189,7 +200,6 @@ export default function CardTextOverlay({
         </p>
       </div>
 
-      {/* Body — from bottom with bounce */}
       <p
         ref={bodyRef}
         className={cormorantUpright.className}
@@ -206,13 +216,12 @@ export default function CardTextOverlay({
           textShadow: "0 1px 12px rgba(0,0,0,0.55)",
           opacity: 0,
           transformOrigin: "center bottom",
-          willChange: "transform, opacity",
+          willChange: "transform, opacity, filter",
         }}
       >
         {card.body}
       </p>
 
-      {/* Quote — from bottom, quick */}
       <div
         ref={quoteRef}
         style={{
@@ -224,7 +233,7 @@ export default function CardTextOverlay({
           width: "100%",
           paddingTop: "0.2rem",
           opacity: 0,
-          willChange: "transform, opacity",
+          willChange: "transform, opacity, filter",
         }}
       >
         <p
