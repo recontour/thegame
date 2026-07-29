@@ -364,11 +364,16 @@ export default function UniverseShell() {
   const canZoomOut = cameraZ < ZOOM_Z_MAX - 0.001;
   const canZoomIn = cameraZ > ZOOM_Z_MIN + 0.001;
 
+  // Top copy during moon beat: place prompt, or the zoom-out lock line
   const moonTopCopy = moonInteractive
     ? MOON_PLACE_TEXT
     : farEnoughVisible
       ? FAR_ENOUGH_TEXT
       : "";
+
+  const showMoonTopPrompt =
+    (moonPhase && farEnoughVisible && !moonInteractive) ||
+    (moonPhase && moonPromptVisible && moonInteractive && moonTopCopy.length > 0);
 
   useEffect(() => {
     const el = stageRef.current;
@@ -463,11 +468,7 @@ export default function UniverseShell() {
             </div>
           )}
           <PromptMessage
-            visible={
-              moonPhase &&
-              moonPromptVisible &&
-              moonTopCopy.length > 0
-            }
+            visible={showMoonTopPrompt}
             text={moonTopCopy}
             far={farEnoughVisible && !moonInteractive}
           />
