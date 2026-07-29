@@ -3,10 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
-import { CAMERA_FOV, CAMERA_Z } from "@/components/universe/constants";
+import {
+  CAMERA_FOV,
+  CAMERA_Z,
+  ZOOM_Z_FRAME,
+  ZOOM_Z_MAX,
+  ZOOM_Z_MIN,
+  ZOOM_Z_STEP,
+} from "@/components/universe/constants";
+import CameraRig from "@/components/universe/CameraRig";
 import OrbitLabel from "@/components/universe/OrbitLabel";
-import PlanetStage from "@/components/universe/PlanetStage";
+import PlanetStage, {
+  stagePoseOffset,
+  type StagePose,
+} from "@/components/universe/PlanetStage";
 import Stars from "@/components/universe/Stars";
+import ZoomControls from "@/components/universe/ZoomControls";
 
 /**
  * Layout CSS — media queries, not JS.
@@ -48,11 +60,6 @@ const UNIVERSE_LAYOUT_CSS = `
       0 24px 80px rgba(0, 0, 0, 0.65);
   }
 
-  /*
-   * Real devices + narrow windows: fill the shell edge-to-edge.
-   * Use 100% of the fixed shell (not 100vw) — 100vw can leave side gutters
-   * on iOS Safari when the scrollbar/safe-area math differs.
-   */
   @media (max-width: 900px), (hover: none) and (pointer: coarse) {
     .universe-stage {
       width: 100% !important;
@@ -89,6 +96,13 @@ const UNIVERSE_LAYOUT_CSS = `
     padding-bottom: 14%;
   }
 
+  /* Moon / far-enough copy — top of the phone column */
+  .universe-ui.top {
+    align-items: flex-start;
+    padding-top: max(12px, env(safe-area-inset-top, 0px) + 16px);
+    padding-bottom: 0;
+  }
+
   .universe-message {
     color: #f0f4ff;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -109,6 +123,22 @@ const UNIVERSE_LAYOUT_CSS = `
     font-size: clamp(1rem, 3.6vw, 1.25rem);
     max-width: 88%;
     letter-spacing: 0.03em;
+  }
+
+  .universe-message.far-text {
+    font-size: clamp(0.95rem, 3.4vw, 1.15rem);
+    max-width: 90%;
+    color: #c8d6f0;
+  }
+
+  .universe-message.zoom-hint {
+    font-size: clamp(0.9rem, 3.2vw, 1.05rem);
+    opacity: 0;
+    max-width: 88%;
+  }
+
+  .universe-message.zoom-hint.visible {
+    opacity: 0.75;
   }
 
   .universe-message.visible {
@@ -139,58 +169,47 @@ const UNIVERSE_LAYOUT_CSS = `
   .universe-orbit-label.visible {
     opacity: 1;
   }
+
+  .universe-orbit-label.moon-label {
+    top: 18%;
+  }
 `;
 
 const WELCOME_TEXT = "Welcome.\nThis is our home.";
 const PROMPT_TEXT =
   "Drag the satellite to where you think\nGPS satellites orbit";
-
-/** Welcome fully gone ≈ fade start + CSS transition */
-const WELCOME_FADE_AT_MS = 8500;
-const WELCOME_GONE_MS = WELCOME_FADE_AT_MS + 1400;
+const MOON_TOP_TEXT = "Now place the Moon where you think it is.";
+const FAR_ENOUGH_TEXT =
+  "Okay, that's far enough.\nThe Moon isn't in another galaxy.";
+const MOON_PLACE_TEXT = "Drag the Moon where you think it belongs.";
 
 /**
- * Typewriter welcome — Earth first, then text, then soft fade out.
+ * TEST MODE: welcome is near-instant so we can iterate on later beats.
+ * TODO: restore slow typewriter + long hold before ship.
  */
+const WELCOME_TEST_MS = 400;
+
 function WelcomeMessage({ onDone }: { onDone: () => void }) {
-  const [text, setText] = useState("");
   const [visible, setVisible] = useState(false);
   const doneRef = useRef(false);
 
   useEffect(() => {
-    let typeTimer: ReturnType<typeof setTimeout> | undefined;
-    let i = 0;
-
-    const startTimer = setTimeout(() => {
-      setVisible(true);
-      setText("");
-
-      const type = () => {
-        if (i < WELCOME_TEXT.length) {
-          setText(WELCOME_TEXT.slice(0, i + 1));
-          i += 1;
-          typeTimer = setTimeout(type, 95);
-        }
-      };
-      type();
-    }, 1200);
+    setVisible(true);
 
     const fadeTimer = setTimeout(() => {
       setVisible(false);
-    }, WELCOME_FADE_AT_MS);
+    }, WELCOME_TEST_MS);
 
     const doneTimer = setTimeout(() => {
       if (!doneRef.current) {
         doneRef.current = true;
         onDone();
       }
-    }, WELCOME_GONE_MS);
+    }, WELCOME_TEST_MS + 200);
 
     return () => {
-      clearTimeout(startTimer);
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
-      if (typeTimer) clearTimeout(typeTimer);
     };
   }, [onDone]);
 
@@ -200,6 +219,33 @@ function WelcomeMessage({ onDone }: { onDone: () => void }) {
         className={`universe-message${visible ? " visible" : ""}`}
         aria-live="polite"
       >
+        {WELCOME_TEXT}
+      </div>
+    </div>
+  );
+}
+
+function PromptMessage({
+  visible,
+  text,
+  placement = "bottom",
+  far = false,
+}: {
+  visible: boolean;
+  text: string;
+  placement?: "bottom" | "top";
+  far?: boolean;
+}) {
+  return (
+    <div
+      className={`universe-ui ${placement === "top" ? "top" : "prompt"}`}
+    >
+      <div
+        className={`universe-message prompt-text${far ? " far-text" : ""}${
+          visible ? " visible" : ""
+        }`}
+        aria-live="polite"
+      >
         {text}
       </div>
     </div>
@@ -207,23 +253,7 @@ function WelcomeMessage({ onDone }: { onDone: () => void }) {
 }
 
 /**
- * Soft prompt under the globe after welcome.
- */
-function PromptMessage({ visible }: { visible: boolean }) {
-  return (
-    <div className="universe-ui prompt">
-      <div
-        className={`universe-message prompt-text${visible ? " visible" : ""}`}
-        aria-live="polite"
-      >
-        {PROMPT_TEXT}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Portrait stage + spinning Earth + welcome → satellite drag lesson.
+ * Portrait stage: welcome → sat → moon zoom → moon drop.
  */
 export default function UniverseShell() {
   const stageRef = useRef<HTMLDivElement>(null);
@@ -231,25 +261,88 @@ export default function UniverseShell() {
   const [satelliteActive, setSatelliteActive] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
   const [orbitLabelVisible, setOrbitLabelVisible] = useState(false);
-  /** Earth + sat ease down so the globe sits above the drag prompt */
-  const [earthLowered, setEarthLowered] = useState(false);
+  const [stagePose, setStagePose] = useState<StagePose>("center");
+
+  // Moon beat
+  const [moonPhase, setMoonPhase] = useState(false);
+  const [moonVisible, setMoonVisible] = useState(false);
+  const [moonInteractive, setMoonInteractive] = useState(false);
+  const [zoomControlsVisible, setZoomControlsVisible] = useState(false);
+  const [moonPromptVisible, setMoonPromptVisible] = useState(false);
+  const [farEnoughVisible, setFarEnoughVisible] = useState(false);
+  const [moonLabelVisible, setMoonLabelVisible] = useState(false);
+  const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
   const handleWelcomeDone = useCallback(() => {
     setShowWelcome(false);
     setSatelliteActive(true);
-    setEarthLowered(true);
-    // Let sat fade in a beat, then show the prompt
-    window.setTimeout(() => setPromptVisible(true), 400);
+    setStagePose("prompt");
+    // TEST: snappy handoffs — restore longer beats later
+    window.setTimeout(() => setPromptVisible(true), 120);
   }, []);
 
-  const handleSettled = useCallback(() => {
+  const handleSatelliteSettled = useCallback(() => {
     setPromptVisible(false);
-    // Orbit ring is fading in with the snap — label shortly after
-    window.setTimeout(() => setOrbitLabelVisible(true), 500);
+    window.setTimeout(() => setOrbitLabelVisible(true), 200);
+    // TEST: snappy moon beat — restore longer pause later
+    window.setTimeout(() => {
+      setMoonPhase(true);
+      setMoonVisible(true);
+      setZoomControlsVisible(true);
+      setMoonPromptVisible(true);
+    }, 350);
   }, []);
 
-  // Kick R3F resize after mount — mobile browser chrome can change the shell
-  // size after first paint, leaving a non-full canvas.
+  const handleZoomOut = useCallback(() => {
+    setCameraZ((z) => {
+      const next = Math.min(ZOOM_Z_MAX, z + ZOOM_Z_STEP);
+      if (next >= ZOOM_Z_MAX - 0.001) {
+        setFarEnoughVisible(true);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    setFarEnoughVisible(false);
+    setCameraZ((z) => Math.max(ZOOM_Z_MIN, z - ZOOM_Z_STEP));
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    setZoomControlsVisible(false);
+    setFarEnoughVisible(false);
+    setMoonPromptVisible(false);
+    setMoonInteractive(true);
+    // Short place prompt
+    window.setTimeout(() => setMoonPromptVisible(true), 200);
+  }, []);
+
+  /**
+   * Same moment the moon starts flying home:
+   * - keep a zoomed-out *size* so both fit (Earth can stay small)
+   * - ease Earth to the pre-zoom *screen position* (low in the column)
+   * - moon distance is frame-tuned so it stays in focus up top
+   */
+  const handleMoonSnapStart = useCallback(() => {
+    setMoonPromptVisible(false);
+    setStagePose("moon");
+    setCameraZ((z) => Math.max(z, ZOOM_Z_FRAME));
+  }, []);
+
+  const handleMoonSettled = useCallback(() => {
+    window.setTimeout(() => setMoonLabelVisible(true), 200);
+  }, []);
+
+  const canZoomOut = cameraZ < ZOOM_Z_MAX - 0.001;
+  const canZoomIn = cameraZ > ZOOM_Z_MIN + 0.001;
+
+  // Top-of-screen moon copy (far-enough replaces the main line)
+  const moonTopCopy = moonInteractive
+    ? MOON_PLACE_TEXT
+    : farEnoughVisible
+      ? FAR_ENOUGH_TEXT
+      : MOON_TOP_TEXT;
+
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
@@ -277,26 +370,55 @@ export default function UniverseShell() {
                 position: [0, 0, CAMERA_Z],
               }}
               style={{ background: "#000000" }}
-              // Needed so pointer events hit the satellite grab sphere
               onCreated={({ gl }) => {
                 gl.domElement.style.touchAction = "none";
               }}
             >
               <color attach="background" args={["#000000"]} />
-              {/* Soft fill + same sun angle — brighter for live / mobile screens */}
               <ambientLight intensity={1.55} />
               <directionalLight intensity={3.0} position={[5, 3, 5]} />
               <Stars />
+              <CameraRig
+                targetZ={cameraZ}
+                targetY={stagePoseOffset(stagePose)}
+              />
               <PlanetStage
-                lowered={earthLowered}
+                pose={stagePose}
                 satelliteActive={satelliteActive}
-                onSettled={handleSettled}
+                onSatelliteSettled={handleSatelliteSettled}
+                moonVisible={moonVisible}
+                moonInteractive={moonInteractive}
+                onMoonSnapStart={handleMoonSnapStart}
+                onMoonSettled={handleMoonSettled}
               />
             </Canvas>
           </WebGLErrorBoundary>
           {showWelcome && <WelcomeMessage onDone={handleWelcomeDone} />}
-          <PromptMessage visible={promptVisible} />
+          <PromptMessage visible={promptVisible} text={PROMPT_TEXT} />
+          {/* Moon main line / far-enough — top of column */}
+          <PromptMessage
+            visible={moonPhase && moonPromptVisible}
+            text={moonTopCopy}
+            placement="top"
+            far={farEnoughVisible && !moonInteractive}
+          />
           <OrbitLabel visible={orbitLabelVisible} />
+          <div
+            className={`universe-orbit-label moon-label${
+              moonLabelVisible ? " visible" : ""
+            }`}
+          >
+            Actual Moon distance
+          </div>
+          <ZoomControls
+            visible={zoomControlsVisible}
+            canZoomIn={canZoomIn}
+            canZoomOut={canZoomOut}
+            showZoomHint={!farEnoughVisible}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onConfirm={handleConfirm}
+          />
         </div>
       </div>
     </>

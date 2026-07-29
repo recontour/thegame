@@ -1,0 +1,121 @@
+/* Universe flow UI — zoom / confirm controls (mobile portrait stage) */
+
+#zoom-controls {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+#zoom-controls .zoom-controls-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+/* “Zoom out first.” — sits under the button row */
+#zoom-controls .zoom-hint {
+  margin: 0;
+  color: rgba(240, 244, 255, 0.72);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: clamp(0.9rem, 3.2vw, 1.05rem);
+  font-weight: 300;
+  letter-spacing: 0.03em;
+  line-height: 1.35;
+  text-align: center;
+  text-shadow: 0 0 12px rgba(180, 210, 255, 0.25);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Ad-style fine print under the hint */
+#zoom-controls .zoom-fineprint {
+  margin: 0;
+  max-width: 280px;
+  color: rgba(200, 214, 240, 0.45);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Base button */
+.ctrl-btn {
+  border: none;
+  color: #e8f0ff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-weight: 400;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease,
+    opacity 0.2s ease;
+  /* Soft 3D protruding look */
+  background: linear-gradient(145deg, #1e2a3a, #151d28);
+  box-shadow:
+    4px 4px 10px rgba(0, 0, 0, 0.45),
+    -2px -2px 6px rgba(80, 120, 180, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(160, 190, 255, 0.15);
+}
+
+/* Square buttons (+ and -) */
+.ctrl-btn.square {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Rectangle Confirm button */
+.ctrl-btn.rect {
+  height: 52px;
+  padding: 0 28px;
+  border-radius: 12px;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+
+/* Subtle glow */
+.ctrl-btn:not(:disabled) {
+  box-shadow:
+    4px 4px 10px rgba(0, 0, 0, 0.45),
+    -2px -2px 6px rgba(80, 120, 180, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05),
+    0 0 14px rgba(120, 170, 255, 0.12);
+}
+
+/* Press animation */
+.ctrl-btn:not(:disabled):active {
+  transform: translateY(2px) scale(0.97);
+  box-shadow:
+    1px 1px 4px rgba(0, 0, 0, 0.4),
+    inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Disabled / grayed-out state */
+.ctrl-btn:disabled {
+  opacity: 0.35;
+  background: rgba(30, 40, 55, 0.4);
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: default;
+  transform: none;
+}

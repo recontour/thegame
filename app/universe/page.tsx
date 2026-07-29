@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import UniverseShell from "@/components/universe/UniverseShell";
+import "./universe.css";
 
 export const metadata: Metadata = {
   title: "Universe",
