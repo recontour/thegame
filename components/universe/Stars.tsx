@@ -11,7 +11,7 @@ import * as THREE from "three";
 const STAR_COUNT = 3200;
 
 /** Slow drift vs Earth — sky should lag, not race */
-const STAR_SPIN = 0.00035;
+const STAR_SPIN = 0.00022;
 
 /**
  * Starfield — denser points in a big sphere, gentle spin with Earth.
