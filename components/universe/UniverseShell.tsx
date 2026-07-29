@@ -14,7 +14,6 @@ import {
 import CameraRig from "@/components/universe/CameraRig";
 import OpeningPhone from "@/components/universe/OpeningPhone";
 import OpeningQuiz from "@/components/universe/OpeningQuiz";
-import OrbitLabel from "@/components/universe/OrbitLabel";
 import PlanetStage from "@/components/universe/PlanetStage";
 import Stars from "@/components/universe/Stars";
 import ZoomControls from "@/components/universe/ZoomControls";
@@ -219,7 +218,9 @@ const FARTHER_TEXT = "Now let's try something much farther.";
 const FAR_ENOUGH_TEXT =
   "Okay, that's far enough.\nThe Moon isn't in another galaxy.";
 const MOON_PLACE_TEXT = "Drag the Moon where you think it belongs.";
-const ZOOM_FIRST_TEXT = "You might want to zoom out first.";
+const ZOOM_FIRST_TEXT = "You might want to zoom out for this one first.";
+const ZOOM_FIRST_FINEPRINT =
+  "Once you hit Confirm, you can drag the Moon into place.";
 
 function PromptMessage({
   visible,
@@ -259,7 +260,6 @@ export default function UniverseShell() {
 
   const [satelliteActive, setSatelliteActive] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
-  const [orbitLabelVisible, setOrbitLabelVisible] = useState(false);
 
   /** Post-sat bridge: GPS fact → farther line → Place Moon button */
   const [satBridgeVisible, setSatBridgeVisible] = useState(false);
@@ -292,7 +292,6 @@ export default function UniverseShell() {
 
   const handleSatelliteSettled = useCallback(() => {
     setPromptVisible(false);
-    window.setTimeout(() => setOrbitLabelVisible(true), 200);
     window.setTimeout(() => {
       setSatBridgeVisible(true);
       setGpsFactVisible(true);
@@ -461,7 +460,6 @@ export default function UniverseShell() {
             text={moonTopCopy}
             far={farEnoughVisible && !moonInteractive}
           />
-          <OrbitLabel visible={orbitLabelVisible} />
           <div
             className={`universe-orbit-label moon-label${
               moonLabelVisible ? " visible" : ""
@@ -475,7 +473,7 @@ export default function UniverseShell() {
             canZoomOut={canZoomOut}
             showMidCopy={zoomFirstVisible && !farEnoughVisible}
             midTitle={ZOOM_FIRST_TEXT}
-            midFineprint=""
+            midFineprint={ZOOM_FIRST_FINEPRINT}
             onZoomIn={handleZoomIn}
             onZoomOut={handleZoomOut}
             onConfirm={handleConfirm}

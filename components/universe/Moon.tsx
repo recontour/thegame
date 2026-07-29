@@ -38,7 +38,7 @@ type MoonProps = {
 
 const FADE_SPEED = 1.8;
 const SNAP_DURATION = 2.0;
-const GRAY_OPACITY = 0.38;
+const GRAY_OPACITY = 0.5;
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -129,6 +129,7 @@ export default function Moon({
   const draggingRef = useRef(false);
   const settledRef = useRef(false);
   const snapStartedRef = useRef(false);
+  const floatTRef = useRef(0);
   const snapRef = useRef<{
     from: THREE.Vector3;
     to: THREE.Vector3;
@@ -245,9 +246,26 @@ export default function Moon({
       displayPos.current.lerp(targetPos.current, 1 - Math.exp(-12 * dt));
     }
 
+    // Float only after Confirm — while waiting to be dragged
+    const idleFloat =
+      interactive &&
+      !draggingRef.current &&
+      !snapRef.current &&
+      !settledRef.current;
+    if (idleFloat) {
+      floatTRef.current += dt;
+    }
+    const bob = idleFloat
+      ? Math.sin(floatTRef.current * 1.15) * 0.032
+      : 0;
+
     const g = groupRef.current;
     if (g) {
-      g.position.copy(displayPos.current);
+      g.position.set(
+        displayPos.current.x,
+        displayPos.current.y + bob,
+        displayPos.current.z,
+      );
     }
   });
 

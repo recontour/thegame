@@ -67,8 +67,13 @@ export const ZOOM_Z_MOON_FRAME = 34;
 
 export const MOON_MIN_RADIUS = EARTH_RADIUS * 1.2;
 
+/**
+ * Grayed park — between top copy and Earth, farther out than the sat
+ * so it reads clearly above the globe (2× the old mid-band height).
+ * Float only after Confirm (interactive).
+ */
 export const MOON_START = {
   x: 0,
-  y: 0.85,
+  y: 1.6,
   z: 0,
 } as const;
