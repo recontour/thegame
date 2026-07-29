@@ -38,7 +38,7 @@ type MoonProps = {
 
 const FADE_SPEED = 1.8;
 const SNAP_DURATION = 2.0;
-const GRAY_OPACITY = 0.5;
+const GRAY_OPACITY = 0.95;
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -91,7 +91,8 @@ function MoonSphere({
     matRef.current.transparent = opacity < 0.99;
     matRef.current.depthWrite = opacity > 0.95;
     // Dim / cooler gray — a bit darker than the raw texture
-    matRef.current.color.set(grayed ? "#55555c" : "#9a9a9e");
+    // Grayed stays nearly opaque; slight cool tint only
+    matRef.current.color.set(grayed ? "#8a8a90" : "#9a9a9e");
   });
 
   return (
