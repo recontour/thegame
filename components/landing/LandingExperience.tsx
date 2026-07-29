@@ -99,13 +99,15 @@ export default function LandingExperience() {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const [webglError, setWebglError] = useState<string | null>(null);
-  /**
-   * People CTA only after the pieces beat has settled — clicking during the
-   * enter transition felt broken. Restored from /people → show immediately.
-   */
+  /** People CTA — live immediately on the gallery rest page. */
   const [peopleCtaReady, setPeopleCtaReady] = useState(false);
-  const peopleCtaDelayMs = useRef(950);
   const [storyReady, setStoryReady] = useState(false);
+  /**
+   * After landing on gallery rest, ignore residual trackpad/touch scrub
+   * until the user makes a NEW intentional swipe (then pieces flow resumes).
+   * Does not affect story slides 0–5.
+   */
+  const piecesAwaitingIntentRef = useRef(false);
 
   const isPieces = step === PIECES_STEP;
   const storySlide = Math.min(step, STORY_SLIDE_COUNT - 1);
@@ -145,27 +147,17 @@ export default function LandingExperience() {
   const storyLockUntil = useRef(0);
   const STORY_STEP_MS = 700;
 
-  const enterPieces = useCallback((opts?: { restored?: boolean }) => {
+  const enterPieces = useCallback((_opts?: { restored?: boolean }) => {
     gsap.killTweensOf(introRef.current);
-    if (opts?.restored) {
-      // Returning from /people — skip the long intro, land already assembled-ready
-      introRef.current.pieces = 1;
-      piecesProgress.current = 0.04;
-      piecesTarget.current = 0.04;
-      setPiecesUi(0.04);
-      peopleCtaDelayMs.current = 0;
-      return;
-    }
-    peopleCtaDelayMs.current = 950;
-    introRef.current.pieces = 0;
+    // Static gallery rest: pile visible, no scrub until next intentional swipe
+    introRef.current.pieces = 1;
     piecesProgress.current = 0;
-    piecesTarget.current = 0.04;
+    piecesTarget.current = 0;
     setPiecesUi(0);
-    gsap.to(introRef.current, {
-      pieces: 1,
-      duration: 1.35,
-      ease: "power2.out",
-    });
+    setPeopleCtaReady(true);
+    piecesAwaitingIntentRef.current = true;
+    // Kill residual trackpad from the swipe that landed us here
+    storyLockUntil.current = performance.now() + STORY_STEP_MS;
   }, []);
 
   const leavePiecesToStory = useCallback(() => {
@@ -177,23 +169,13 @@ export default function LandingExperience() {
     piecesTarget.current = 0;
     setPiecesUi(0);
     setPeopleCtaReady(false);
+    piecesAwaitingIntentRef.current = false;
     storyLockUntil.current = performance.now() + STORY_STEP_MS;
   }, []);
 
-  // Reveal people CTA only after enter transition window (or immediately if restored)
+  // People button live as soon as we are on the gallery beat
   useEffect(() => {
-    if (step !== PIECES_STEP) {
-      setPeopleCtaReady(false);
-      return;
-    }
-    const delay = peopleCtaDelayMs.current;
-    if (delay <= 0) {
-      setPeopleCtaReady(true);
-      return;
-    }
-    setPeopleCtaReady(false);
-    const t = window.setTimeout(() => setPeopleCtaReady(true), delay);
-    return () => window.clearTimeout(t);
+    setPeopleCtaReady(step === PIECES_STEP);
   }, [step]);
 
   const goNext = useCallback(() => {
@@ -202,7 +184,15 @@ export default function LandingExperience() {
     const now = performance.now();
 
     if (s === PIECES_STEP) {
-      // Gentle discrete nudge (keys / intentional flick)
+      // First intentional swipe after rest → unfreeze + start pieces flow
+      if (piecesAwaitingIntentRef.current) {
+        if (now < storyLockUntil.current) return;
+        piecesAwaitingIntentRef.current = false;
+        storyLockUntil.current = now + 400;
+        piecesTarget.current = clamp01(0.12);
+        return;
+      }
+      // Normal pieces nudge (keys)
       piecesTarget.current = clamp01(piecesTarget.current + 0.2);
       return;
     }
@@ -224,6 +214,12 @@ export default function LandingExperience() {
     const now = performance.now();
 
     if (s === PIECES_STEP) {
+      // Still on static rest → back to photo 6
+      if (piecesAwaitingIntentRef.current) {
+        if (now < storyLockUntil.current) return;
+        leavePiecesToStory();
+        return;
+      }
       // Still assembling → ease back; near rest → return to image 6
       if (piecesTarget.current > 0.08 || piecesProgress.current > 0.08) {
         piecesTarget.current = clamp01(piecesTarget.current - 0.22);
@@ -256,6 +252,28 @@ export default function LandingExperience() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (scrollLocked) return;
+
+      // Gallery rest: no scrub — only intentional step (start pieces / go back)
+      if (
+        stepRef.current === PIECES_STEP &&
+        piecesAwaitingIntentRef.current
+      ) {
+        if (performance.now() < storyLockUntil.current) {
+          wheelAcc = 0;
+          return;
+        }
+        wheelAcc += e.deltaY;
+        if (wheelResetTimer) clearTimeout(wheelResetTimer);
+        wheelResetTimer = setTimeout(() => {
+          wheelAcc = 0;
+        }, 180);
+        if (Math.abs(wheelAcc) < 48) return;
+        const dir = wheelAcc;
+        wheelAcc = 0;
+        if (dir > 0) goNext();
+        else goPrev();
+        return;
+      }
 
       // 7th beat — scrub assemble; scroll up at rest → image 6
       if (stepRef.current === PIECES_STEP) {
@@ -320,7 +338,9 @@ export default function LandingExperience() {
       touchStartY = y;
       touchAcc = 0;
       piecesLeaveAcc = 0;
-      piecesDragging = stepRef.current === PIECES_STEP;
+      // No drag-scrub on static gallery rest — commit on touchend only
+      piecesDragging =
+        stepRef.current === PIECES_STEP && !piecesAwaitingIntentRef.current;
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -387,6 +407,7 @@ export default function LandingExperience() {
       touchAcc = 0;
       if (Math.abs(totalDy) < 52) return;
       if (performance.now() < storyLockUntil.current) return;
+      // Gallery rest + story slides: one intentional swipe
       if (totalDy > 0) goNext();
       else goPrev();
     };
@@ -795,7 +816,7 @@ export default function LandingExperience() {
               A photo gallery
             </p>
 
-            {/* CTA + hint only after enter settle — avoids dead taps mid-transition */}
+            {/* People CTA — live immediately on gallery rest */}
             {peopleCtaReady && (
               <div
                 style={{
@@ -805,7 +826,7 @@ export default function LandingExperience() {
                   gap: "1.85rem",
                   marginTop: "0.25rem",
                   opacity: piecesLeave,
-                  pointerEvents: piecesLeave > 0.12 ? "auto" : "none",
+                  pointerEvents: piecesLeave > 0.5 ? "auto" : "none",
                 }}
               >
                 <style>{`
