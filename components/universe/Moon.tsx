@@ -33,7 +33,8 @@ type MoonProps = {
   interactive: boolean;
   /** Fires when the user drops and the fly-to-correct-position starts */
   onSnapStart?: () => void;
-  onSettled?: () => void;
+  /** smartAss = they dropped it absurdly far (past real Moon distance) */
+  onSettled?: (info: { smartAss: boolean }) => void;
 };
 
 const FADE_SPEED = 1.8;
@@ -131,6 +132,7 @@ export default function Moon({
   const settledRef = useRef(false);
   const snapStartedRef = useRef(false);
   const floatTRef = useRef(0);
+  const smartAssRef = useRef(false);
   const snapRef = useRef<{
     from: THREE.Vector3;
     to: THREE.Vector3;
@@ -169,6 +171,8 @@ export default function Moon({
 
     const from = displayPos.current.clone();
     const to = new THREE.Vector3(0, MOON_DISTANCE, 0);
+    // Dropped farther out than the real teaching distance → Mars line
+    smartAssRef.current = from.length() > MOON_DISTANCE * 1.05;
     snapRef.current = { from, to, t: 0 };
     if (!snapStartedRef.current) {
       snapStartedRef.current = true;
@@ -239,7 +243,7 @@ export default function Moon({
       if (snap.t >= 1 && !settledRef.current) {
         settledRef.current = true;
         snapRef.current = null;
-        onSettled?.();
+        onSettled?.({ smartAss: smartAssRef.current });
       }
     } else if (draggingRef.current) {
       displayPos.current.lerp(targetPos.current, 1 - Math.exp(-18 * dt));

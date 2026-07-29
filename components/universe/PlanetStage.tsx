@@ -12,7 +12,7 @@ type PlanetStageProps = {
   moonVisible: boolean;
   moonInteractive: boolean;
   onMoonSnapStart?: () => void;
-  onMoonSettled?: () => void;
+  onMoonSettled?: (info: { smartAss: boolean }) => void;
 };
 
 /**

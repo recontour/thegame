@@ -286,6 +286,8 @@ export default function UniverseShell() {
   const [zoomFirstVisible, setZoomFirstVisible] = useState(false);
   const [farEnoughVisible, setFarEnoughVisible] = useState(false);
   const [moonLabelVisible, setMoonLabelVisible] = useState(false);
+  /** They yeeted the Moon past real distance before the snap */
+  const [moonSmartAss, setMoonSmartAss] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
   /** After “Let's see the real distance →” */
@@ -357,7 +359,8 @@ export default function UniverseShell() {
     setCameraZ(ZOOM_Z_MOON_FRAME);
   }, []);
 
-  const handleMoonSettled = useCallback(() => {
+  const handleMoonSettled = useCallback((info: { smartAss: boolean }) => {
+    setMoonSmartAss(info.smartAss);
     window.setTimeout(() => setMoonLabelVisible(true), 200);
   }, []);
 
@@ -477,7 +480,9 @@ export default function UniverseShell() {
               moonLabelVisible ? " visible" : ""
             }`}
           >
-            Farther than it looks.
+            {moonSmartAss
+              ? "Impressive. You've just placed the Moon somewhere near Mars."
+              : "Farther than it looks."}
             <span className="moon-label-sub">
               The Moon is actually about 384,000 km away, roughly 30 Earth
               diameters.
