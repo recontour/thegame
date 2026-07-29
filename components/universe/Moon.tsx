@@ -9,15 +9,22 @@ import {
 } from "@react-three/fiber";
 import * as THREE from "three";
 import {
+  EARTH_RADIUS,
   MOON_DISTANCE,
   MOON_MIN_RADIUS,
-  MOON_SPRITE_WIDTH,
   MOON_START,
 } from "@/components/universe/constants";
 
-const MOON_PNG = "/universe/moon.png";
+/**
+ * Slightly larger than true scale (~0.27) for visibility.
+ * Relative to Earth unit sphere = 1; our Earth mesh uses EARTH_RADIUS scale.
+ */
+const MOON_RADIUS = EARTH_RADIUS * 0.32;
 
-useLoader.preload(THREE.TextureLoader, MOON_PNG);
+const MOON_TEXTURE_URL =
+  "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg";
+
+useLoader.preload(THREE.TextureLoader, MOON_TEXTURE_URL);
 
 type MoonProps = {
   /** In scene (grayed or active) */
@@ -52,7 +59,10 @@ function projectOnPlane(point: THREE.Vector3): THREE.Vector3 {
   return point;
 }
 
-function MoonSprite({
+/**
+ * Textured Moon sphere (three.js sample map).
+ */
+function MoonSphere({
   opacity,
   grayed,
   onPointerDown,
@@ -61,8 +71,9 @@ function MoonSprite({
   grayed: boolean;
   onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
 }) {
-  const map = useLoader(THREE.TextureLoader, MOON_PNG);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const map = useLoader(THREE.TextureLoader, MOON_TEXTURE_URL);
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
 
   useEffect(() => {
     map.colorSpace = THREE.SRGBColorSpace;
@@ -71,30 +82,29 @@ function MoonSprite({
   }, [map]);
 
   useFrame(() => {
+    // Gentle spin so the sphere reads as 3D
+    if (meshRef.current) {
+      meshRef.current.rotation.y += 0.002;
+    }
     if (!matRef.current) return;
     matRef.current.opacity = opacity;
-    // Grayed = dim + desaturated look until Confirm
-    matRef.current.color.set(grayed ? "#7a7a88" : "#ffffff");
+    matRef.current.transparent = opacity < 0.99;
+    matRef.current.depthWrite = opacity > 0.95;
+    // Dim / cooler gray — a bit darker than the raw texture
+    matRef.current.color.set(grayed ? "#55555c" : "#9a9a9e");
   });
 
-  const img = map.image as { width?: number; height?: number } | undefined;
-  const aspect =
-    img?.width && img?.height ? img.width / img.height : 1;
-  const w = MOON_SPRITE_WIDTH;
-  const h = w / aspect;
-
   return (
-    <mesh onPointerDown={onPointerDown}>
-      <planeGeometry args={[w, h]} />
-      <meshBasicMaterial
+    <mesh ref={meshRef} onPointerDown={onPointerDown}>
+      <sphereGeometry args={[MOON_RADIUS, 32, 32]} />
+      <meshStandardMaterial
         ref={matRef}
         map={map}
+        color="#9a9a9e"
+        roughness={0.95}
+        metalness={0.02}
         transparent
         opacity={opacity}
-        depthWrite={false}
-        side={THREE.DoubleSide}
-        toneMapped={false}
-        color={grayed ? "#7a7a88" : "#ffffff"}
       />
     </mesh>
   );
@@ -156,10 +166,8 @@ export default function Moon({
     draggingRef.current = false;
 
     const from = displayPos.current.clone();
-    // Straight up — correct Moon distance (no orbit ring)
     const to = new THREE.Vector3(0, MOON_DISTANCE, 0);
     snapRef.current = { from, to, t: 0 };
-    // Kick camera zoom in the same beat as the moon flight (not after)
     if (!snapStartedRef.current) {
       snapStartedRef.current = true;
       onSnapStart?.();
@@ -240,7 +248,6 @@ export default function Moon({
     const g = groupRef.current;
     if (g) {
       g.position.copy(displayPos.current);
-      g.quaternion.copy(camera.quaternion);
     }
   });
 
@@ -252,21 +259,11 @@ export default function Moon({
   return (
     <group>
       <group ref={groupRef} position={[MOON_START.x, MOON_START.y, MOON_START.z]}>
-        <MoonSprite
+        <MoonSphere
           opacity={opacity}
           grayed={grayed}
           onPointerDown={canGrab ? onPointerDown : undefined}
         />
-        <mesh onPointerDown={canGrab ? onPointerDown : undefined}>
-          <circleGeometry args={[0.15, 24]} />
-          <meshBasicMaterial
-            transparent
-            opacity={0}
-            depthWrite={false}
-            side={THREE.DoubleSide}
-            toneMapped={false}
-          />
-        </mesh>
       </group>
     </group>
   );

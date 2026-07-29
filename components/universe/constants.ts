@@ -86,5 +86,4 @@ export const MOON_START = {
   z: 0,
 } as const;
 
-/** Billboard size for moon.png */
-export const MOON_SPRITE_WIDTH = 0.22;
+
