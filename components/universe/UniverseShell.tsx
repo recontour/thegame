@@ -92,6 +92,13 @@ const UNIVERSE_LAYOUT_CSS = `
     padding: calc(50px + env(safe-area-inset-top, 0px)) 8% 0;
   }
 
+  .universe-ui.bottom {
+    top: auto;
+    bottom: 0;
+    align-items: flex-end;
+    padding: 0 8% calc(28px + env(safe-area-inset-bottom, 0px));
+  }
+
   .universe-message {
     color: #f0f4ff;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -150,26 +157,83 @@ const UNIVERSE_LAYOUT_CSS = `
   .universe-orbit-label.moon-label {
     top: 12%;
   }
+
+  /* After GPS sat settles — fact + “Place the Moon” */
+  .sat-bridge {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    width: min(92%, 340px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: calc(50px + env(safe-area-inset-top, 0px)) 0 0;
+    pointer-events: none;
+    box-sizing: border-box;
+  }
+
+  .sat-bridge-copy {
+    margin: 0;
+    width: 100%;
+    color: #f0f4ff;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: clamp(0.95rem, 3.5vw, 1.2rem);
+    font-weight: 300;
+    letter-spacing: 0.03em;
+    line-height: 1.45;
+    text-align: center;
+    white-space: pre-line;
+    text-shadow: 0 0 16px rgba(180, 210, 255, 0.3);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 1.1s ease, transform 1.1s ease;
+  }
+
+  .sat-bridge-copy.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .sat-bridge-cta {
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 1s ease, transform 1s ease;
+  }
+
+  .sat-bridge-cta.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
 `;
 
+const HOME_TEXT = "Here's our home.";
 const PROMPT_TEXT =
-  "Drag the satellite to where you think\nGPS satellites orbit";
-const MOON_TOP_TEXT = "Now place the Moon where you think it is.";
+  "GPS satellites keep your maps working.\nDrag the satellite to where you think they actually orbit.";
+const GPS_FACT_TEXT =
+  "Most people put it much higher.\nGPS satellites actually orbit only about 20,200 km above Earth.";
+const FARTHER_TEXT = "Now let's try something much farther.";
 const FAR_ENOUGH_TEXT =
   "Okay, that's far enough.\nThe Moon isn't in another galaxy.";
 const MOON_PLACE_TEXT = "Drag the Moon where you think it belongs.";
+const ZOOM_FIRST_TEXT = "You might want to zoom out first.";
 
 function PromptMessage({
   visible,
   text,
   far = false,
+  placement = "top",
 }: {
   visible: boolean;
   text: string;
   far?: boolean;
+  placement?: "top" | "bottom";
 }) {
   return (
-    <div className="universe-ui">
+    <div className={`universe-ui${placement === "bottom" ? " bottom" : ""}`}>
       <div
         className={`universe-message prompt-text${far ? " far-text" : ""}${
           visible ? " visible" : ""
@@ -188,6 +252,8 @@ export default function UniverseShell() {
   const [openingActive, setOpeningActive] = useState(true);
   const [phoneExiting, setPhoneExiting] = useState(false);
   const [earthRevealed, setEarthRevealed] = useState(false);
+  /** Hide 3D phone while answer-reveal card is up */
+  const [openingReveal, setOpeningReveal] = useState(false);
   /** NDC y for centering the phone under the quiz options */
   const [phoneSlotNdcY, setPhoneSlotNdcY] = useState(-0.28);
 
@@ -195,16 +261,25 @@ export default function UniverseShell() {
   const [promptVisible, setPromptVisible] = useState(false);
   const [orbitLabelVisible, setOrbitLabelVisible] = useState(false);
 
+  /** Post-sat bridge: GPS fact → farther line → Place Moon button */
+  const [satBridgeVisible, setSatBridgeVisible] = useState(false);
+  const [gpsFactVisible, setGpsFactVisible] = useState(false);
+  const [fartherVisible, setFartherVisible] = useState(false);
+  const [placeMoonBtnVisible, setPlaceMoonBtnVisible] = useState(false);
+
   const [moonPhase, setMoonPhase] = useState(false);
   const [moonVisible, setMoonVisible] = useState(false);
   const [moonInteractive, setMoonInteractive] = useState(false);
   const [zoomControlsVisible, setZoomControlsVisible] = useState(false);
   const [moonPromptVisible, setMoonPromptVisible] = useState(false);
+  const [zoomFirstVisible, setZoomFirstVisible] = useState(false);
   const [farEnoughVisible, setFarEnoughVisible] = useState(false);
   const [moonLabelVisible, setMoonLabelVisible] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
-  const handleOpeningAnswered = useCallback((_choice: string) => {
+  /** After “Let's see the real distance →” */
+  const handleOpeningContinue = useCallback(() => {
+    setOpeningReveal(false);
     setPhoneExiting(true);
     setEarthRevealed(true);
   }, []);
@@ -219,29 +294,48 @@ export default function UniverseShell() {
     setPromptVisible(false);
     window.setTimeout(() => setOrbitLabelVisible(true), 200);
     window.setTimeout(() => {
-      setMoonPhase(true);
-      setMoonVisible(true);
-      setZoomControlsVisible(true);
-      setMoonPromptVisible(true);
-    }, 350);
+      setSatBridgeVisible(true);
+      setGpsFactVisible(true);
+    }, 400);
+    // Short pause, then invite the Moon beat
+    window.setTimeout(() => {
+      setFartherVisible(true);
+      setPlaceMoonBtnVisible(true);
+    }, 2800);
+  }, []);
+
+  const handlePlaceMoon = useCallback(() => {
+    setSatBridgeVisible(false);
+    setGpsFactVisible(false);
+    setFartherVisible(false);
+    setPlaceMoonBtnVisible(false);
+    setMoonPhase(true);
+    setMoonVisible(true);
+    setZoomControlsVisible(true);
+    setZoomFirstVisible(true);
   }, []);
 
   const handleZoomOut = useCallback(() => {
     setCameraZ((z) => {
       const next = Math.min(ZOOM_Z_MAX, z + ZOOM_Z_STEP);
-      if (next >= ZOOM_Z_MAX - 0.001) setFarEnoughVisible(true);
+      if (next >= ZOOM_Z_MAX - 0.001) {
+        setFarEnoughVisible(true);
+        setZoomFirstVisible(false);
+      }
       return next;
     });
   }, []);
 
   const handleZoomIn = useCallback(() => {
     setFarEnoughVisible(false);
+    setZoomFirstVisible(true);
     setCameraZ((z) => Math.max(ZOOM_Z_MIN, z - ZOOM_Z_STEP));
   }, []);
 
   const handleConfirm = useCallback(() => {
     setZoomControlsVisible(false);
     setFarEnoughVisible(false);
+    setZoomFirstVisible(false);
     setMoonPromptVisible(false);
     setMoonInteractive(true);
     window.setTimeout(() => setMoonPromptVisible(true), 200);
@@ -264,7 +358,7 @@ export default function UniverseShell() {
     ? MOON_PLACE_TEXT
     : farEnoughVisible
       ? FAR_ENOUGH_TEXT
-      : MOON_TOP_TEXT;
+      : "";
 
   useEffect(() => {
     const el = stageRef.current;
@@ -302,7 +396,7 @@ export default function UniverseShell() {
               <directionalLight intensity={3.0} position={[5, 3, 5]} />
               <Stars />
               <CameraRig targetZ={cameraZ} />
-              {openingActive && (
+              {openingActive && !openingReveal && (
                 <Suspense fallback={null}>
                   <OpeningPhone
                     exiting={phoneExiting}
@@ -325,12 +419,45 @@ export default function UniverseShell() {
 
           <OpeningQuiz
             active={openingActive && !phoneExiting}
-            onAnswered={handleOpeningAnswered}
+            onContinue={handleOpeningContinue}
             onPhoneSlotNdc={setPhoneSlotNdcY}
+            onRevealPhase={setOpeningReveal}
           />
           <PromptMessage visible={promptVisible} text={PROMPT_TEXT} />
           <PromptMessage
-            visible={moonPhase && moonPromptVisible}
+            visible={promptVisible}
+            text={HOME_TEXT}
+            placement="bottom"
+          />
+          {satBridgeVisible && (
+            <div className="sat-bridge">
+              <p
+                className={`sat-bridge-copy${gpsFactVisible ? " visible" : ""}`}
+              >
+                {GPS_FACT_TEXT}
+              </p>
+              <p
+                className={`sat-bridge-copy${fartherVisible ? " visible" : ""}`}
+              >
+                {FARTHER_TEXT}
+              </p>
+              <button
+                type="button"
+                className={`ctrl-btn rect sat-bridge-cta${
+                  placeMoonBtnVisible ? " visible" : ""
+                }`}
+                onClick={handlePlaceMoon}
+              >
+                Place the Moon →
+              </button>
+            </div>
+          )}
+          <PromptMessage
+            visible={
+              moonPhase &&
+              moonPromptVisible &&
+              moonTopCopy.length > 0
+            }
             text={moonTopCopy}
             far={farEnoughVisible && !moonInteractive}
           />
@@ -346,7 +473,9 @@ export default function UniverseShell() {
             visible={zoomControlsVisible}
             canZoomIn={canZoomIn}
             canZoomOut={canZoomOut}
-            showMidCopy={!farEnoughVisible}
+            showMidCopy={zoomFirstVisible && !farEnoughVisible}
+            midTitle={ZOOM_FIRST_TEXT}
+            midFineprint=""
             onZoomIn={handleZoomIn}
             onZoomOut={handleZoomOut}
             onConfirm={handleConfirm}

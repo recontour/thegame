@@ -4,22 +4,24 @@ type ZoomControlsProps = {
   visible: boolean;
   canZoomIn: boolean;
   canZoomOut: boolean;
-  /** Mid-screen zoom guidance (hidden at max zoom when top shows far-enough) */
   showMidCopy?: boolean;
+  midTitle?: string;
+  midFineprint?: string;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onConfirm: () => void;
 };
 
 /**
- * Mid-screen guidance + bottom − / + / Confirm bar.
- * Styles: app/universe/universe.css
+ * Optional mid-screen guidance + bottom − / + / Confirm bar.
  */
 export default function ZoomControls({
   visible,
   canZoomIn,
   canZoomOut,
   showMidCopy = true,
+  midTitle = "You might want to zoom out first.",
+  midFineprint = "* You can move the moon once you confirm",
   onZoomIn,
   onZoomOut,
   onConfirm,
@@ -30,13 +32,10 @@ export default function ZoomControls({
     <>
       {showMidCopy && (
         <div className="zoom-mid-copy" aria-live="polite">
-          <p className="zoom-mid-title">
-            You might want to zoom out to place our moon to where you think it
-            is.
-          </p>
-          <p className="zoom-mid-fineprint">
-            * You can move moon and place it once you confirm
-          </p>
+          <p className="zoom-mid-title">{midTitle}</p>
+          {midFineprint ? (
+            <p className="zoom-mid-fineprint">{midFineprint}</p>
+          ) : null}
         </div>
       )}
 

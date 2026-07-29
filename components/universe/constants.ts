@@ -15,9 +15,13 @@ export const GPS_ORBIT_MULT = 1.42;
 export const SAT_MIN_RADIUS = EARTH_RADIUS * SAT_MIN_MULT;
 export const GPS_ORBIT_RADIUS = EARTH_RADIUS * GPS_ORBIT_MULT;
 
+/**
+ * Idle park — roughly between the top GPS copy and Earth
+ * (Earth is optically lower via view bias).
+ */
 export const SAT_START = {
   x: 0,
-  y: 0.75,
+  y: 1.05,
   z: 0,
 } as const;
 

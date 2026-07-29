@@ -1,11 +1,11 @@
 /* Universe flow UI — zoom / confirm controls (mobile portrait stage) */
 
-/* Mid-screen guidance (above the globe, not under the buttons) */
+/* Zoom guidance — same 50px top pad as other copy */
 .zoom-mid-copy {
   position: absolute;
   left: 50%;
-  top: 42%;
-  transform: translate(-50%, -50%);
+  top: calc(50px + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
   width: min(88%, 320px);
   z-index: 20;
   pointer-events: none;
@@ -221,5 +221,145 @@
 .opening-quiz-options.visible {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* ── Answer reveal after a guess ───────────────────────────────── */
+.opening-reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  padding: calc(50px + env(safe-area-inset-top, 0px)) 8%
+    calc(28px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s ease;
+}
+
+.opening-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.opening-reveal-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(100%, 340px);
+  text-align: center;
+}
+
+.opening-reveal-hero {
+  width: auto;
+  max-width: min(42vw, 160px);
+  max-height: min(28vh, 200px);
+  object-fit: contain;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.opening-reveal-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.opening-reveal-headline {
+  margin: 0;
+  color: #f0f4ff;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: clamp(1.15rem, 4.2vw, 1.45rem);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1.35;
+  text-shadow: 0 0 16px rgba(180, 210, 255, 0.3);
+}
+
+.opening-reveal-body {
+  margin: 0;
+  color: rgba(220, 230, 250, 0.88);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: clamp(0.9rem, 3.3vw, 1.05rem);
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.opening-reveal-rest {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  width: min(100%, 320px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.opening-reveal-rest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(20, 28, 40, 0.55);
+  border: 1px solid rgba(160, 190, 255, 0.1);
+}
+
+/* Correct answer — soft green “result” tile, not a button */
+.opening-reveal-rest-item.is-correct {
+  border-color: rgba(120, 200, 150, 0.35);
+  background: linear-gradient(
+    145deg,
+    rgba(36, 72, 52, 0.75),
+    rgba(24, 48, 38, 0.7)
+  );
+  box-shadow:
+    0 0 16px rgba(80, 180, 120, 0.12),
+    inset 0 1px 0 rgba(180, 255, 210, 0.08);
+  cursor: default;
+  pointer-events: none;
+}
+
+.opening-reveal-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.opening-reveal-rest-line {
+  color: rgba(230, 238, 255, 0.9);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: clamp(0.85rem, 3.1vw, 0.98rem);
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.opening-reveal-rest-item.is-correct .opening-reveal-rest-line {
+  color: #e4f7eb;
+  font-weight: 400;
+}
+
+.opening-reveal-cta {
+  margin-top: auto;
+  width: min(100%, 300px);
   pointer-events: auto;
 }
