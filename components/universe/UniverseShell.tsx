@@ -187,8 +187,8 @@ export default function UniverseShell() {
               style={{ background: "#000000" }}
             >
               <color attach="background" args={["#000000"]} />
-              <ambientLight intensity={0.55} />
-              <directionalLight intensity={1.1} position={[5, 3, 5]} />
+              <ambientLight intensity={1.1} />
+              <directionalLight intensity={1.8} position={[5, 3, 5]} />
               <Stars />
               <Suspense fallback={null}>
                 <Earth />
