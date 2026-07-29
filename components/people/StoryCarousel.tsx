@@ -124,15 +124,50 @@ export default function StoryCarousel() {
   const textures = useCarouselTextures(cards, index, cap);
 
   /**
-   * At rest → always calm (slow).
-   * Mid-transition flick → rush a bit + still advance (impatient path).
+   * ONE STEP AT A TIME — hard gate on the story itself.
+   * After a phase change, ignore every further next/prev (wheel spam,
+   * fast trackpad, double-fire) until the morph has settled.
+   * Does not change animation curves — only blocks re-entry.
    */
-  const noteIntent = useCallback(() => {
-    if (animatingRef.current) {
-      paceRef.current = "rush";
-    } else {
-      paceRef.current = "calm";
+  const stepLockRef = useRef(false);
+  const stepUnlockRafRef = useRef(0);
+
+  const lockStepUntilSettled = useCallback(() => {
+    stepLockRef.current = true;
+    if (stepUnlockRafRef.current) {
+      cancelAnimationFrame(stepUnlockRafRef.current);
     }
+    const t0 = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - t0;
+      // Min hold so a trackpad burst cannot land two steps in one breath
+      const minHold = elapsed >= 550;
+      const morphIdle = !animatingRef.current;
+      // Failsafe: never soft-lock the page
+      const force = elapsed >= 1800;
+      if ((minHold && morphIdle) || force) {
+        stepLockRef.current = false;
+        stepUnlockRafRef.current = 0;
+        return;
+      }
+      stepUnlockRafRef.current = requestAnimationFrame(tick);
+    };
+    stepUnlockRafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (stepUnlockRafRef.current) {
+        cancelAnimationFrame(stepUnlockRafRef.current);
+      }
+      stepLockRef.current = false;
+    },
+    [],
+  );
+
+  /** Always calm — no rush chaining from multi-input. */
+  const noteIntent = useCallback(() => {
+    paceRef.current = "calm";
   }, []);
 
   const markSettledSeen = useCallback((i: number) => {
@@ -140,48 +175,50 @@ export default function StoryCarousel() {
   }, []);
 
   /**
-   * Next beat:
+   * Next beat (exactly one phase per successful call):
    *   full    → settle this image (text arrives after the morph)
    *   settled → next image full-bleed
    *   settled on last + all 12 seen this visit → home (/)
    */
   const goNext = useCallback(() => {
+    if (stepLockRef.current) return;
+
     noteIntent();
     if (phaseRef.current === "full") {
       phaseRef.current = "settled";
       markSettledSeen(index);
+      lockStepUntilSettled();
       return;
     }
-    // Framed+text on last image, and every card was settled this session
-    // → end of the story loop, leave for main page (not wrap to #1)
-    if (
-      index === n - 1 &&
-      seenSettledRef.current.size >= n
-    ) {
+    if (index === n - 1 && seenSettledRef.current.size >= n) {
       router.push("/");
       return;
     }
     phaseRef.current = "full";
     setIndex((i) => (i + 1) % n);
-  }, [n, noteIntent, markSettledSeen, index, router]);
+    lockStepUntilSettled();
+  }, [n, noteIntent, markSettledSeen, index, router, lockStepUntilSettled]);
 
   /**
-   * Prev beat (mirror of next):
+   * Prev beat (exactly one phase per successful call):
    *   settled → expand this image full again
    *   full    → previous image, already settled
-   * Never redirects — reverse wrap 1→12 is a free loop.
    */
   const goPrev = useCallback(() => {
+    if (stepLockRef.current) return;
+
     noteIntent();
     if (phaseRef.current === "settled") {
       phaseRef.current = "full";
+      lockStepUntilSettled();
       return;
     }
     const prev = (index - 1 + n) % n;
     phaseRef.current = "settled";
     markSettledSeen(prev);
     setIndex(prev);
-  }, [n, noteIntent, markSettledSeen, index]);
+    lockStepUntilSettled();
+  }, [n, noteIntent, markSettledSeen, index, lockStepUntilSettled]);
 
   useVerticalSwipe({
     enabled: !webglError,

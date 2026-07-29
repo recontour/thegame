@@ -16,8 +16,7 @@ type Options = {
   threshold?: number;
   /**
    * Micro-debounce only (default ~90ms) so pointer+touch dual-firing on iOS
-   * doesn’t double-step. Does NOT wait for animations to finish — impatient
-   * flicks always advance (scene may rush the morph).
+   * doesn’t double-step.
    */
   cooldownMs?: number;
   /** Element to attach listeners; defaults to window */
@@ -25,15 +24,11 @@ type Options = {
 };
 
 /**
- * Vertical-only story beats for a stepped (not free-scroll) experience.
+ * Input → discrete story beats. Not a free-scroll / physics scroller.
  *
- * Design (esp. iOS):
- *  • There is no horizontal mode. Diagonals count as up/down by dy only.
- *  • We never “discard” a gesture for being a bit sideways — that killed
- *    Android-fine / iPhone-broken clients in the past.
- *  • touch-action: none + non-passive preventDefault so Safari can’t steal
- *    edge swipes / rubber-band the page.
- *  • Pointer + Touch listeners: iOS Safari is flaky on pointer-only paths.
+ * Touch/pointer (mobile): one commit per finger gesture (end of swipe).
+ * Wheel (PC trackpad): one commit per continuous event stream; residual
+ * inertia is discarded. StoryCarousel also hard-locks until the morph settles.
  */
 export function useVerticalSwipe({
   enabled = true,
@@ -45,19 +40,16 @@ export function useVerticalSwipe({
   targetRef,
 }: Options) {
   const start = useRef<{ x: number; y: number; t: number } | null>(null);
-  /** True once finger moved enough that we own the gesture (always vertical). */
-  const armed = useRef(false);
+  const gestureArmed = useRef(false);
   const handlers = useRef({ onNext, onPrev, onDrag });
-  const lastBeat = useRef(0);
-  const wheelAcc = useRef(0);
-  const wheelReset = useRef<number | null>(null);
-  /** Track last known point for touchcancel path */
+  const lastTouchBeat = useRef(0);
   const lastY = useRef(0);
 
   useEffect(() => {
     handlers.current = { onNext, onPrev, onDrag };
   }, [onNext, onPrev, onDrag]);
 
+  // ─── TOUCH + POINTER (mobile-tuned — do not add physics here) ───
   useEffect(() => {
     if (!enabled) return;
 
@@ -66,8 +58,8 @@ export function useVerticalSwipe({
 
     const tryBeat = (dir: "next" | "prev") => {
       const now = performance.now();
-      if (now - lastBeat.current < cooldownMs) return false;
-      lastBeat.current = now;
+      if (now - lastTouchBeat.current < cooldownMs) return false;
+      lastTouchBeat.current = now;
       if (dir === "next") handlers.current.onNext();
       else handlers.current.onPrev();
       return true;
@@ -76,7 +68,7 @@ export function useVerticalSwipe({
     const begin = (x: number, y: number, t: number) => {
       start.current = { x, y, t };
       lastY.current = y;
-      armed.current = false;
+      gestureArmed.current = false;
     };
 
     const move = (x: number, y: number, e: Event) => {
@@ -85,16 +77,12 @@ export function useVerticalSwipe({
       const dy = y - start.current.y;
       lastY.current = y;
 
-      // Arm on tiny movement — do NOT require |dy| >> |dx|
-      if (!armed.current) {
+      if (!gestureArmed.current) {
         if (Math.hypot(dx, dy) < 6) return;
-        armed.current = true;
+        gestureArmed.current = true;
       }
 
-      // Always claim the gesture from the browser (iOS back / overscroll)
       if (e.cancelable) e.preventDefault();
-
-      // Parallax hint uses vertical component only
       handlers.current.onDrag?.(dy, true);
     };
 
@@ -103,37 +91,28 @@ export function useVerticalSwipe({
       const dy = y - start.current.y;
       const dx = x - start.current.x;
       const dt = performance.now() - start.current.t;
-      const wasArmed = armed.current;
+      const wasArmed = gestureArmed.current;
       start.current = null;
-      armed.current = false;
+      gestureArmed.current = false;
       handlers.current.onDrag?.(0, false);
 
       if (!wasArmed) return;
 
-      // Direction = vertical only. Sideways is ignored for *direction*,
-      // not for discarding the swipe.
       const distY = Math.abs(dy);
       const distX = Math.abs(dx);
-
-      // Pure sideways with almost no vertical → ignore (not a story beat).
-      // Everything else with a vertical component is up/down.
       if (distY < 8 && distX > distY * 2.5) return;
 
-      const velocity = distY / Math.max(dt, 1); // px/ms
+      const velocity = distY / Math.max(dt, 1);
       const distanceOk = distY >= threshold;
       const flickOk = distY >= threshold * 0.4 && velocity > 0.15;
       const snapOk = distY >= 12 && velocity > 0.4;
-      // Diagonal: total path was intentional even if dy is a bit short
       const diagonalOk =
         Math.hypot(dx, dy) >= threshold * 1.1 && distY >= threshold * 0.35;
 
       if (!distanceOk && !flickOk && !snapOk && !diagonalOk) return;
-
-      // Finger up (negative dy) → next; finger down → prev
       tryBeat(dy < 0 ? "next" : "prev");
     };
 
-    // —— Pointer (desktop + most mobile) ——
     const onPointerDown = (e: Event) => {
       const pe = e as PointerEvent;
       if (pe.pointerType === "mouse" && pe.button !== 0) return;
@@ -146,16 +125,13 @@ export function useVerticalSwipe({
     };
 
     const onPointerMove = (e: Event) => {
-      const pe = e as PointerEvent;
-      move(pe.clientX, pe.clientY, e);
+      move((e as PointerEvent).clientX, (e as PointerEvent).clientY, e);
     };
 
     const onPointerUp = (e: Event) => {
-      const pe = e as PointerEvent;
-      end(pe.clientX, pe.clientY);
+      end((e as PointerEvent).clientX, (e as PointerEvent).clientY);
     };
 
-    // —— Touch backup (iOS Safari is happier with these + non-passive) ——
     const onTouchStart = (e: Event) => {
       const te = e as TouchEvent;
       if (te.touches.length !== 1) return;
@@ -172,29 +148,12 @@ export function useVerticalSwipe({
 
     const onTouchEnd = (e: Event) => {
       const te = e as TouchEvent;
-      // changedTouches has the finger that lifted
       const t = te.changedTouches[0];
       if (!t) {
         end(0, lastY.current);
         return;
       }
       end(t.clientX, t.clientY);
-    };
-
-    const onWheel = (e: Event) => {
-      const we = e as WheelEvent;
-      if (e.cancelable) e.preventDefault();
-
-      wheelAcc.current += we.deltaY;
-
-      if (wheelReset.current != null) window.clearTimeout(wheelReset.current);
-      wheelReset.current = window.setTimeout(() => {
-        wheelAcc.current = 0;
-      }, 160);
-
-      if (Math.abs(wheelAcc.current) < 18) return;
-      const dir = wheelAcc.current > 0 ? "next" : "prev";
-      if (tryBeat(dir)) wheelAcc.current = 0;
     };
 
     const onKey = (e: KeyboardEvent) => {
@@ -216,7 +175,6 @@ export function useVerticalSwipe({
     root.addEventListener("touchmove", onTouchMove, opts);
     root.addEventListener("touchend", onTouchEnd, opts);
     root.addEventListener("touchcancel", onTouchEnd, opts);
-    root.addEventListener("wheel", onWheel, opts);
     window.addEventListener("keydown", onKey);
 
     return () => {
@@ -228,9 +186,81 @@ export function useVerticalSwipe({
       root.removeEventListener("touchmove", onTouchMove);
       root.removeEventListener("touchend", onTouchEnd);
       root.removeEventListener("touchcancel", onTouchEnd);
-      root.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKey);
-      if (wheelReset.current != null) window.clearTimeout(wheelReset.current);
+      start.current = null;
+      gestureArmed.current = false;
     };
   }, [enabled, threshold, cooldownMs, targetRef]);
+
+  // ─── WHEEL (PC trackpad / mouse) — trigger only, zero physics ───
+  useEffect(() => {
+    if (!enabled) return;
+
+    /**
+     * After we fire one step, ignore the entire rest of this trackpad stream
+     * (including inertia). Re-arm only after the stream has been quiet.
+     * StoryCarousel step-lock is the second wall — this is the first.
+     */
+    let consumed = false;
+    let acc = 0;
+    let quietTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Absolute re-arm so a lost quiet timer can never soft-lock the visit */
+    let failsafeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const QUIET_MS = 450;
+    const THRESHOLD = 30;
+
+    const rearm = () => {
+      consumed = false;
+      acc = 0;
+    };
+
+    const normalize = (we: WheelEvent) => {
+      let dy = we.deltaY;
+      if (we.deltaMode === 1) dy *= 16;
+      else if (we.deltaMode === 2) dy *= window.innerHeight || 800;
+      return dy;
+    };
+
+    const onWheel = (e: Event) => {
+      const we = e as WheelEvent;
+      if (e.cancelable) e.preventDefault();
+
+      // Re-arm only after the stream is quiet (no events). Never while scrolling.
+      if (quietTimer != null) clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => {
+        rearm();
+        quietTimer = null;
+      }, QUIET_MS);
+
+      // Already took our one step for this stream — drop everything else
+      if (consumed) return;
+
+      acc += normalize(we);
+      if (Math.abs(acc) < THRESHOLD) return;
+
+      // Commit exactly one direction, then seal the stream
+      const dir = acc > 0 ? "next" : "prev";
+      acc = 0;
+      consumed = true;
+
+      // Belt: if quiet path fails, re-arm after 2s of wall time (not mid-burst steps)
+      if (failsafeTimer != null) clearTimeout(failsafeTimer);
+      failsafeTimer = setTimeout(() => {
+        rearm();
+        failsafeTimer = null;
+      }, 2000);
+
+      if (dir === "next") handlers.current.onNext();
+      else handlers.current.onPrev();
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      if (quietTimer != null) clearTimeout(quietTimer);
+      if (failsafeTimer != null) clearTimeout(failsafeTimer);
+      rearm();
+    };
+  }, [enabled]);
 }
