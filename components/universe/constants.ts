@@ -21,12 +21,12 @@ export const SAT_MIN_RADIUS = EARTH_RADIUS * SAT_MIN_MULT;
 export const GPS_ORBIT_RADIUS = EARTH_RADIUS * GPS_ORBIT_MULT;
 
 /**
- * Starting guess — above Earth, centered in the phone column.
- * (Portrait stack: sat on top, globe below — not a side-by-side layout.)
+ * Starting guess — near the top of the phone column (centered).
+ * Local Y is high so after the planet stack eases down it still sits up top.
  */
 export const SAT_START = {
   x: 0,
-  y: EARTH_RADIUS * 1.85,
+  y: 1.48,
   z: 0,
 } as const;
 

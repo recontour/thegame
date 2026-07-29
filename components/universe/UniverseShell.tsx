@@ -283,9 +283,9 @@ export default function UniverseShell() {
               }}
             >
               <color attach="background" args={["#000000"]} />
-              {/* Soft fill + same sun angle — brighter, still one-sided */}
-              <ambientLight intensity={1.25} />
-              <directionalLight intensity={2.45} position={[5, 3, 5]} />
+              {/* Soft fill + same sun angle — brighter for live / mobile screens */}
+              <ambientLight intensity={1.55} />
+              <directionalLight intensity={3.0} position={[5, 3, 5]} />
               <Stars />
               <PlanetStage
                 lowered={earthLowered}

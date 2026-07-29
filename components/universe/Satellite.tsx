@@ -54,7 +54,13 @@ function projectOnPlane(point: THREE.Vector3): THREE.Vector3 {
 /**
  * PNG satellite billboard (faces camera via parent quaternion).
  */
-function SatelliteSprite({ opacity }: { opacity: number }) {
+function SatelliteSprite({
+  opacity,
+  onPointerDown,
+}: {
+  opacity: number;
+  onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+}) {
   const map = useLoader(THREE.TextureLoader, SATELLITE_PNG);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
 
@@ -78,7 +84,7 @@ function SatelliteSprite({ opacity }: { opacity: number }) {
   const h = w / aspect;
 
   return (
-    <mesh>
+    <mesh onPointerDown={onPointerDown}>
       <planeGeometry args={[w, h]} />
       <meshBasicMaterial
         ref={matRef}
@@ -190,7 +196,11 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
       ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(ndc, camera);
       if (!raycaster.ray.intersectPlane(plane, hit)) return null;
-      return projectOnPlane(hit.clone());
+      // Hit is world-space; sat lives under PlanetStage (may be shifted down)
+      const local = hit.clone();
+      const parent = groupRef.current?.parent;
+      if (parent) parent.worldToLocal(local);
+      return projectOnPlane(local);
     },
     [camera, gl.domElement, hit, ndc, plane, raycaster],
   );
@@ -240,12 +250,15 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
       !active ||
       settledRef.current ||
       snapRef.current ||
-      opacityRef.current < 0.5
+      opacityRef.current < 0.15
     ) {
       return;
     }
     e.stopPropagation();
+    e.nativeEvent.preventDefault?.();
     draggingRef.current = true;
+    // Capture so move/up keep firing even if pointer leaves the mesh
+    (e.target as Element | undefined)?.setPointerCapture?.(e.pointerId);
     const p = projectPointer(e.nativeEvent.clientX, e.nativeEvent.clientY);
     if (p) targetPos.current.copy(p);
   };
@@ -308,23 +321,28 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
 
   // Always stay mounted (opacity 0 while waiting) so texture load never
   // remounts / suspends siblings like Earth.
+  const canGrab = active && opacity > 0.15 && !settledRef.current;
+
   return (
     <group visible={opacity > 0.01 || active}>
       <OrbitRing opacity={orbitOpacity} />
       <group ref={groupRef} position={[SAT_START.x, SAT_START.y, SAT_START.z]}>
-        <SatelliteSprite opacity={opacity} />
-        {/* Large invisible grab target — only while interactive */}
-        <mesh
-          onPointerDown={onPointerDown}
-          visible={false}
-          raycast={active && opacity > 0.5 ? undefined : () => {}}
-        >
-          <sphereGeometry args={[0.14, 16, 16]} />
+        <SatelliteSprite
+          opacity={opacity}
+          onPointerDown={canGrab ? onPointerDown : undefined}
+        />
+        {/*
+          Fat grab disc — MUST stay visible={true} or R3F skips pointer hits.
+          Opacity 0 so you only see the PNG.
+        */}
+        <mesh onPointerDown={canGrab ? onPointerDown : undefined}>
+          <circleGeometry args={[0.16, 24]} />
           <meshBasicMaterial
             transparent
             opacity={0}
             depthWrite={false}
             side={THREE.DoubleSide}
+            toneMapped={false}
           />
         </mesh>
       </group>
