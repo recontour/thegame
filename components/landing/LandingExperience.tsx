@@ -103,11 +103,15 @@ export default function LandingExperience() {
   const [peopleCtaReady, setPeopleCtaReady] = useState(false);
   const [storyReady, setStoryReady] = useState(false);
   /**
-   * After landing on gallery rest, ignore residual trackpad/touch scrub
-   * until the user makes a NEW intentional swipe (then pieces flow resumes).
-   * Does not affect story slides 0–5.
+   * Gallery rest gate (pieces beat only — story slides untouched):
+   *  "frozen"  — hard kill: drop every wheel/touch event (residual inertia dies here)
+   *  "ready"   — stream has been quiet; next intentional swipe may start pieces
+   *  "live"    — normal pieces scrub (assemble → shatter → Instagram)
    */
-  const piecesAwaitingIntentRef = useRef(false);
+  const piecesGateRef = useRef<"frozen" | "ready" | "live">("live");
+  const piecesQuietTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const isPieces = step === PIECES_STEP;
   const storySlide = Math.min(step, STORY_SLIDE_COUNT - 1);
@@ -147,35 +151,79 @@ export default function LandingExperience() {
   const storyLockUntil = useRef(0);
   const STORY_STEP_MS = 700;
 
-  const enterPieces = useCallback((_opts?: { restored?: boolean }) => {
-    gsap.killTweensOf(introRef.current);
-    // Static gallery rest: pile visible, no scrub until next intentional swipe
-    introRef.current.pieces = 1;
+  /** Pin progress hard at rest so no leftover lerp can move the shatter. */
+  const pinPiecesRest = useCallback(() => {
     piecesProgress.current = 0;
     piecesTarget.current = 0;
     setPiecesUi(0);
-    setPeopleCtaReady(true);
-    piecesAwaitingIntentRef.current = true;
-    // Kill residual trackpad from the swipe that landed us here
-    storyLockUntil.current = performance.now() + STORY_STEP_MS;
   }, []);
+
+  /**
+   * Dead-stop on gallery rest. Residual inertia is eaten until the input
+   * stream has been quiet, then we arm for one clean intentional swipe.
+   */
+  const enterPieces = useCallback(
+    (_opts?: { restored?: boolean }) => {
+      gsap.killTweensOf(introRef.current);
+      introRef.current.pieces = 1;
+      pinPiecesRest();
+      setPeopleCtaReady(true);
+      piecesGateRef.current = "frozen";
+      if (piecesQuietTimerRef.current != null) {
+        clearTimeout(piecesQuietTimerRef.current);
+        piecesQuietTimerRef.current = null;
+      }
+      // Arm only after real silence — not a fixed clock (trackpad coasts longer)
+      piecesQuietTimerRef.current = setTimeout(() => {
+        if (piecesGateRef.current === "frozen") {
+          piecesGateRef.current = "ready";
+        }
+        piecesQuietTimerRef.current = null;
+      }, 550);
+      storyLockUntil.current = performance.now() + STORY_STEP_MS;
+    },
+    [pinPiecesRest],
+  );
 
   const leavePiecesToStory = useCallback(() => {
     stepRef.current = STORY_SLIDE_COUNT - 1;
     setStep(STORY_SLIDE_COUNT - 1);
     gsap.killTweensOf(introRef.current);
     introRef.current.pieces = 0;
-    piecesProgress.current = 0;
-    piecesTarget.current = 0;
-    setPiecesUi(0);
+    pinPiecesRest();
     setPeopleCtaReady(false);
-    piecesAwaitingIntentRef.current = false;
+    piecesGateRef.current = "live";
+    if (piecesQuietTimerRef.current != null) {
+      clearTimeout(piecesQuietTimerRef.current);
+      piecesQuietTimerRef.current = null;
+    }
     storyLockUntil.current = performance.now() + STORY_STEP_MS;
-  }, []);
+  }, [pinPiecesRest]);
 
   // People button live as soon as we are on the gallery beat
   useEffect(() => {
     setPeopleCtaReady(step === PIECES_STEP);
+  }, [step]);
+
+  // While frozen/ready, keep progress nailed to 0 every frame (kills residual follow)
+  useEffect(() => {
+    if (step !== PIECES_STEP) return;
+    let raf = 0;
+    const loop = () => {
+      if (
+        piecesGateRef.current === "frozen" ||
+        piecesGateRef.current === "ready"
+      ) {
+        if (piecesProgress.current !== 0 || piecesTarget.current !== 0) {
+          piecesProgress.current = 0;
+          piecesTarget.current = 0;
+          setPiecesUi(0);
+        }
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
   }, [step]);
 
   const goNext = useCallback(() => {
@@ -184,15 +232,20 @@ export default function LandingExperience() {
     const now = performance.now();
 
     if (s === PIECES_STEP) {
-      // First intentional swipe after rest → unfreeze + start pieces flow
-      if (piecesAwaitingIntentRef.current) {
-        if (now < storyLockUntil.current) return;
-        piecesAwaitingIntentRef.current = false;
-        storyLockUntil.current = now + 400;
+      const gate = piecesGateRef.current;
+      // Frozen = still eating residual inertia — do nothing
+      if (gate === "frozen") return;
+      // Ready = clean intentional swipe starts the real pieces flow
+      if (gate === "ready") {
+        piecesGateRef.current = "live";
+        if (piecesQuietTimerRef.current != null) {
+          clearTimeout(piecesQuietTimerRef.current);
+          piecesQuietTimerRef.current = null;
+        }
         piecesTarget.current = clamp01(0.12);
         return;
       }
-      // Normal pieces nudge (keys)
+      // Live: normal pieces nudge (keys)
       piecesTarget.current = clamp01(piecesTarget.current + 0.2);
       return;
     }
@@ -214,13 +267,14 @@ export default function LandingExperience() {
     const now = performance.now();
 
     if (s === PIECES_STEP) {
-      // Still on static rest → back to photo 6
-      if (piecesAwaitingIntentRef.current) {
-        if (now < storyLockUntil.current) return;
+      const gate = piecesGateRef.current;
+      if (gate === "frozen") return;
+      // Static rest (ready) → previous photo
+      if (gate === "ready") {
         leavePiecesToStory();
         return;
       }
-      // Still assembling → ease back; near rest → return to image 6
+      // Live: ease back; near rest → photo 6
       if (piecesTarget.current > 0.08 || piecesProgress.current > 0.08) {
         piecesTarget.current = clamp01(piecesTarget.current - 0.22);
         return;
@@ -238,7 +292,7 @@ export default function LandingExperience() {
     }
   }, [scrollLocked, leavePiecesToStory]);
 
-  // Story: one step per gesture. Pieces: soft scrub + reliable swipe-back.
+  // Story: one step per gesture. Pieces live: scrub. Gallery rest: frozen→ready→live.
   useEffect(() => {
     let touchY0: number | null = null;
     let touchStartY: number | null = null;
@@ -248,34 +302,58 @@ export default function LandingExperience() {
     let wheelAcc = 0;
     let wheelLeaveAcc = 0;
     let wheelResetTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Intentional swipe acc while gate is "ready" only */
+    let restIntentAcc = 0;
+
+    /** Any activity while frozen restarts the quiet clock (inertia must fully die). */
+    const bumpFrozenQuiet = () => {
+      pinPiecesRest();
+      if (piecesQuietTimerRef.current != null) {
+        clearTimeout(piecesQuietTimerRef.current);
+      }
+      piecesQuietTimerRef.current = setTimeout(() => {
+        if (piecesGateRef.current === "frozen") {
+          piecesGateRef.current = "ready";
+        }
+        piecesQuietTimerRef.current = null;
+      }, 550);
+    };
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (scrollLocked) return;
 
-      // Gallery rest: no scrub — only intentional step (start pieces / go back)
+      // —— Gallery rest: FROZEN — kill 100% of residual inertia ——
       if (
         stepRef.current === PIECES_STEP &&
-        piecesAwaitingIntentRef.current
+        piecesGateRef.current === "frozen"
       ) {
-        if (performance.now() < storyLockUntil.current) {
-          wheelAcc = 0;
-          return;
-        }
-        wheelAcc += e.deltaY;
+        restIntentAcc = 0;
+        wheelAcc = 0;
+        bumpFrozenQuiet();
+        return;
+      }
+
+      // —— Gallery rest: READY — only a fresh intentional swipe starts pieces ——
+      if (
+        stepRef.current === PIECES_STEP &&
+        piecesGateRef.current === "ready"
+      ) {
+        pinPiecesRest();
+        restIntentAcc += e.deltaY;
         if (wheelResetTimer) clearTimeout(wheelResetTimer);
         wheelResetTimer = setTimeout(() => {
-          wheelAcc = 0;
-        }, 180);
-        if (Math.abs(wheelAcc) < 48) return;
-        const dir = wheelAcc;
-        wheelAcc = 0;
+          restIntentAcc = 0;
+        }, 200);
+        if (Math.abs(restIntentAcc) < 56) return;
+        const dir = restIntentAcc;
+        restIntentAcc = 0;
         if (dir > 0) goNext();
         else goPrev();
         return;
       }
 
-      // 7th beat — scrub assemble; scroll up at rest → image 6
+      // 7th beat LIVE — scrub assemble; scroll up at rest → image 6
       if (stepRef.current === PIECES_STEP) {
         if (e.deltaY < 0) {
           // scrolling / swiping back
@@ -338,9 +416,9 @@ export default function LandingExperience() {
       touchStartY = y;
       touchAcc = 0;
       piecesLeaveAcc = 0;
-      // No drag-scrub on static gallery rest — commit on touchend only
+      // Drag-scrub only when pieces are LIVE
       piecesDragging =
-        stepRef.current === PIECES_STEP && !piecesAwaitingIntentRef.current;
+        stepRef.current === PIECES_STEP && piecesGateRef.current === "live";
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -349,6 +427,15 @@ export default function LandingExperience() {
       if (y == null) return;
       const dy = touchY0 - y; // finger up → positive
       touchY0 = y;
+
+      // Frozen: eat residual finger motion, keep rest pinned
+      if (
+        stepRef.current === PIECES_STEP &&
+        piecesGateRef.current === "frozen"
+      ) {
+        bumpFrozenQuiet();
+        return;
+      }
 
       if (piecesDragging && stepRef.current === PIECES_STEP) {
         if (
@@ -405,9 +492,19 @@ export default function LandingExperience() {
       touchY0 = null;
       touchStartY = null;
       touchAcc = 0;
+
+      // Frozen: residual touch-end is noise — ignore completely
+      if (
+        stepRef.current === PIECES_STEP &&
+        piecesGateRef.current === "frozen"
+      ) {
+        bumpFrozenQuiet();
+        return;
+      }
+
       if (Math.abs(totalDy) < 52) return;
       if (performance.now() < storyLockUntil.current) return;
-      // Gallery rest + story slides: one intentional swipe
+      // ready gallery rest + story slides
       if (totalDy > 0) goNext();
       else goPrev();
     };
@@ -439,13 +536,17 @@ export default function LandingExperience() {
     window.addEventListener("keydown", onKey);
     return () => {
       if (wheelResetTimer) clearTimeout(wheelResetTimer);
+      if (piecesQuietTimerRef.current != null) {
+        clearTimeout(piecesQuietTimerRef.current);
+        piecesQuietTimerRef.current = null;
+      }
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("keydown", onKey);
     };
-  }, [scrollLocked, goNext, goPrev, leavePiecesToStory]);
+  }, [scrollLocked, goNext, goPrev, leavePiecesToStory, pinPiecesRest]);
 
   // Medium follow — smooth but not laggy
   useEffect(() => {
