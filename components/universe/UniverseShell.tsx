@@ -1,29 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 import {
   CAMERA_FOV,
   CAMERA_Z,
-  ZOOM_Z_FRAME,
   ZOOM_Z_MAX,
   ZOOM_Z_MIN,
+  ZOOM_Z_MOON_FRAME,
   ZOOM_Z_STEP,
 } from "@/components/universe/constants";
 import CameraRig from "@/components/universe/CameraRig";
+import OpeningPhone from "@/components/universe/OpeningPhone";
+import OpeningQuiz from "@/components/universe/OpeningQuiz";
 import OrbitLabel from "@/components/universe/OrbitLabel";
-import PlanetStage, {
-  stagePoseOffset,
-  type StagePose,
-} from "@/components/universe/PlanetStage";
+import PlanetStage from "@/components/universe/PlanetStage";
 import Stars from "@/components/universe/Stars";
 import ZoomControls from "@/components/universe/ZoomControls";
 
 /**
- * Layout CSS — media queries, not JS.
- * Mobile: full bleed. Desktop: tall letterboxed phone column.
- * Touch / click only. No wheel, no desktop scroll physics.
+ * Full-bleed portrait column. WebGL covers the whole stage (stars included).
+ * Earth is face-on and optically lowered via camera view-offset (not world Y).
+ * Moon uses true teaching ratio (30× R); we zoom out to fit it.
  */
 const UNIVERSE_LAYOUT_CSS = `
   .universe-shell {
@@ -45,7 +44,6 @@ const UNIVERSE_LAYOUT_CSS = `
     -webkit-touch-callout: none;
   }
 
-  /* Desktop: tall letterboxed phone column (~9:19.5) */
   .universe-stage {
     position: relative;
     width: min(100vw, calc(100dvh * 9 / 19.5));
@@ -82,63 +80,42 @@ const UNIVERSE_LAYOUT_CSS = `
 
   .universe-ui {
     position: absolute;
-    inset: 0;
+    left: 0;
+    right: 0;
+    top: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     pointer-events: none;
     z-index: 10;
-    padding: 12% 8% 18%;
-  }
-
-  .universe-ui.prompt {
-    align-items: flex-end;
-    padding-bottom: 14%;
-  }
-
-  /* Moon / far-enough copy — top of the phone column */
-  .universe-ui.top {
-    align-items: flex-start;
-    padding-top: max(12px, env(safe-area-inset-top, 0px) + 16px);
-    padding-bottom: 0;
+    /* Match opening quiz: 50px from top (+ safe area) */
+    padding: calc(50px + env(safe-area-inset-top, 0px)) 8% 0;
   }
 
   .universe-message {
     color: #f0f4ff;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(1.3rem, 4.5vw, 1.8rem);
+    font-size: clamp(1.15rem, 4.2vw, 1.65rem);
     font-weight: 300;
     letter-spacing: 0.04em;
     text-align: center;
-    max-width: 80%;
+    max-width: 90%;
     line-height: 1.45;
     white-space: pre-line;
     text-shadow: 0 0 18px rgba(180, 210, 255, 0.35);
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(10px);
     transition: opacity 1.4s ease, transform 1.4s ease;
   }
 
   .universe-message.prompt-text {
-    font-size: clamp(1rem, 3.6vw, 1.25rem);
-    max-width: 88%;
+    font-size: clamp(0.95rem, 3.5vw, 1.2rem);
     letter-spacing: 0.03em;
   }
 
   .universe-message.far-text {
-    font-size: clamp(0.95rem, 3.4vw, 1.15rem);
-    max-width: 90%;
+    font-size: clamp(0.9rem, 3.3vw, 1.1rem);
     color: #c8d6f0;
-  }
-
-  .universe-message.zoom-hint {
-    font-size: clamp(0.9rem, 3.2vw, 1.05rem);
-    opacity: 0;
-    max-width: 88%;
-  }
-
-  .universe-message.zoom-hint.visible {
-    opacity: 0.75;
   }
 
   .universe-message.visible {
@@ -149,7 +126,7 @@ const UNIVERSE_LAYOUT_CSS = `
   .universe-orbit-label {
     position: absolute;
     left: 50%;
-    top: 60%;
+    top: 62%;
     transform: translate(-50%, 0);
     z-index: 11;
     pointer-events: none;
@@ -171,11 +148,10 @@ const UNIVERSE_LAYOUT_CSS = `
   }
 
   .universe-orbit-label.moon-label {
-    top: 18%;
+    top: 12%;
   }
 `;
 
-const WELCOME_TEXT = "Welcome.\nThis is our home.";
 const PROMPT_TEXT =
   "Drag the satellite to where you think\nGPS satellites orbit";
 const MOON_TOP_TEXT = "Now place the Moon where you think it is.";
@@ -183,63 +159,17 @@ const FAR_ENOUGH_TEXT =
   "Okay, that's far enough.\nThe Moon isn't in another galaxy.";
 const MOON_PLACE_TEXT = "Drag the Moon where you think it belongs.";
 
-/**
- * TEST MODE: welcome is near-instant so we can iterate on later beats.
- * TODO: restore slow typewriter + long hold before ship.
- */
-const WELCOME_TEST_MS = 400;
-
-function WelcomeMessage({ onDone }: { onDone: () => void }) {
-  const [visible, setVisible] = useState(false);
-  const doneRef = useRef(false);
-
-  useEffect(() => {
-    setVisible(true);
-
-    const fadeTimer = setTimeout(() => {
-      setVisible(false);
-    }, WELCOME_TEST_MS);
-
-    const doneTimer = setTimeout(() => {
-      if (!doneRef.current) {
-        doneRef.current = true;
-        onDone();
-      }
-    }, WELCOME_TEST_MS + 200);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(doneTimer);
-    };
-  }, [onDone]);
-
-  return (
-    <div className="universe-ui">
-      <div
-        className={`universe-message${visible ? " visible" : ""}`}
-        aria-live="polite"
-      >
-        {WELCOME_TEXT}
-      </div>
-    </div>
-  );
-}
-
 function PromptMessage({
   visible,
   text,
-  placement = "bottom",
   far = false,
 }: {
   visible: boolean;
   text: string;
-  placement?: "bottom" | "top";
   far?: boolean;
 }) {
   return (
-    <div
-      className={`universe-ui ${placement === "top" ? "top" : "prompt"}`}
-    >
+    <div className="universe-ui">
       <div
         className={`universe-message prompt-text${far ? " far-text" : ""}${
           visible ? " visible" : ""
@@ -252,18 +182,19 @@ function PromptMessage({
   );
 }
 
-/**
- * Portrait stage: welcome → sat → moon zoom → moon drop.
- */
 export default function UniverseShell() {
   const stageRef = useRef<HTMLDivElement>(null);
-  const [showWelcome, setShowWelcome] = useState(true);
+
+  const [openingActive, setOpeningActive] = useState(true);
+  const [phoneExiting, setPhoneExiting] = useState(false);
+  const [earthRevealed, setEarthRevealed] = useState(false);
+  /** NDC y for centering the phone under the quiz options */
+  const [phoneSlotNdcY, setPhoneSlotNdcY] = useState(-0.28);
+
   const [satelliteActive, setSatelliteActive] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
   const [orbitLabelVisible, setOrbitLabelVisible] = useState(false);
-  const [stagePose, setStagePose] = useState<StagePose>("center");
 
-  // Moon beat
   const [moonPhase, setMoonPhase] = useState(false);
   const [moonVisible, setMoonVisible] = useState(false);
   const [moonInteractive, setMoonInteractive] = useState(false);
@@ -273,18 +204,20 @@ export default function UniverseShell() {
   const [moonLabelVisible, setMoonLabelVisible] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
-  const handleWelcomeDone = useCallback(() => {
-    setShowWelcome(false);
+  const handleOpeningAnswered = useCallback((_choice: string) => {
+    setPhoneExiting(true);
+    setEarthRevealed(true);
+  }, []);
+
+  const handlePhoneExitDone = useCallback(() => {
+    setOpeningActive(false);
     setSatelliteActive(true);
-    setStagePose("prompt");
-    // TEST: snappy handoffs — restore longer beats later
-    window.setTimeout(() => setPromptVisible(true), 120);
+    window.setTimeout(() => setPromptVisible(true), 400);
   }, []);
 
   const handleSatelliteSettled = useCallback(() => {
     setPromptVisible(false);
     window.setTimeout(() => setOrbitLabelVisible(true), 200);
-    // TEST: snappy moon beat — restore longer pause later
     window.setTimeout(() => {
       setMoonPhase(true);
       setMoonVisible(true);
@@ -296,9 +229,7 @@ export default function UniverseShell() {
   const handleZoomOut = useCallback(() => {
     setCameraZ((z) => {
       const next = Math.min(ZOOM_Z_MAX, z + ZOOM_Z_STEP);
-      if (next >= ZOOM_Z_MAX - 0.001) {
-        setFarEnoughVisible(true);
-      }
+      if (next >= ZOOM_Z_MAX - 0.001) setFarEnoughVisible(true);
       return next;
     });
   }, []);
@@ -313,20 +244,13 @@ export default function UniverseShell() {
     setFarEnoughVisible(false);
     setMoonPromptVisible(false);
     setMoonInteractive(true);
-    // Short place prompt
     window.setTimeout(() => setMoonPromptVisible(true), 200);
   }, []);
 
-  /**
-   * Same moment the moon starts flying home:
-   * - keep a zoomed-out *size* so both fit (Earth can stay small)
-   * - ease Earth to the pre-zoom *screen position* (low in the column)
-   * - moon distance is frame-tuned so it stays in focus up top
-   */
+  /** Moon flies to 30× R; camera zooms out to fit — Earth stays face-on lower third */
   const handleMoonSnapStart = useCallback(() => {
     setMoonPromptVisible(false);
-    setStagePose("moon");
-    setCameraZ((z) => Math.max(z, ZOOM_Z_FRAME));
+    setCameraZ(ZOOM_Z_MOON_FRAME);
   }, []);
 
   const handleMoonSettled = useCallback(() => {
@@ -336,7 +260,6 @@ export default function UniverseShell() {
   const canZoomOut = cameraZ < ZOOM_Z_MAX - 0.001;
   const canZoomIn = cameraZ > ZOOM_Z_MIN + 0.001;
 
-  // Top-of-screen moon copy (far-enough replaces the main line)
   const moonTopCopy = moonInteractive
     ? MOON_PLACE_TEXT
     : farEnoughVisible
@@ -366,7 +289,7 @@ export default function UniverseShell() {
               camera={{
                 fov: CAMERA_FOV,
                 near: 0.1,
-                far: 1000,
+                far: 5000,
                 position: [0, 0, CAMERA_Z],
               }}
               style={{ background: "#000000" }}
@@ -378,12 +301,18 @@ export default function UniverseShell() {
               <ambientLight intensity={1.55} />
               <directionalLight intensity={3.0} position={[5, 3, 5]} />
               <Stars />
-              <CameraRig
-                targetZ={cameraZ}
-                targetY={stagePoseOffset(stagePose)}
-              />
+              <CameraRig targetZ={cameraZ} />
+              {openingActive && (
+                <Suspense fallback={null}>
+                  <OpeningPhone
+                    exiting={phoneExiting}
+                    slotNdcY={phoneSlotNdcY}
+                    onExitDone={handlePhoneExitDone}
+                  />
+                </Suspense>
+              )}
               <PlanetStage
-                pose={stagePose}
+                earthRevealed={earthRevealed}
                 satelliteActive={satelliteActive}
                 onSatelliteSettled={handleSatelliteSettled}
                 moonVisible={moonVisible}
@@ -393,13 +322,16 @@ export default function UniverseShell() {
               />
             </Canvas>
           </WebGLErrorBoundary>
-          {showWelcome && <WelcomeMessage onDone={handleWelcomeDone} />}
+
+          <OpeningQuiz
+            active={openingActive && !phoneExiting}
+            onAnswered={handleOpeningAnswered}
+            onPhoneSlotNdc={setPhoneSlotNdcY}
+          />
           <PromptMessage visible={promptVisible} text={PROMPT_TEXT} />
-          {/* Moon main line / far-enough — top of column */}
           <PromptMessage
             visible={moonPhase && moonPromptVisible}
             text={moonTopCopy}
-            placement="top"
             far={farEnoughVisible && !moonInteractive}
           />
           <OrbitLabel visible={orbitLabelVisible} />
@@ -414,7 +346,7 @@ export default function UniverseShell() {
             visible={zoomControlsVisible}
             canZoomIn={canZoomIn}
             canZoomOut={canZoomOut}
-            showZoomHint={!farEnoughVisible}
+            showMidCopy={!farEnoughVisible}
             onZoomIn={handleZoomIn}
             onZoomOut={handleZoomOut}
             onConfirm={handleConfirm}

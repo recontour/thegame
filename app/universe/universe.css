@@ -1,41 +1,33 @@
 /* Universe flow UI — zoom / confirm controls (mobile portrait stage) */
 
-#zoom-controls {
+/* Mid-screen guidance (above the globe, not under the buttons) */
+.zoom-mid-copy {
   position: absolute;
-  bottom: 48px;
   left: 50%;
-  transform: translateX(-50%);
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: min(88%, 320px);
+  z-index: 20;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  z-index: 20;
-  pointer-events: auto;
+  text-align: center;
 }
 
-#zoom-controls .zoom-controls-row {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-
-/* “Zoom out first.” — sits under the button row */
-#zoom-controls .zoom-hint {
+.zoom-mid-copy .zoom-mid-title {
   margin: 0;
-  color: rgba(240, 244, 255, 0.72);
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.9rem, 3.2vw, 1.05rem);
+  color: rgba(240, 244, 255, 0.88);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: clamp(0.95rem, 3.5vw, 1.15rem);
   font-weight: 300;
   letter-spacing: 0.03em;
-  line-height: 1.35;
-  text-align: center;
-  text-shadow: 0 0 12px rgba(180, 210, 255, 0.25);
-  pointer-events: none;
-  user-select: none;
+  line-height: 1.45;
+  text-shadow: 0 0 16px rgba(180, 210, 255, 0.3);
 }
 
-/* Ad-style fine print under the hint */
-#zoom-controls .zoom-fineprint {
+.zoom-mid-copy .zoom-mid-fineprint {
   margin: 0;
   max-width: 280px;
   color: rgba(200, 214, 240, 0.45);
@@ -44,9 +36,25 @@
   font-weight: 400;
   letter-spacing: 0.02em;
   line-height: 1.35;
-  text-align: center;
-  pointer-events: none;
-  user-select: none;
+}
+
+/* Buttons only — bottom of the column */
+#zoom-controls {
+  position: absolute;
+  bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+#zoom-controls .zoom-controls-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
 }
 
 /* Base button */
@@ -118,4 +126,100 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: default;
   transform: none;
+}
+
+/* Wider option chips (opening quiz numbers) */
+.ctrl-btn.option {
+  min-width: 118px;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 12px;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctrl-btn.option.selected {
+  border-color: rgba(180, 210, 255, 0.45);
+  background: linear-gradient(145deg, #2a3d58, #1a2838);
+  box-shadow:
+    4px 4px 12px rgba(0, 0, 0, 0.45),
+    0 0 20px rgba(120, 170, 255, 0.28),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.ctrl-btn.option:disabled:not(.selected) {
+  opacity: 0.4;
+}
+
+/*
+ * Opening quiz full-column layout:
+ *   50px top → copy → [phone band] → options → 50px bottom
+ */
+.opening-quiz {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(50px + env(safe-area-inset-top, 0px)) 8%
+    calc(50px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  transition: opacity 0.9s ease;
+}
+
+.opening-quiz.fading {
+  opacity: 0;
+}
+
+/* Fact + roughly… stack — 50px between lines once the second appears */
+.opening-quiz-copy-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: min(92%, 340px);
+  flex-shrink: 0;
+}
+
+.opening-quiz-copy-stack.has-question {
+  gap: 50px;
+}
+
+.opening-quiz-copy {
+  pointer-events: none;
+  max-width: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+/* Middle band — 3D phone is centered on this slot */
+.opening-quiz-phone-slot {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 100px;
+  pointer-events: none;
+}
+
+.opening-quiz-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: min(100%, 300px);
+  max-width: 300px;
+  flex-shrink: 0;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 1s ease,
+    transform 1s ease;
+  pointer-events: none;
+}
+
+.opening-quiz-options.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }

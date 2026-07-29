@@ -4,21 +4,22 @@ type ZoomControlsProps = {
   visible: boolean;
   canZoomIn: boolean;
   canZoomOut: boolean;
-  /** Show “Zoom out first.” under the buttons */
-  showZoomHint?: boolean;
+  /** Mid-screen zoom guidance (hidden at max zoom when top shows far-enough) */
+  showMidCopy?: boolean;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onConfirm: () => void;
 };
 
 /**
- * + / − zoom and Confirm — styles from app/universe/universe.css
+ * Mid-screen guidance + bottom − / + / Confirm bar.
+ * Styles: app/universe/universe.css
  */
 export default function ZoomControls({
   visible,
   canZoomIn,
   canZoomOut,
-  showZoomHint = true,
+  showMidCopy = true,
   onZoomIn,
   onZoomOut,
   onConfirm,
@@ -26,41 +27,51 @@ export default function ZoomControls({
   if (!visible) return null;
 
   return (
-    <div id="zoom-controls" role="group" aria-label="Zoom controls">
-      <div className="zoom-controls-row">
-        <button
-          id="btn-minus"
-          type="button"
-          className="ctrl-btn square"
-          disabled={!canZoomIn}
-          onClick={onZoomIn}
-          aria-label="Zoom in"
-        >
-          −
-        </button>
-        <button
-          id="btn-plus"
-          type="button"
-          className="ctrl-btn square"
-          disabled={!canZoomOut}
-          onClick={onZoomOut}
-          aria-label="Zoom out"
-        >
-          +
-        </button>
-        <button
-          id="btn-confirm"
-          type="button"
-          className="ctrl-btn rect"
-          onClick={onConfirm}
-        >
-          Confirm
-        </button>
+    <>
+      {showMidCopy && (
+        <div className="zoom-mid-copy" aria-live="polite">
+          <p className="zoom-mid-title">
+            You might want to zoom out to place our moon to where you think it
+            is.
+          </p>
+          <p className="zoom-mid-fineprint">
+            * You can move moon and place it once you confirm
+          </p>
+        </div>
+      )}
+
+      <div id="zoom-controls" role="group" aria-label="Zoom controls">
+        <div className="zoom-controls-row">
+          <button
+            id="btn-minus"
+            type="button"
+            className="ctrl-btn square"
+            disabled={!canZoomIn}
+            onClick={onZoomIn}
+            aria-label="Zoom in"
+          >
+            −
+          </button>
+          <button
+            id="btn-plus"
+            type="button"
+            className="ctrl-btn square"
+            disabled={!canZoomOut}
+            onClick={onZoomOut}
+            aria-label="Zoom out"
+          >
+            +
+          </button>
+          <button
+            id="btn-confirm"
+            type="button"
+            className="ctrl-btn rect"
+            onClick={onConfirm}
+          >
+            Confirm
+          </button>
+        </div>
       </div>
-      {showZoomHint && <p className="zoom-hint">Zoom out first.</p>}
-      <p className="zoom-fineprint">
-        * the moon will appear once you confirm
-      </p>
-    </div>
+    </>
   );
 }

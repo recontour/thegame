@@ -1,89 +1,70 @@
 /**
- * World-space Earth radius — large, fixed for the whole lesson.
- * (No reveal scale-down.)
+ * World-space Earth radius (sphere radius 1 × mesh scale).
  */
 export const EARTH_RADIUS = 0.42;
 
-/**
- * Soft floor only — keep the sat outside the planet.
- * No outer orbit cap while dragging: user can place anywhere on screen.
- */
+/** Soft floor — keep sat / moon outside the planet. */
 export const SAT_MIN_MULT = 1.12;
 
 /**
- * Softened GPS orbital radius from Earth's center for this portrait frame.
- * True GPS is ~3.7–4.17× R; here we sit near the edge of the phone column
- * so the ring stays on-screen with a big fixed Earth.
+ * Softened GPS orbital radius for the portrait frame.
+ * (Real GPS ≈ 4.17× R from center.)
  */
 export const GPS_ORBIT_MULT = 1.42;
 
 export const SAT_MIN_RADIUS = EARTH_RADIUS * SAT_MIN_MULT;
 export const GPS_ORBIT_RADIUS = EARTH_RADIUS * GPS_ORBIT_MULT;
 
-/**
- * Starting guess — above Earth, centered, still inside the portrait FOV.
- * Camera tracks Earth face-on; half-height @ Z=3.2 is ~1.32, so stay below that.
- */
 export const SAT_START = {
   x: 0,
-  y: 0.92,
+  y: 0.75,
   z: 0,
 } as const;
 
-/** Fixed framing at the start of the lesson */
-export const CAMERA_Z = 3.2;
+/**
+ * Default face-on distance for Earth + sat placement.
+ * Tuned so the globe fits the portrait column (about two “+” clicks
+ * from the old too-close 3.4) without crowding the edges.
+ */
+export const CAMERA_Z = 6.15;
 export const CAMERA_FOV = 45;
 
 /**
- * After welcome: ease Earth + sat down a bit so the globe sits
- * just above the drag prompt (portrait column stack).
+ * Projection bias: Earth in the *lower half* of the column, not dead center,
+ * but not glued to the bottom edge either. Face-on lookAt stays at origin.
+ * 0 = centered · higher = lower on screen.
  */
-export const EARTH_PROMPT_OFFSET_Y = -0.34;
+export const EARTH_SCREEN_BIAS = 0.4;
 
-/**
- * After moon snap (zoomed out): pin Earth lower in the column so it
- * matches the pre-zoom *screen* placement — not dead-center of the void.
- * Tuned for ZOOM_Z_FRAME.
- */
-export const EARTH_MOON_OFFSET_Y = -0.95;
-
-// ─── Zoom (moon beat) ───────────────────────────────────────────────
-/** Closest zoom (lesson default) */
+// ─── Zoom ───────────────────────────────────────────────────────────
 export const ZOOM_Z_MIN = CAMERA_Z;
-/**
- * Farthest zoom-out — Earth still readable on a phone, not a speck.
- */
-export const ZOOM_Z_MAX = 9.2;
-/** Each + / − step */
-export const ZOOM_Z_STEP = 0.95;
-/**
- * Framing Z when the Moon settles — keep size small enough to show both,
- * but don’t pull back further than the user’s max zoom.
- */
-export const ZOOM_Z_FRAME = 8.4;
+/** Allow user zoom past the moon-settle frame if they want */
+export const ZOOM_Z_MAX = 42;
+export const ZOOM_Z_STEP = 1.4;
 
-// ─── Moon ───────────────────────────────────────────────────────────
 /**
- * True mean Moon distance ≈ 60.3 × Earth radius — too far for a phone frame.
- * Lesson distance: clearly beyond GPS (~1.42 R), still on-screen at ZOOM_Z_FRAME
- * with Earth pinned low (EARTH_MOON_OFFSET_Y).
- *
- * half-height @ 8.4 ≈ 3.48 → moon world y ≈ offset + dist should sit ~1.4–1.8
- * → dist ≈ 2.4–2.7 → mult ≈ 5.7–6.4
+ * True-scale lesson distance: 15 × Earth *diameter* = 30 × Earth radius.
+ * (Real Moon ≈ 60 R — still farther; this is the requested teaching ratio.)
+ * Do NOT shrink this to “fit” — pull the camera back instead.
  */
-export const MOON_DISTANCE_MULT = 5.8;
+export const MOON_DISTANCE_MULT = 30;
 export const MOON_DISTANCE = EARTH_RADIUS * MOON_DISTANCE_MULT;
 
-/** Soft floor while dragging the Moon (outside Earth) */
+/**
+ * Camera Z after Moon snap — zoom out until 30× R fits under the top of FOV.
+ *
+ * With EARTH_SCREEN_BIAS view-offset, visible top ≈ z * tan(fov/2):
+ *   MOON_DISTANCE = 30 * 0.42 = 12.6
+ *   need z * tan(22.5°) ≳ 12.6 + moon disc ≈ 12.8
+ *   z ≳ 12.8 / 0.414 ≈ 31
+ * Use a little headroom so the disc isn’t clipped.
+ */
+export const ZOOM_Z_MOON_FRAME = 34;
+
 export const MOON_MIN_RADIUS = EARTH_RADIUS * 1.2;
 
-/**
- * Where the grayed Moon waits before Confirm — upper column, easy to see.
- */
 export const MOON_START = {
   x: 0,
-  y: 0.95,
+  y: 0.85,
   z: 0,
 } as const;
-
-
