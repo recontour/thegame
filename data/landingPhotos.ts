@@ -13,7 +13,7 @@ export const LANDING_SLIDES: LandingSlide[] = [
   {
     src: "/landing/1.webp",
     mode: "title",
-    lines: ["raconteur", "for those who care"],
+    lines: ["raconteur"],
   },
   {
     src: "/landing/2.webp",
@@ -47,8 +47,8 @@ export const LANDING_SLIDES: LandingSlide[] = [
     src: "/landing/6.webp",
     mode: "body",
     lines: [
-      "I hope these photographs make you look at them with respect",
-      "instead of looking past them.",
+      "I hope these photographs make one stop and notice what I see.",
+      "Instead of looking past them.",
     ],
   },
 ];

@@ -96,7 +96,6 @@ export default function LandingExperience() {
   const textClearFromTopRef = useRef(0.72);
 
   const titleLeadRef = useRef<HTMLSpanElement>(null);
-  const titleTagRef = useRef<HTMLSpanElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const [webglError, setWebglError] = useState<string | null>(null);
@@ -463,35 +462,24 @@ export default function LandingExperience() {
   /** Slow cinematic rise from below — plays on every visit to image 1 */
   const playTitleIntro = useCallback((motionOff: boolean) => {
     const lead = titleLeadRef.current;
-    const tag = titleTagRef.current;
-    if (!lead || !tag) return;
+    if (!lead) return;
 
-    gsap.killTweensOf([lead, tag]);
+    gsap.killTweensOf(lead);
 
     if (motionOff) {
-      gsap.set([lead, tag], { opacity: 1, y: 0 });
+      gsap.set(lead, { opacity: 1, y: 0 });
       return;
     }
 
     // Start well below the rest position
-    gsap.set([lead, tag], { opacity: 0, y: 72 });
-    gsap
-      .timeline({ defaults: { ease: "power3.out" } })
-      .to(lead, {
-        opacity: 1,
-        y: 0,
-        duration: 2.8,
-        delay: 0.15,
-      })
-      .to(
-        tag,
-        {
-          opacity: 1,
-          y: 0,
-          duration: 2.8,
-        },
-        "<0.18", // almost together, tag follows a hair later
-      );
+    gsap.set(lead, { opacity: 0, y: 72 });
+    gsap.to(lead, {
+      opacity: 1,
+      y: 0,
+      duration: 2.8,
+      delay: 0.15,
+      ease: "power3.out",
+    });
   }, []);
 
   useEffect(() => {
@@ -729,10 +717,7 @@ export default function LandingExperience() {
               lineHeight: 1.2,
               color: "#ffffff",
               textAlign: "center",
-              display: showTitle ? "flex" : "none",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "0.35em",
+              display: showTitle ? "block" : "none",
             }}
           >
             <span
@@ -749,20 +734,6 @@ export default function LandingExperience() {
               }}
             >
               raconteur
-            </span>
-            <span
-              ref={titleTagRef}
-              className={monsieur.className}
-              style={{
-                display: "block",
-                fontWeight: 400,
-                fontSize: "clamp(1.85rem, 7.5vw, 2.5rem)",
-                letterSpacing: "0.02em",
-                opacity: reduced ? 1 : 0,
-                willChange: "opacity, transform",
-              }}
-            >
-              for those who care
             </span>
           </h1>
 

@@ -15,14 +15,14 @@ export const metadata: Metadata = {
     default: "raconteur",
     template: "%s · raconteur",
   },
-  description: "raconteur — for those who care",
+  description: "raconteur",
   applicationName: "raconteur",
   openGraph: {
     type: "website",
     locale: "en_US",
     siteName: "raconteur",
     title: "raconteur",
-    description: "raconteur — for those who care",
+    description: "raconteur",
     // Link previews (WhatsApp, iMessage, Instagram in-app, etc.)
     images: [
       {
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "raconteur",
-    description: "raconteur — for those who care",
+    description: "raconteur",
     images: ["/OG.webp"],
   },
   // Helps some crawlers / PWA chrome
