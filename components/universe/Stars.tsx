@@ -1,14 +1,24 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-const STAR_COUNT = 1100;
+/**
+ * One draw call of point sprites — thousands is still cheap on phones.
+ * (Not a particle sim; just a static buffer + a group rotation.)
+ */
+const STAR_COUNT = 3200;
+
+/** Slow drift vs Earth — sky should lag, not race */
+const STAR_SPIN = 0.00035;
 
 /**
- * Minimal starfield — points sprinkled in a big sphere behind Earth.
+ * Starfield — denser points in a big sphere, gentle spin with Earth.
  */
 export default function Stars() {
+  const groupRef = useRef<THREE.Group>(null);
+
   const geometry = useMemo(() => {
     const positions = new Float32Array(STAR_COUNT * 3);
 
@@ -32,10 +42,10 @@ export default function Stars() {
     () =>
       new THREE.PointsMaterial({
         color: 0xffffff,
-        size: 0.15,
+        size: 0.14,
         sizeAttenuation: true,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.88,
         depthWrite: false,
       }),
     [],
@@ -48,5 +58,15 @@ export default function Stars() {
     };
   }, [geometry, material]);
 
-  return <points geometry={geometry} material={material} frustumCulled={false} />;
+  useFrame(() => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += STAR_SPIN;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <points geometry={geometry} material={material} frustumCulled={false} />
+    </group>
+  );
 }
