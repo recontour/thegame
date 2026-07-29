@@ -136,17 +136,17 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translate(-50%, 0);
     z-index: 11;
     pointer-events: none;
-    color: rgba(240, 244, 255, 0.85);
+    color: rgba(240, 244, 255, 0.88);
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(0.72rem, 2.6vw, 0.88rem);
-    font-weight: 300;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-size: clamp(0.95rem, 3.4vw, 1.15rem);
+    font-weight: 400;
+    letter-spacing: 0.03em;
     text-align: center;
-    text-shadow: 0 0 12px rgba(180, 210, 255, 0.35);
+    text-shadow: 0 0 14px rgba(180, 210, 255, 0.35);
     opacity: 0;
     transition: opacity 1.2s ease;
-    white-space: nowrap;
+    max-width: 88%;
+    line-height: 1.4;
   }
 
   .universe-orbit-label.visible {
@@ -154,7 +154,18 @@ const UNIVERSE_LAYOUT_CSS = `
   }
 
   .universe-orbit-label.moon-label {
-    top: 12%;
+    /* Between Moon (high) and Earth (lower third) — not glued to the disc */
+    top: 32%;
+  }
+
+  .universe-orbit-label .moon-label-sub {
+    display: block;
+    margin-top: 8px;
+    font-size: clamp(0.85rem, 3.1vw, 1rem);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    color: rgba(220, 230, 250, 0.82);
+    line-height: 1.45;
   }
 
   /* After GPS sat settles — fact + “Place the Moon” */
@@ -465,7 +476,11 @@ export default function UniverseShell() {
               moonLabelVisible ? " visible" : ""
             }`}
           >
-            Actual Moon distance
+            Farther than it looks.
+            <span className="moon-label-sub">
+              The Moon is actually about 384,000 km away, roughly 30 Earth
+              diameters.
+            </span>
           </div>
           <ZoomControls
             visible={zoomControlsVisible}
