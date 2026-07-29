@@ -10,7 +10,7 @@ const EARTH_TEXTURE_URL =
 
 /**
  * Gentle spinning Earth — first beat of the universe story.
- * Original blue-marble texture (no ocean color processing).
+ * Size is fixed for the whole lesson (no reveal scale-down).
  */
 export default function Earth() {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -23,7 +23,6 @@ export default function Earth() {
   });
 
   return (
-    // Portrait column is narrow — keep the globe inside the frame with padding
     <mesh ref={meshRef} scale={EARTH_RADIUS}>
       <sphereGeometry args={[1, 64, 64]} />
       <meshStandardMaterial map={map} roughness={0.85} metalness={0.05} />

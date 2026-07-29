@@ -1,12 +1,11 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
-import { CAMERA_Z } from "@/components/universe/constants";
-import Earth from "@/components/universe/Earth";
+import { CAMERA_FOV, CAMERA_Z } from "@/components/universe/constants";
 import OrbitLabel from "@/components/universe/OrbitLabel";
-import Satellite from "@/components/universe/Satellite";
+import PlanetStage from "@/components/universe/PlanetStage";
 import Stars from "@/components/universe/Stars";
 
 /**
@@ -120,7 +119,7 @@ const UNIVERSE_LAYOUT_CSS = `
   .universe-orbit-label {
     position: absolute;
     left: 50%;
-    top: 58%;
+    top: 60%;
     transform: translate(-50%, 0);
     z-index: 11;
     pointer-events: none;
@@ -232,10 +231,13 @@ export default function UniverseShell() {
   const [satelliteActive, setSatelliteActive] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
   const [orbitLabelVisible, setOrbitLabelVisible] = useState(false);
+  /** Earth + sat ease down so the globe sits above the drag prompt */
+  const [earthLowered, setEarthLowered] = useState(false);
 
   const handleWelcomeDone = useCallback(() => {
     setShowWelcome(false);
     setSatelliteActive(true);
+    setEarthLowered(true);
     // Let sat fade in a beat, then show the prompt
     window.setTimeout(() => setPromptVisible(true), 400);
   }, []);
@@ -269,7 +271,7 @@ export default function UniverseShell() {
               dpr={[1, 2]}
               gl={{ antialias: true, alpha: false }}
               camera={{
-                fov: 45,
+                fov: CAMERA_FOV,
                 near: 0.1,
                 far: 1000,
                 position: [0, 0, CAMERA_Z],
@@ -281,14 +283,15 @@ export default function UniverseShell() {
               }}
             >
               <color attach="background" args={["#000000"]} />
-              {/* Soft fill + same sun angle — a bit brighter, still one-sided */}
-              <ambientLight intensity={0.95} />
-              <directionalLight intensity={2.0} position={[5, 3, 5]} />
+              {/* Soft fill + same sun angle — brighter, still one-sided */}
+              <ambientLight intensity={1.25} />
+              <directionalLight intensity={2.45} position={[5, 3, 5]} />
               <Stars />
-              <Suspense fallback={null}>
-                <Earth />
-              </Suspense>
-              <Satellite active={satelliteActive} onSettled={handleSettled} />
+              <PlanetStage
+                lowered={earthLowered}
+                satelliteActive={satelliteActive}
+                onSettled={handleSettled}
+              />
             </Canvas>
           </WebGLErrorBoundary>
           {showWelcome && <WelcomeMessage onDone={handleWelcomeDone} />}

@@ -1,14 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useFrame, useLoader, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   GPS_ORBIT_RADIUS,
-  SAT_MAX_RADIUS,
   SAT_MIN_RADIUS,
   SAT_START,
 } from "@/components/universe/constants";
+
+const SATELLITE_PNG = "/universe/satellite.png";
+/** World size of the PNG billboard (width) */
+const SAT_SPRITE_WIDTH = 0.22;
+
+// Warm the cache on module load so the welcome→sat handoff never suspends Earth
+useLoader.preload(THREE.TextureLoader, SATELLITE_PNG);
 
 type SatelliteProps = {
   /** When true, satellite fades in and becomes interactive */
@@ -18,106 +24,72 @@ type SatelliteProps = {
 };
 
 const FADE_SPEED = 1.6;
-const SNAP_DURATION = 1.15;
+/** Calm fly-to-orbit after drop */
+const SNAP_DURATION = 1.9;
 
-function clampOnPlane(point: THREE.Vector3): THREE.Vector3 {
-  // Keep on the camera-facing plane (z ≈ 0) so it never slips behind Earth
+/** Smooth ease-in-out (cubic) */
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
+ * Free placement on the camera-facing plane.
+ * Only soft floor: stay outside Earth. No outer orbit rail.
+ */
+function projectOnPlane(point: THREE.Vector3): THREE.Vector3 {
   point.z = 0;
   const r = Math.hypot(point.x, point.y);
-  if (r < 1e-5) {
-    point.set(SAT_MIN_RADIUS, 0, 0);
-    return point;
+  if (r < SAT_MIN_RADIUS) {
+    if (r < 1e-5) {
+      point.set(SAT_MIN_RADIUS, 0, 0);
+    } else {
+      const s = SAT_MIN_RADIUS / r;
+      point.x *= s;
+      point.y *= s;
+    }
   }
-  const clamped = THREE.MathUtils.clamp(r, SAT_MIN_RADIUS, SAT_MAX_RADIUS);
-  const s = clamped / r;
-  point.x *= s;
-  point.y *= s;
   return point;
 }
 
 /**
- * Tiny low-poly GPS satellite: body + solar panels + dish stick.
+ * PNG satellite billboard (faces camera via parent quaternion).
  */
-function SatelliteMesh({ opacity }: { opacity: number }) {
-  const materials = useMemo(() => {
-    // Emissive so the sat pops even on the night side of Earth
-    const metal = new THREE.MeshStandardMaterial({
-      color: "#e8eef8",
-      emissive: "#b8c8e8",
-      emissiveIntensity: 0.45,
-      metalness: 0.4,
-      roughness: 0.4,
-      transparent: true,
-      opacity: 1,
-      depthWrite: true,
-    });
-    const panel = new THREE.MeshStandardMaterial({
-      color: "#4a7fc4",
-      emissive: "#1a3a6a",
-      emissiveIntensity: 0.35,
-      metalness: 0.15,
-      roughness: 0.45,
-      transparent: true,
-      opacity: 1,
-      depthWrite: true,
-    });
-    const accent = new THREE.MeshStandardMaterial({
-      color: "#ffffff",
-      emissive: "#d0e4ff",
-      emissiveIntensity: 0.55,
-      metalness: 0.1,
-      roughness: 0.35,
-      transparent: true,
-      opacity: 1,
-      depthWrite: true,
-    });
-    return { metal, panel, accent };
-  }, []);
+function SatelliteSprite({ opacity }: { opacity: number }) {
+  const map = useLoader(THREE.TextureLoader, SATELLITE_PNG);
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
 
   useEffect(() => {
-    return () => {
-      materials.metal.dispose();
-      materials.panel.dispose();
-      materials.accent.dispose();
-    };
-  }, [materials]);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 4;
+    map.needsUpdate = true;
+  }, [map]);
 
   useFrame(() => {
-    const { metal, panel, accent } = materials;
-    metal.opacity = opacity;
-    panel.opacity = opacity;
-    accent.opacity = opacity;
-    const dw = opacity > 0.95;
-    metal.depthWrite = dw;
-    panel.depthWrite = dw;
-    accent.depthWrite = dw;
+    if (matRef.current) {
+      matRef.current.opacity = opacity;
+    }
   });
 
-  // Large enough to read on a phone; grab sphere is even bigger
-  const s = 0.09;
+  // Keep aspect from the texture when we know it; fallback ~ square-ish craft
+  const img = map.image as { width?: number; height?: number } | undefined;
+  const aspect =
+    img?.width && img?.height ? img.width / img.height : 1.35;
+  const w = SAT_SPRITE_WIDTH;
+  const h = w / aspect;
 
   return (
-    <group scale={s}>
-      <mesh material={materials.metal}>
-        <boxGeometry args={[1.2, 0.7, 0.7]} />
-      </mesh>
-      <mesh position={[-1.15, 0, 0]} material={materials.panel}>
-        <boxGeometry args={[1.0, 0.08, 1.6]} />
-      </mesh>
-      <mesh position={[1.15, 0, 0]} material={materials.panel}>
-        <boxGeometry args={[1.0, 0.08, 1.6]} />
-      </mesh>
-      <mesh position={[0, 0.55, 0]} material={materials.accent}>
-        <cylinderGeometry args={[0.06, 0.06, 0.55, 6]} />
-      </mesh>
-      <mesh
-        position={[0, 0.9, 0]}
-        rotation={[Math.PI / 2, 0, 0]}
-        material={materials.accent}
-      >
-        <cylinderGeometry args={[0.28, 0.28, 0.06, 12]} />
-      </mesh>
-    </group>
+    <mesh>
+      <planeGeometry args={[w, h]} />
+      <meshBasicMaterial
+        ref={matRef}
+        map={map}
+        transparent
+        opacity={opacity}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+        toneMapped={false}
+      />
+    </mesh>
   );
 }
 
@@ -152,8 +124,8 @@ function OrbitRing({ opacity }: { opacity: number }) {
 
     const material = new THREE.LineDashedMaterial({
       color: 0xffffff,
-      dashSize: 0.045,
-      gapSize: 0.035,
+      dashSize: 0.04,
+      gapSize: 0.03,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -180,7 +152,8 @@ function OrbitRing({ opacity }: { opacity: number }) {
 }
 
 /**
- * Draggable satellite → snap to real GPS orbit on release.
+ * Free-drag satellite → on release, ease to the real GPS orbit.
+ * Earth and camera stay fixed the whole time.
  */
 export default function Satellite({ active, onSettled }: SatelliteProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -217,7 +190,7 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
       ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(ndc, camera);
       if (!raycaster.ray.intersectPlane(plane, hit)) return null;
-      return clampOnPlane(hit.clone());
+      return projectOnPlane(hit.clone());
     },
     [camera, gl.domElement, hit, ndc, plane, raycaster],
   );
@@ -227,7 +200,7 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
     draggingRef.current = false;
 
     const from = displayPos.current.clone();
-    // Keep angle; snap radius to real GPS height
+    // Keep the angle the user chose; set radius to the GPS orbit
     const angle = Math.atan2(from.y, from.x);
     const to = new THREE.Vector3(
       Math.cos(angle) * GPS_ORBIT_RADIUS,
@@ -237,7 +210,7 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
     snapRef.current = { from, to, t: 0 };
   }, []);
 
-  // Pointer listeners on the canvas while dragging (smooth + leaves mesh)
+  // Pointer move/up on the canvas so drag continues off the mesh
   useEffect(() => {
     if (!active) return;
     const el = gl.domElement;
@@ -292,14 +265,14 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
     const snap = snapRef.current;
     if (snap) {
       snap.t = Math.min(1, snap.t + dt / SNAP_DURATION);
-      const u = 1 - Math.pow(1 - snap.t, 3);
+      const u = easeInOutCubic(snap.t);
       displayPos.current.lerpVectors(snap.from, snap.to, u);
       targetPos.current.copy(displayPos.current);
 
       orbitOpacityRef.current = THREE.MathUtils.damp(
         orbitOpacityRef.current,
-        Math.min(1, snap.t * 1.4),
-        4,
+        Math.min(1, snap.t * 1.2),
+        3.0,
         dt,
       );
       setOrbitOpacity(orbitOpacityRef.current);
@@ -310,9 +283,10 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
         onSettled?.();
       }
     } else if (draggingRef.current) {
-      displayPos.current.lerp(targetPos.current, 1 - Math.exp(-14 * dt));
+      // Snappy follow while dragging — full free placement
+      displayPos.current.lerp(targetPos.current, 1 - Math.exp(-18 * dt));
     } else {
-      displayPos.current.lerp(targetPos.current, 1 - Math.exp(-10 * dt));
+      displayPos.current.lerp(targetPos.current, 1 - Math.exp(-12 * dt));
     }
 
     const g = groupRef.current;
@@ -332,31 +306,25 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
     }
   });
 
-  if (!active && opacity < 0.01) return null;
-
+  // Always stay mounted (opacity 0 while waiting) so texture load never
+  // remounts / suspends siblings like Earth.
   return (
-    <group>
+    <group visible={opacity > 0.01 || active}>
       <OrbitRing opacity={orbitOpacity} />
       <group ref={groupRef} position={[SAT_START.x, SAT_START.y, SAT_START.z]}>
-        <SatelliteMesh opacity={opacity} />
-        {/* Invisible grab sphere — easy touch target on mobile */}
-        <mesh onPointerDown={onPointerDown}>
-          <sphereGeometry args={[0.18, 16, 16]} />
+        <SatelliteSprite opacity={opacity} />
+        {/* Large invisible grab target — only while interactive */}
+        <mesh
+          onPointerDown={onPointerDown}
+          visible={false}
+          raycast={active && opacity > 0.5 ? undefined : () => {}}
+        >
+          <sphereGeometry args={[0.14, 16, 16]} />
           <meshBasicMaterial
             transparent
             opacity={0}
             depthWrite={false}
             side={THREE.DoubleSide}
-          />
-        </mesh>
-        {/* Soft glow halo so it reads as interactive */}
-        <mesh>
-          <sphereGeometry args={[0.1, 16, 16]} />
-          <meshBasicMaterial
-            color="#cfe0ff"
-            transparent
-            opacity={opacity * 0.28}
-            depthWrite={false}
           />
         </mesh>
       </group>
