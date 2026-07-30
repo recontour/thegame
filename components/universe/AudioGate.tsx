@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const AUDIO_SRC = "/universe/audio/landingsound.mp3";
+const AUDIO_SRC = "/universe/audio/newmain.mp3";
 
 type AudioGateProps = {
   /** Called once music has successfully started */
