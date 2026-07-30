@@ -91,9 +91,18 @@ function MoonSphere({
     matRef.current.opacity = opacity;
     matRef.current.transparent = opacity < 0.99;
     matRef.current.depthWrite = opacity > 0.95;
-    // Dim / cooler gray — a bit darker than the raw texture
-    // Grayed stays nearly opaque; slight cool tint only
-    matRef.current.color.set(grayed ? "#8a8a90" : "#9a9a9e");
+    // Grayed: keep muted. Confirmed: brighter map response + soft fill
+    if (grayed) {
+      matRef.current.color.set("#8a8a90");
+      matRef.current.emissive.set("#000000");
+      matRef.current.emissiveIntensity = 0;
+      matRef.current.roughness = 0.95;
+    } else {
+      matRef.current.color.set("#e8e8ec");
+      matRef.current.emissive.set("#3a3a42");
+      matRef.current.emissiveIntensity = 0.22;
+      matRef.current.roughness = 0.88;
+    }
   });
 
   return (
@@ -102,8 +111,8 @@ function MoonSphere({
       <meshStandardMaterial
         ref={matRef}
         map={map}
-        color="#9a9a9e"
-        roughness={0.95}
+        color="#e8e8ec"
+        roughness={0.88}
         metalness={0.02}
         transparent
         opacity={opacity}
