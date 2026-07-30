@@ -18,6 +18,7 @@ type EarthProps = {
 
 /**
  * Gentle spinning Earth — fades/scales in after the phone opening.
+ * (Solar beat uses HomeMarker instead of this globe.)
  */
 export default function Earth({ revealed = true }: EarthProps) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -50,7 +51,7 @@ export default function Earth({ revealed = true }: EarthProps) {
   });
 
   return (
-    <mesh ref={meshRef} scale={EARTH_RADIUS * 0.2} visible={true}>
+    <mesh ref={meshRef} scale={EARTH_RADIUS * 0.2} visible={true} renderOrder={2}>
       <sphereGeometry args={[1, 64, 64]} />
       <meshStandardMaterial
         ref={matRef}
@@ -59,6 +60,8 @@ export default function Earth({ revealed = true }: EarthProps) {
         metalness={0.05}
         transparent
         opacity={0}
+        depthTest
+        depthWrite
       />
     </mesh>
   );

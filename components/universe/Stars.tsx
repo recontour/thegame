@@ -5,16 +5,17 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 /**
- * One draw call of point sprites — thousands is still cheap on phones.
- * (Not a particle sim; just a static buffer + a group rotation.)
+ * Decorative backdrop only — not true-scale.
+ * Stars live behind the scene (negative Z) so they never paint over
+ * Earth / Moon / Sun.
  */
-const STAR_COUNT = 3200;
+const STAR_COUNT = 2200;
 
 /** Slow drift vs Earth — sky should lag, not race */
 const STAR_SPIN = 0.00012;
 
 /**
- * Starfield — denser points in a big sphere, gentle spin with Earth.
+ * Starfield — gimmicky sky, kept behind the action.
  */
 export default function Stars() {
   const groupRef = useRef<THREE.Group>(null);
@@ -23,14 +24,18 @@ export default function Stars() {
     const positions = new Float32Array(STAR_COUNT * 3);
 
     for (let i = 0; i < STAR_COUNT; i++) {
-      // Spread stars in a large sphere around the Earth
-      const r = 40 + Math.random() * 60;
-      const theta = Math.random() * 2 * Math.PI;
-      const phi = Math.acos(2 * Math.random() - 1);
+      // Shell behind the camera look direction (we look from +Z → origin)
+      const r = 50 + Math.random() * 90;
+      const u = Math.random();
+      const v = Math.random();
+      // Always negative Z so stars sit behind Earth / Sun, never on top
+      const z = -(0.35 + 0.65 * u) * r;
+      const rho = Math.sqrt(Math.max(0, r * r - z * z));
+      const a = v * 2 * Math.PI;
 
-      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = r * Math.cos(phi);
+      positions[i * 3] = rho * Math.cos(a);
+      positions[i * 3 + 1] = rho * Math.sin(a);
+      positions[i * 3 + 2] = z;
     }
 
     const geo = new THREE.BufferGeometry();
@@ -45,8 +50,9 @@ export default function Stars() {
         size: 0.14,
         sizeAttenuation: true,
         transparent: true,
-        opacity: 0.88,
+        opacity: 0.85,
         depthWrite: false,
+        depthTest: true,
       }),
     [],
   );
@@ -65,8 +71,13 @@ export default function Stars() {
   });
 
   return (
-    <group ref={groupRef}>
-      <points geometry={geometry} material={material} frustumCulled={false} />
+    <group ref={groupRef} renderOrder={-10}>
+      <points
+        geometry={geometry}
+        material={material}
+        frustumCulled={false}
+        renderOrder={-10}
+      />
     </group>
   );
 }

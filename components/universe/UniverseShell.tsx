@@ -6,10 +6,17 @@ import WebGLErrorBoundary from "@/components/WebGLErrorBoundary";
 import {
   CAMERA_FOV,
   CAMERA_Z,
+  CAMERA_Y_SUN_FRAME,
+  EARTH_SCREEN_BIAS,
+  HOME_SCREEN_BIAS,
   ZOOM_Z_MAX,
   ZOOM_Z_MIN,
   ZOOM_Z_MOON_FRAME,
   ZOOM_Z_STEP,
+  ZOOM_Z_SUN_FACTOR,
+  ZOOM_Z_SUN_FRAME,
+  ZOOM_Z_SUN_MAX,
+  ZOOM_Z_SUN_MIN,
 } from "@/components/universe/constants";
 import AudioGate from "@/components/universe/AudioGate";
 import CameraRig from "@/components/universe/CameraRig";
@@ -237,6 +244,74 @@ const UNIVERSE_LAYOUT_CSS = `
     white-space: nowrap;
   }
 
+  /* After Sun snaps — Home docks here (fixed screen pin, not 3D) */
+  .home-dock {
+    position: absolute;
+    left: 50%;
+    bottom: max(22px, env(safe-area-inset-bottom, 0px) + 14px);
+    transform: translateX(-50%);
+    z-index: 22;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.7s ease;
+  }
+
+  .home-dock.visible {
+    opacity: 1;
+  }
+
+  .home-dock-pin {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 35% 30%,
+      #f0f8ff 0%,
+      #7ec8ff 45%,
+      #2a7ad4 100%
+    );
+    box-shadow:
+      0 0 4px 1px rgba(140, 210, 255, 0.95),
+      0 0 10px 3px rgba(80, 160, 255, 0.65),
+      0 0 18px 6px rgba(50, 120, 255, 0.35);
+    animation: home-dock-pulse 1.8s ease-in-out infinite;
+  }
+
+  .home-dock-label {
+    color: rgba(180, 220, 255, 0.95);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-shadow:
+      0 0 6px rgba(80, 160, 255, 0.85),
+      0 0 14px rgba(60, 140, 255, 0.45);
+    line-height: 1;
+  }
+
+  @keyframes home-dock-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow:
+        0 0 4px 1px rgba(140, 210, 255, 0.9),
+        0 0 10px 3px rgba(80, 160, 255, 0.55),
+        0 0 16px 5px rgba(50, 120, 255, 0.28);
+    }
+    50% {
+      transform: scale(1.12);
+      box-shadow:
+        0 0 6px 2px rgba(160, 220, 255, 1),
+        0 0 14px 5px rgba(90, 170, 255, 0.75),
+        0 0 22px 8px rgba(60, 140, 255, 0.4);
+    }
+  }
+
   /* After GPS sat settles — fact + “Place the Moon” */
   .sat-bridge {
     position: absolute;
@@ -305,6 +380,13 @@ const ZOOM_FIRST_FINEPRINT =
   "Once you hit Confirm, you can drag the Moon into place.";
 const MOON_NEXT_TEXT =
   "Now that you've felt the real distance\nbetween Earth and the Moon…\nWould you like to keep going outward,\nor shall we talk about light?\nLight travels 299,792 km every second.\nEven that number becomes strange\nonce you start looking closely.";
+const SUN_ZOOM_FIRST_TEXT =
+  "Now for the Sun.\nZoom out a bit, then Confirm.";
+const SUN_ZOOM_FIRST_FINEPRINT =
+  "Once you hit Confirm, you can drag the Sun into place.";
+const SUN_FAR_ENOUGH_TEXT =
+  "Okay, that's far enough.\nHome is that tiny blue pin.";
+const SUN_PLACE_TEXT = "Drag the Sun where you think it belongs.";
 
 function PromptMessage({
   visible,
@@ -369,6 +451,17 @@ export default function UniverseShell() {
   const [moonNextVisible, setMoonNextVisible] = useState(false);
   /** They yeeted the Moon past real distance before the snap */
   const [moonSmartAss, setMoonSmartAss] = useState(false);
+
+  /** Solar System branch — true-scale Sun park → drag → 1 AU snap */
+  const [sunPhase, setSunPhase] = useState(false);
+  const [sunVisible, setSunVisible] = useState(false);
+  const [sunInteractive, setSunInteractive] = useState(false);
+  const [sunPromptVisible, setSunPromptVisible] = useState(false);
+  const [sunLabelVisible, setSunLabelVisible] = useState(false);
+  const [sunSmartAss, setSunSmartAss] = useState(false);
+  /** After place — Home leaves 3D and docks to the bottom of the phone */
+  const [sunHomeDocked, setSunHomeDocked] = useState(false);
+
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
   const handleAudioUnlocked = useCallback(() => {
@@ -420,6 +513,18 @@ export default function UniverseShell() {
   }, []);
 
   const handleZoomOut = useCallback(() => {
+    if (sunPhase) {
+      // Multiplicative 2× zoom-out — clear shrink, not a teleport
+      setCameraZ((z) => {
+        const next = Math.min(ZOOM_Z_SUN_MAX, z * ZOOM_Z_SUN_FACTOR);
+        if (next >= ZOOM_Z_SUN_MAX - 0.001) {
+          setFarEnoughVisible(true);
+          setZoomFirstVisible(false);
+        }
+        return next;
+      });
+      return;
+    }
     setCameraZ((z) => {
       const next = Math.min(ZOOM_Z_MAX, z + ZOOM_Z_STEP);
       if (next >= ZOOM_Z_MAX - 0.001) {
@@ -428,26 +533,42 @@ export default function UniverseShell() {
       }
       return next;
     });
-  }, []);
+  }, [sunPhase]);
 
   const handleZoomIn = useCallback(() => {
+    if (sunPhase) {
+      setFarEnoughVisible(false);
+      setZoomFirstVisible(true);
+      setCameraZ((z) => Math.max(ZOOM_Z_SUN_MIN, z / ZOOM_Z_SUN_FACTOR));
+      return;
+    }
     setFarEnoughVisible(false);
     setZoomFirstVisible(true);
     setCameraZ((z) => Math.max(ZOOM_Z_MIN, z - ZOOM_Z_STEP));
-  }, []);
+  }, [sunPhase]);
 
   const handleConfirm = useCallback(() => {
     setZoomControlsVisible(false);
     setFarEnoughVisible(false);
     setZoomFirstVisible(false);
     setConfirmHintNudgeKey(0);
+    if (sunPhase) {
+      setSunPromptVisible(false);
+      setSunInteractive(true);
+      window.setTimeout(() => setSunPromptVisible(true), 200);
+      return;
+    }
     setMoonPromptVisible(false);
     setMoonInteractive(true);
     window.setTimeout(() => setMoonPromptVisible(true), 200);
-  }, []);
+  }, [sunPhase]);
 
   const handleMoonGrayedTap = useCallback(() => {
     // Soft brightness flash only — no size change (keeps layout/WebGL smooth)
+    setConfirmHintNudgeKey((k) => k + 1);
+  }, []);
+
+  const handleSunGrayedTap = useCallback(() => {
     setConfirmHintNudgeKey((k) => k + 1);
   }, []);
 
@@ -462,34 +583,83 @@ export default function UniverseShell() {
     window.setTimeout(() => setMoonLabelVisible(true), 200);
   }, []);
 
+  /** Sun flies to 1 AU; Home docks bottom; camera reframes mid-gap */
+  const handleSunSnapStart = useCallback(() => {
+    setSunPromptVisible(false);
+    setSunHomeDocked(true);
+    setCameraZ(ZOOM_Z_SUN_FRAME);
+  }, []);
+
+  const handleSunSettled = useCallback((info: { smartAss: boolean }) => {
+    setSunSmartAss(info.smartAss);
+    window.setTimeout(() => setSunLabelVisible(true), 280);
+  }, []);
+
   /** After the moon distance label lands, wait 5s then offer next branch */
   useEffect(() => {
-    if (!moonLabelVisible) return;
-    const t = window.setTimeout(() => setMoonNextVisible(true), 5000);
+    if (!moonLabelVisible || sunPhase) return;
+    const t = window.setTimeout(() => setMoonNextVisible(true), 1700);
     return () => window.clearTimeout(t);
-  }, [moonLabelVisible]);
+  }, [moonLabelVisible, sunPhase]);
 
+  /** “Explore the Solar System ?” — Earth vs Sun only; clear moon/sat clutter */
   const handleExploreSolarSystem = useCallback(() => {
-    // Branch reserved for solar-system exploration
+    setMoonNextVisible(false);
+    setMoonLabelVisible(false);
+    // Drop orbit lesson pieces — invisible / irrelevant at solar scale
+    setMoonVisible(false);
+    setMoonInteractive(false);
+    setMoonPromptVisible(false);
+    setSatelliteActive(false);
+    setSunPhase(true);
+    setSunVisible(true);
+    setSunInteractive(false);
+    setSunPromptVisible(false);
+    setSunLabelVisible(false);
+    setSunHomeDocked(false);
+    setFarEnoughVisible(false);
+    setZoomFirstVisible(true);
+    setZoomControlsVisible(true);
+    setConfirmHintNudgeKey(0);
+    // Close readable frame: Home pin + grayed Sun
+    setCameraZ(ZOOM_Z_SUN_MIN);
   }, []);
 
   const handleTellAboutLight = useCallback(() => {
     // Branch reserved for light / speed-of-light path
   }, []);
 
-  const canZoomOut = cameraZ < ZOOM_Z_MAX - 0.001;
-  const canZoomIn = cameraZ > ZOOM_Z_MIN + 0.001;
+  const zoomMin = sunPhase ? ZOOM_Z_SUN_MIN : ZOOM_Z_MIN;
+  const zoomMax = sunPhase ? ZOOM_Z_SUN_MAX : ZOOM_Z_MAX;
+  const canZoomOut = cameraZ < zoomMax - 0.001;
+  const canZoomIn = cameraZ > zoomMin + 0.001;
 
-  // Top copy during moon beat: place prompt, or the zoom-out lock line
-  const moonTopCopy = moonInteractive
-    ? MOON_PLACE_TEXT
-    : farEnoughVisible
-      ? FAR_ENOUGH_TEXT
-      : "";
+  // Top copy: moon beat or sun beat
+  const phaseTopCopy = sunPhase
+    ? sunInteractive
+      ? SUN_PLACE_TEXT
+      : farEnoughVisible
+        ? SUN_FAR_ENOUGH_TEXT
+        : ""
+    : moonInteractive
+      ? MOON_PLACE_TEXT
+      : farEnoughVisible
+        ? FAR_ENOUGH_TEXT
+        : "";
 
-  const showMoonTopPrompt =
-    (moonPhase && farEnoughVisible && !moonInteractive) ||
-    (moonPhase && moonPromptVisible && moonInteractive && moonTopCopy.length > 0);
+  const showPhaseTopPrompt = sunPhase
+    ? (farEnoughVisible && !sunInteractive) ||
+      (sunPromptVisible && sunInteractive && phaseTopCopy.length > 0)
+    : (moonPhase && farEnoughVisible && !moonInteractive) ||
+      (moonPhase &&
+        moonPromptVisible &&
+        moonInteractive &&
+        phaseTopCopy.length > 0);
+
+  const zoomMidTitle = sunPhase ? SUN_ZOOM_FIRST_TEXT : ZOOM_FIRST_TEXT;
+  const zoomMidFineprint = sunPhase
+    ? SUN_ZOOM_FIRST_FINEPRINT
+    : ZOOM_FIRST_FINEPRINT;
 
   useEffect(() => {
     const el = stageRef.current;
@@ -514,7 +684,7 @@ export default function UniverseShell() {
               camera={{
                 fov: CAMERA_FOV,
                 near: 0.1,
-                far: 5000,
+                far: 100000,
                 position: [0, 0, CAMERA_Z],
               }}
               style={{ background: "#000000" }}
@@ -526,7 +696,17 @@ export default function UniverseShell() {
               <ambientLight intensity={1.55} />
               <directionalLight intensity={3.0} position={[5, 3, 5]} />
               <Stars />
-              <CameraRig targetZ={cameraZ} />
+              <CameraRig
+                targetZ={cameraZ}
+                targetY={sunHomeDocked ? CAMERA_Y_SUN_FRAME : 0}
+                screenBias={
+                  sunHomeDocked
+                    ? 0.22
+                    : sunPhase
+                      ? HOME_SCREEN_BIAS
+                      : EARTH_SCREEN_BIAS
+                }
+              />
               {audioReady && openingActive && !openingReveal && (
                 <Suspense fallback={null}>
                   <OpeningPhone
@@ -545,9 +725,26 @@ export default function UniverseShell() {
                 onMoonSnapStart={handleMoonSnapStart}
                 onMoonSettled={handleMoonSettled}
                 onMoonGrayedTap={handleMoonGrayedTap}
+                sunMode={sunPhase}
+                sunHomeDocked={sunHomeDocked}
+                sunVisible={sunVisible}
+                sunInteractive={sunInteractive}
+                sunParkCameraZ={cameraZ}
+                onSunSnapStart={handleSunSnapStart}
+                onSunSettled={handleSunSettled}
+                onSunGrayedTap={handleSunGrayedTap}
               />
             </Canvas>
           </WebGLErrorBoundary>
+
+          {/* After place: Home is a fixed bottom pin (not stuck mid-scene) */}
+          <div
+            className={`home-dock${sunHomeDocked ? " visible" : ""}`}
+            aria-hidden={!sunHomeDocked}
+          >
+            <div className="home-dock-pin" />
+            <span className="home-dock-label">Home</span>
+          </div>
 
           {/* Always mounted — unmounting would stop the looping <audio> */}
           <AudioGate onUnlocked={handleAudioUnlocked} />
@@ -592,9 +789,12 @@ export default function UniverseShell() {
             onContinue={handleMoonIntroContinue}
           />
           <PromptMessage
-            visible={showMoonTopPrompt}
-            text={moonTopCopy}
-            far={farEnoughVisible && !moonInteractive}
+            visible={showPhaseTopPrompt}
+            text={phaseTopCopy}
+            far={
+              farEnoughVisible &&
+              (sunPhase ? !sunInteractive : !moonInteractive)
+            }
           />
           <div
             className={`universe-orbit-label moon-label${
@@ -612,6 +812,20 @@ export default function UniverseShell() {
               className={`moon-next-copy${moonNextVisible ? " visible" : ""}`}
             >
               {MOON_NEXT_TEXT}
+            </span>
+          </div>
+          <div
+            className={`universe-orbit-label moon-label sun-label${
+              sunLabelVisible ? " visible" : ""
+            }`}
+          >
+            {sunSmartAss
+              ? "That's past the Kuiper belt. Ambitious."
+              : "The Sun is much farther than it feels."}
+            <span className="moon-label-sub">
+              About 150 million km (1 AU). Size is simplified so you can see
+              it — real Sun is ~109× Earth’s width. Distance here is true for
+              this scale (~215 Sun-widths from Home).
             </span>
           </div>
           <div
@@ -641,8 +855,8 @@ export default function UniverseShell() {
             canZoomOut={canZoomOut}
             showMidCopy={zoomFirstVisible && !farEnoughVisible}
             fineprintNudgeKey={confirmHintNudgeKey}
-            midTitle={ZOOM_FIRST_TEXT}
-            midFineprint={ZOOM_FIRST_FINEPRINT}
+            midTitle={zoomMidTitle}
+            midFineprint={zoomMidFineprint}
             onZoomIn={handleZoomIn}
             onZoomOut={handleZoomOut}
             onConfirm={handleConfirm}
