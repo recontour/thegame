@@ -121,8 +121,10 @@ const UNIVERSE_LAYOUT_CSS = `
     white-space: pre-line;
     text-shadow: 0 0 18px rgba(180, 210, 255, 0.35);
     opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 1.4s ease, transform 1.4s ease;
+    transform: translateY(12px);
+    transition:
+      opacity 1.65s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.65s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .universe-message.prompt-text {
@@ -503,13 +505,19 @@ export default function UniverseShell() {
     setMoonIntroVisible(true);
   }, []);
 
-  /** “Okay, let’s try.” — start zoom + grayed Moon beat */
+  /**
+   * “Okay, let’s try.” — overlay already faded out (MoonIntro waits ~900ms).
+   * Soft-start the grayed Moon beat.
+   */
   const handleMoonIntroContinue = useCallback(() => {
     setMoonIntroVisible(false);
     setMoonPhase(true);
     setMoonVisible(true);
-    setZoomControlsVisible(true);
-    setZoomFirstVisible(true);
+    // Tiny beat so the overlay unmount doesn’t clash with zoom UI fade-in
+    window.setTimeout(() => {
+      setZoomControlsVisible(true);
+      setZoomFirstVisible(true);
+    }, 180);
   }, []);
 
   const handleZoomOut = useCallback(() => {

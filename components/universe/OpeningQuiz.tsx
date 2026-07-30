@@ -94,15 +94,15 @@ export default function OpeningQuiz({
   useEffect(() => {
     if (!active) return;
 
-    const factIn = window.setTimeout(() => setFactVisible(true), 500);
-    const questionIn = window.setTimeout(() => {
-      setQuestionVisible(true);
-      setOptionsVisible(true);
-    }, 2800);
+    // Gentle cascade: fact → pause → question + options
+    const factIn = window.setTimeout(() => setFactVisible(true), 650);
+    const questionIn = window.setTimeout(() => setQuestionVisible(true), 2400);
+    const optionsIn = window.setTimeout(() => setOptionsVisible(true), 3100);
 
     return () => {
       clearTimeout(factIn);
       clearTimeout(questionIn);
+      clearTimeout(optionsIn);
     };
   }, [active]);
 
@@ -143,19 +143,24 @@ export default function OpeningQuiz({
     setQuestionVisible(false);
     setOptionsVisible(false);
 
+    // Wait for quiz fade (~1.15s) before mounting the result card
     window.setTimeout(() => {
       setPhase("reveal");
       onRevealPhase?.(true);
-      window.setTimeout(() => setRevealVisible(true), 80);
-    }, 550);
+      // Double frame so .opening-reveal paints at opacity 0 first
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => setRevealVisible(true));
+      });
+    }, 1100);
   };
 
   const handleContinue = () => {
     setRevealVisible(false);
+    // Match reveal exit easing before satellite beat starts
     window.setTimeout(() => {
       onRevealPhase?.(false);
       onContinue();
-    }, 400);
+    }, 900);
   };
 
   if (!active) return null;

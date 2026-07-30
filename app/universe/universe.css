@@ -1,4 +1,4 @@
-/* Moon intro overlay — airy vertical rhythm, equal section spacing */
+/* Moon intro overlay — soft cinematic enter/exit */
 .moon-intro-overlay {
   position: absolute;
   inset: 0;
@@ -11,11 +11,29 @@
     calc(28px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  pointer-events: auto;
+  backdrop-filter: blur(0);
+  -webkit-backdrop-filter: blur(0);
+  pointer-events: none;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  opacity: 0;
+  transition:
+    opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    backdrop-filter 0.9s ease;
+}
+
+.moon-intro-overlay.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.moon-intro-overlay.is-exiting {
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(0);
+  -webkit-backdrop-filter: blur(0);
 }
 
 .moon-intro-card {
@@ -31,6 +49,24 @@
   margin: auto;
   padding: clamp(8px, 1.5vh, 16px) 0;
   box-sizing: border-box;
+  opacity: 0;
+  transform: translateY(18px) scale(0.97);
+  transition:
+    opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.08s,
+    transform 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.08s;
+}
+
+.moon-intro-overlay.is-visible .moon-intro-card {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.moon-intro-overlay.is-exiting .moon-intro-card {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transition:
+    opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .moon-intro-copy {
@@ -427,7 +463,8 @@
     max(8%, var(--universe-mute-clear))
     calc(50px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  transition: opacity 0.9s ease;
+  opacity: 1;
+  transition: opacity 1.15s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .opening-quiz.fading {
@@ -442,6 +479,7 @@
   gap: 0;
   width: min(92%, 340px);
   flex-shrink: 0;
+  transition: gap 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .opening-quiz-copy-stack.has-question {
@@ -471,10 +509,10 @@
   max-width: 300px;
   flex-shrink: 0;
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(14px);
   transition:
-    opacity 1s ease,
-    transform 1s ease;
+    opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1.2s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
 
@@ -482,6 +520,41 @@
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+}
+
+/* Stagger option chips so the grid doesn’t pop in as a block */
+.opening-quiz-options .ctrl-btn.option {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.opening-quiz-options.visible .ctrl-btn.option {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.opening-quiz-options.visible .ctrl-btn.option:nth-child(1) {
+  transition-delay: 0.05s;
+}
+.opening-quiz-options.visible .ctrl-btn.option:nth-child(2) {
+  transition-delay: 0.14s;
+}
+.opening-quiz-options.visible .ctrl-btn.option:nth-child(3) {
+  transition-delay: 0.23s;
+}
+.opening-quiz-options.visible .ctrl-btn.option:nth-child(4) {
+  transition-delay: 0.32s;
+}
+
+.opening-quiz-options .ctrl-btn.option:disabled:not(.selected) {
+  /* Keep stagger-in opacity; only mute after a pick via parent fade */
+  opacity: 1;
 }
 
 /* ── Answer reveal after a guess ───────────────────────────────── */
@@ -500,17 +573,18 @@
   box-sizing: border-box;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  pointer-events: auto;
+  pointer-events: none;
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(16px);
   transition:
-    opacity 0.7s ease,
-    transform 0.7s ease;
+    opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .opening-reveal.visible {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .opening-reveal-main {
@@ -520,6 +594,16 @@
   gap: 14px;
   width: min(100%, 340px);
   text-align: center;
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s,
+    transform 1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s;
+}
+
+.opening-reveal.visible .opening-reveal-main {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .opening-reveal-hero {
@@ -568,6 +652,16 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 1s cubic-bezier(0.22, 1, 0.36, 1) 0.32s,
+    transform 1s cubic-bezier(0.22, 1, 0.36, 1) 0.32s;
+}
+
+.opening-reveal.visible .opening-reveal-rest {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .opening-reveal-rest-item {
@@ -622,5 +716,18 @@
 .opening-reveal-cta {
   margin-top: auto;
   width: min(100%, 300px);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.55s,
+    transform 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.55s,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.opening-reveal.visible .opening-reveal-cta {
+  opacity: 1;
+  transform: translateY(0);
   pointer-events: auto;
 }
