@@ -20,9 +20,9 @@ import {
 } from "@/components/universe/constants";
 import AudioGate from "@/components/universe/AudioGate";
 import CameraRig from "@/components/universe/CameraRig";
-import MoonIntroOverlay from "@/components/universe/MoonIntroOverlay";
 import OpeningPhone from "@/components/universe/OpeningPhone";
 import OpeningQuiz from "@/components/universe/OpeningQuiz";
+import PhotoSheetOverlay from "@/components/universe/PhotoSheetOverlay";
 import PlanetStage from "@/components/universe/PlanetStage";
 import Stars from "@/components/universe/Stars";
 import ZoomControls from "@/components/universe/ZoomControls";
@@ -96,30 +96,23 @@ const UNIVERSE_LAYOUT_CSS = `
     justify-content: center;
     pointer-events: none;
     z-index: 10;
-    /* 50px top + side clear for mute button */
-    padding: var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px)))
-      max(8%, var(--universe-mute-clear, 52px)) 0;
+    /* Shared side gutter — mute clear is top-only, not side margin */
+    padding: var(--universe-top-pad, calc(10dvh + env(safe-area-inset-top, 0px)))
+      var(--universe-side-pad, 20px) 0;
   }
 
   .universe-ui.bottom {
     top: auto;
     bottom: 0;
     align-items: flex-end;
-    padding: 0 max(8%, var(--universe-mute-clear, 52px))
-      calc(28px + env(safe-area-inset-bottom, 0px));
+    padding: 0 var(--universe-side-pad, 20px)
+      calc(4dvh + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Animation shell only — type via .u-h1 / .u-p1 */
   .universe-message {
-    color: #f0f4ff;
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(1.15rem, 4.2vw, 1.65rem);
-    font-weight: 300;
-    letter-spacing: 0.04em;
-    text-align: center;
-    max-width: 90%;
-    line-height: 1.45;
+    max-width: 100%;
     white-space: pre-line;
-    text-shadow: 0 0 18px rgba(180, 210, 255, 0.35);
     opacity: 0;
     transform: translateY(12px);
     transition:
@@ -127,13 +120,7 @@ const UNIVERSE_LAYOUT_CSS = `
       transform 1.65s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .universe-message.prompt-text {
-    font-size: clamp(0.95rem, 3.5vw, 1.2rem);
-    letter-spacing: 0.03em;
-  }
-
   .universe-message.far-text {
-    font-size: clamp(0.9rem, 3.3vw, 1.1rem);
     color: #c8d6f0;
   }
 
@@ -144,22 +131,19 @@ const UNIVERSE_LAYOUT_CSS = `
 
   .universe-orbit-label {
     position: absolute;
-    left: 50%;
+    left: 0;
+    right: 0;
     top: 62%;
-    transform: translate(-50%, 0);
+    transform: none;
     z-index: 11;
     pointer-events: none;
-    color: rgba(240, 244, 255, 0.88);
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(0.95rem, 3.4vw, 1.15rem);
-    font-weight: 400;
-    letter-spacing: 0.03em;
     text-align: center;
-    text-shadow: 0 0 14px rgba(180, 210, 255, 0.35);
     opacity: 0;
     transition: opacity 1.2s ease;
-    max-width: 88%;
-    line-height: 1.4;
+    width: 100%;
+    max-width: 100%;
+    padding: 0 var(--universe-side-pad, 20px);
+    box-sizing: border-box;
   }
 
   .universe-orbit-label.visible {
@@ -169,21 +153,15 @@ const UNIVERSE_LAYOUT_CSS = `
   .universe-orbit-label.moon-label {
     /* Between Moon (high) and Earth (lower third) — not glued to the disc */
     top: 32%;
-    /* Edge-hugging copy — only a few px from the sides */
-    max-width: 100%;
-    width: 100%;
-    padding: 0 4px;
-    box-sizing: border-box;
+  }
+
+  .universe-orbit-label .moon-label-lead {
+    display: block;
   }
 
   .universe-orbit-label .moon-label-sub {
     display: block;
     margin-top: 8px;
-    font-size: clamp(0.85rem, 3.1vw, 1rem);
-    font-weight: 300;
-    letter-spacing: 0.02em;
-    color: rgba(220, 230, 250, 0.82);
-    line-height: 1.45;
   }
 
   /* After “Farther than it looks” — next branch copy under the label */
@@ -192,13 +170,7 @@ const UNIVERSE_LAYOUT_CSS = `
     margin-top: 0;
     max-height: 0;
     overflow: hidden;
-    font-size: clamp(0.85rem, 3.1vw, 1rem);
-    font-weight: 300;
-    letter-spacing: 0.02em;
-    color: rgba(230, 238, 255, 0.9);
-    line-height: 1.5;
     white-space: pre-line;
-    text-shadow: 0 0 14px rgba(180, 210, 255, 0.28);
     opacity: 0;
     transform: translateY(10px);
     transition:
@@ -226,8 +198,8 @@ const UNIVERSE_LAYOUT_CSS = `
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    width: min(92%, 300px);
-    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    width: min(100%, 300px);
+    max-width: calc(100% - 2 * var(--universe-side-pad, 20px));
     pointer-events: none;
     opacity: 0;
     transition: opacity 1s ease, transform 1s ease;
@@ -249,11 +221,12 @@ const UNIVERSE_LAYOUT_CSS = `
   /* Light lesson — copy sits mid-upper so the Moon isn’t covered */
   .light-story {
     position: absolute;
-    left: 50%;
+    left: 0;
+    right: 0;
     top: 0;
-    transform: translateX(-50%);
-    width: min(94%, 340px);
-    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    transform: none;
+    width: 100%;
+    max-width: 100%;
     z-index: 22;
     display: flex;
     flex-direction: column;
@@ -261,8 +234,8 @@ const UNIVERSE_LAYOUT_CSS = `
     gap: 14px;
     /* Push past the Moon band (Moon sits high on the column) */
     padding:
-      calc(var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px))) + 12vh)
-      6px 0;
+      calc(var(--universe-top-pad, calc(10dvh + env(safe-area-inset-top, 0px))) + 12vh)
+      var(--universe-side-pad, 20px) 0;
     pointer-events: none;
     box-sizing: border-box;
     text-align: center;
@@ -291,11 +264,8 @@ const UNIVERSE_LAYOUT_CSS = `
   }
 
   .light-story-title {
-    margin: 0;
+    /* .u-h1 + section accent */
     color: #f5f0e4;
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(1.35rem, 5vw, 1.7rem);
-    font-weight: 500;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     text-shadow: 0 0 20px rgba(255, 210, 120, 0.35);
@@ -307,15 +277,7 @@ const UNIVERSE_LAYOUT_CSS = `
   }
 
   .light-story-line {
-    margin: 0;
-    color: rgba(240, 244, 255, 0.92);
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(0.9rem, 3.3vw, 1.08rem);
-    font-weight: 300;
-    letter-spacing: 0.02em;
-    line-height: 1.55;
     max-width: 32em;
-    text-shadow: 0 0 14px rgba(180, 210, 255, 0.25);
     opacity: 0;
     transform: translateY(12px);
     transition:
@@ -325,7 +287,6 @@ const UNIVERSE_LAYOUT_CSS = `
 
   .light-story-line.arrive {
     color: rgba(255, 255, 255, 0.96);
-    text-shadow: 0 0 14px rgba(200, 220, 255, 0.3);
   }
 
   .light-story .is-on {
@@ -333,20 +294,51 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translateY(0);
   }
 
-  .light-story-show-btn {
+  /* Show me — solid rise-in (same as sat-bridge / Our solar system CTAs) */
+  .ctrl-btn.light-story-show-btn {
     margin-top: 6px;
     pointer-events: none;
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(16px);
+    background: linear-gradient(145deg, #1e2a3a, #151d28);
+    border: 1px solid rgba(160, 190, 255, 0.15);
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.45),
+      -2px -2px 6px rgba(80, 120, 180, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 0 14px rgba(120, 170, 255, 0.12);
+    color: #e8f0ff;
+    cursor: default;
     transition:
-      opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 0.95s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.15s ease;
   }
 
-  .light-story-show-btn.is-on {
+  .ctrl-btn.light-story-show-btn.is-on {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .ctrl-btn.light-story-show-btn:disabled {
+    opacity: 0;
+    background: linear-gradient(145deg, #1e2a3a, #151d28);
+    border: 1px solid rgba(160, 190, 255, 0.15);
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.45),
+      -2px -2px 6px rgba(80, 120, 180, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 0 14px rgba(120, 170, 255, 0.12);
+    color: #e8f0ff;
+    cursor: default;
+    transform: translateY(16px);
+  }
+
+  .ctrl-btn.light-story-show-btn.is-on:disabled {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   /*
@@ -360,13 +352,9 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translate(-50%, 0);
     z-index: 22;
     pointer-events: none;
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(1.15rem, 4.5vw, 1.45rem);
-    font-weight: 400;
+    /* .u-h1 + tabular timer */
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.92);
-    text-shadow: 0 0 16px rgba(180, 210, 255, 0.4);
     opacity: 0;
     transition: opacity 0.5s ease;
   }
@@ -381,8 +369,8 @@ const UNIVERSE_LAYOUT_CSS = `
     bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
     transform: translateX(-50%) translateY(10px);
     z-index: 23;
-    width: min(92%, 300px);
-    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    width: min(100%, 300px);
+    max-width: calc(100% - 2 * var(--universe-side-pad, 20px));
     pointer-events: none;
     opacity: 0;
     transition:
@@ -404,11 +392,12 @@ const UNIVERSE_LAYOUT_CSS = `
   /* Post-sun shared reveal + path branch (same top push as light story) */
   .sun-reveal {
     position: absolute;
-    left: 50%;
+    left: 0;
+    right: 0;
     top: 0;
-    transform: translateX(-50%);
-    width: min(94%, 340px);
-    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    transform: none;
+    width: 100%;
+    max-width: 100%;
     z-index: 22;
     display: flex;
     flex-direction: column;
@@ -416,8 +405,8 @@ const UNIVERSE_LAYOUT_CSS = `
     gap: 14px;
     /* Clear the Sun disc — same offset as light beam copy */
     padding:
-      calc(var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px))) + 12vh)
-      6px 0;
+      calc(var(--universe-top-pad, calc(10dvh + env(safe-area-inset-top, 0px))) + 12vh)
+      var(--universe-side-pad, 20px) 0;
     pointer-events: none;
     box-sizing: border-box;
     text-align: center;
@@ -430,15 +419,7 @@ const UNIVERSE_LAYOUT_CSS = `
   }
 
   .sun-reveal-line {
-    margin: 0;
-    color: rgba(240, 244, 255, 0.92);
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(0.9rem, 3.3vw, 1.08rem);
-    font-weight: 300;
-    letter-spacing: 0.02em;
-    line-height: 1.55;
     max-width: 32em;
-    text-shadow: 0 0 14px rgba(180, 210, 255, 0.25);
     opacity: 0;
     transform: translateY(12px);
     transition:
@@ -451,21 +432,52 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translateY(0);
   }
 
-  .sun-reveal-cta {
+  /* Same solid rise-in as sat-bridge CTAs / Distance in light */
+  .ctrl-btn.sun-reveal-cta {
     margin-top: 8px;
     width: min(100%, 280px);
     pointer-events: none;
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(16px);
+    background: linear-gradient(145deg, #1e2a3a, #151d28);
+    border: 1px solid rgba(160, 190, 255, 0.15);
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.45),
+      -2px -2px 6px rgba(80, 120, 180, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 0 14px rgba(120, 170, 255, 0.12);
+    color: #e8f0ff;
+    cursor: default;
     transition:
-      opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 0.95s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.15s ease;
   }
 
-  .sun-reveal-cta.is-on {
+  .ctrl-btn.sun-reveal-cta.is-on {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .ctrl-btn.sun-reveal-cta:disabled {
+    opacity: 0;
+    background: linear-gradient(145deg, #1e2a3a, #151d28);
+    border: 1px solid rgba(160, 190, 255, 0.15);
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.45),
+      -2px -2px 6px rgba(80, 120, 180, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 0 14px rgba(120, 170, 255, 0.12);
+    color: #e8f0ff;
+    cursor: default;
+    transform: translateY(16px);
+  }
+
+  .ctrl-btn.sun-reveal-cta.is-on:disabled {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   /* After Sun snaps — Home docks here (fixed screen pin, not 3D) */
@@ -507,7 +519,7 @@ const UNIVERSE_LAYOUT_CSS = `
 
   .home-dock-label {
     color: rgba(180, 220, 255, 0.95);
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family: var(--font-u-btn), "Inter", system-ui, sans-serif;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.16em;
@@ -536,40 +548,53 @@ const UNIVERSE_LAYOUT_CSS = `
     }
   }
 
-  /* After GPS sat settles — fact + “Place the Moon” */
+  /*
+   * Earth + sat stage copy band:
+   * fills top → just above satellite/Earth, content vertically centered
+   * so GPS / lie / try-yourself steps share the same layout.
+   */
   .sat-bridge {
     position: absolute;
-    left: 50%;
+    left: 0;
+    right: 0;
     top: 0;
-    transform: translateX(-50%);
-    width: min(92%, 300px);
-    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    /* Lower ~42% reserved for globe + sat orbit */
+    bottom: 42%;
     z-index: 20;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 18px;
-    padding: var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px)))
-      8px 0;
+    justify-content: center;
+    padding:
+      var(--universe-top-pad, calc(10dvh + env(safe-area-inset-top, 0px)))
+      var(--universe-side-pad, 20px)
+      12px;
     pointer-events: none;
     box-sizing: border-box;
   }
 
-  .sat-bridge-copy {
-    margin: 0;
+  /* One active step stack — only this participates in centering */
+  .sat-bridge-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
     width: 100%;
-    color: #f0f4ff;
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: clamp(0.95rem, 3.5vw, 1.2rem);
-    font-weight: 300;
-    letter-spacing: 0.03em;
-    line-height: 1.45;
-    text-align: center;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0;
+  }
+
+  .sat-bridge-copy {
+    width: 100%;
     white-space: pre-line;
-    text-shadow: 0 0 16px rgba(180, 210, 255, 0.3);
     opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 1.1s ease, transform 1.1s ease;
+    transform: translateY(14px);
+    transition:
+      opacity 1.15s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.15s cubic-bezier(0.22, 1, 0.36, 1);
+    box-sizing: border-box;
   }
 
   .sat-bridge-copy.visible {
@@ -577,16 +602,96 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translateY(0);
   }
 
-  .sat-bridge-cta {
-    pointer-events: auto;
+  /*
+   * Stage CTAs — solid look the whole time; only opacity + rise.
+   * (Don’t use :disabled gray during entrance or they flash transparent.)
+   */
+  .ctrl-btn.sat-bridge-cta {
+    pointer-events: none;
     opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 1s ease, transform 1s ease;
+    transform: translateY(16px);
+    max-width: min(100%, 300px);
+    width: auto;
+    padding-left: 18px;
+    padding-right: 18px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+    height: auto;
+    min-height: 52px;
+    /* Keep full solid chrome even while hidden / :disabled */
+    background: linear-gradient(145deg, #1e2a3a, #151d28);
+    border: 1px solid rgba(160, 190, 255, 0.15);
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.45),
+      -2px -2px 6px rgba(80, 120, 180, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 0 14px rgba(120, 170, 255, 0.12);
+    color: #e8f0ff;
+    cursor: default;
+    transition:
+      opacity 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.15s ease;
   }
 
-  .sat-bridge-cta.visible {
+  .ctrl-btn.sat-bridge-cta.visible {
     opacity: 1;
     transform: translateY(0);
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  /* Beat the global .ctrl-btn:disabled { opacity: 0.35 } while waiting to appear */
+  .ctrl-btn.sat-bridge-cta:disabled {
+    opacity: 0;
+    background: linear-gradient(145deg, #1e2a3a, #151d28);
+    border: 1px solid rgba(160, 190, 255, 0.15);
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.45),
+      -2px -2px 6px rgba(80, 120, 180, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 0 14px rgba(120, 170, 255, 0.12);
+    color: #e8f0ff;
+    cursor: default;
+    transform: translateY(16px);
+  }
+
+  .ctrl-btn.sat-bridge-cta.visible:disabled {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* “Wonder…?” — type via .u-p1; same rise as copy */
+  .sat-bridge-prompt {
+    width: 100%;
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .sat-bridge-prompt.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .sat-bridge-choice-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .sat-bridge-choice-row .sat-bridge-cta {
+    flex: 1 1 auto;
+    min-width: 120px;
+    max-width: 150px;
   }
 `;
 
@@ -596,6 +701,21 @@ const PROMPT_TEXT =
 const GPS_FACT_TEXT =
   "Most people put it much higher.\nGPS satellites actually orbit only about 20,200 km above Earth.";
 const FARTHER_TEXT = "Now let's try something much farther.";
+const MOON_LIE_TITLE = "Most pictures lie.";
+const MOON_LIE_BODY =
+  "The usual images of Earth and the Moon\nsqueeze them close so they fit on a page.\nThat quiet compression slowly shrinks\nwhat we believe is possible.";
+const MOON_TRY_TEXT =
+  "Now try it yourself,\nplace the Moon where you actually think it belongs.";
+const SUN_LIE_TITLE = "Most pictures still lie.";
+const SUN_LIE_BODY =
+  "Even the best photographs of the Sun\nare only a flat circle of fire.\nThey cannot show you how far it really sits\nfrom the small blue world we call home.";
+const SUN_WONDER_PROMPT = "Want to see what the Sun looks like?";
+const NASA_MOON_PHOTO = "/universe/photos/nasamoonandearth.webp";
+const NASA_MOON_LINK =
+  "https://www.nasa.gov/image-detail/amf-art002e009285/";
+const NASA_SUN_PHOTO = "/universe/photos/sun.webp";
+const NASA_SUN_LINK =
+  "https://science.nasa.gov/image-detail/amf-gsfc_20171208_archive_e001435/";
 const FAR_ENOUGH_TEXT =
   "Okay, that's far enough.\nThe Moon isn't in another galaxy.";
 const MOON_PLACE_TEXT = "Drag the Moon where you think it belongs.";
@@ -603,7 +723,7 @@ const ZOOM_FIRST_TEXT = "You might want to zoom out for this one first.";
 const ZOOM_FIRST_FINEPRINT =
   "Once you hit Confirm, you can drag the Moon into place.";
 const MOON_NEXT_TEXT =
-  "Now that you've felt the real distance\nbetween Earth and the Moon…\nWould you like to keep going outward,\nor shall we talk about light?\nLight travels 299,792 km every second.\nEven that number becomes strange\nonce you start looking closely.";
+  "Now that you've felt the real distance\nbetween Earth and the Moon…\nLight travels 299,792 km every second.\nEven that number becomes strange\nonce you start looking closely.";
 const SUN_ZOOM_FIRST_TEXT =
   "Now for the Sun.\nZoom out a bit, then Confirm.";
 const SUN_ZOOM_FIRST_FINEPRINT =
@@ -617,22 +737,25 @@ function PromptMessage({
   text,
   far = false,
   placement = "top",
+  tone = "p1",
 }: {
   visible: boolean;
   text: string;
   far?: boolean;
   placement?: "top" | "bottom";
+  /** Type scale: h1 (Roboto) or p1 (Open Sans) */
+  tone?: "h1" | "p1";
 }) {
   return (
     <div className={`universe-ui${placement === "bottom" ? " bottom" : ""}`}>
-      <div
-        className={`universe-message prompt-text${far ? " far-text" : ""}${
+      <p
+        className={`universe-message u-${tone}${far ? " far-text" : ""}${
           visible ? " visible" : ""
         }`}
         aria-live="polite"
       >
         {text}
-      </div>
+      </p>
     </div>
   );
 }
@@ -658,8 +781,21 @@ export default function UniverseShell() {
   const [gpsFactVisible, setGpsFactVisible] = useState(false);
   const [fartherVisible, setFartherVisible] = useState(false);
   const [placeMoonBtnVisible, setPlaceMoonBtnVisible] = useState(false);
-  /** NASA “pictures lie” overlay before moon zoom UI */
-  const [moonIntroVisible, setMoonIntroVisible] = useState(false);
+  /**
+   * Moon intro on the Earth stage (not a big form):
+   * lie copy → NASA photo overlay → try-yourself + Place moon
+   */
+  const [moonLieVisible, setMoonLieVisible] = useState(false);
+  const [moonWonderBtnVisible, setMoonWonderBtnVisible] = useState(false);
+  const [moonPhotoOverlayVisible, setMoonPhotoOverlayVisible] =
+    useState(false);
+  const [moonTryVisible, setMoonTryVisible] = useState(false);
+  const [moonPlaceBtnVisible, setMoonPlaceBtnVisible] = useState(false);
+
+  /** After light → before Sun zoom: “pictures still lie” + optional NASA sun photo */
+  const [sunLieVisible, setSunLieVisible] = useState(false);
+  const [sunWonderVisible, setSunWonderVisible] = useState(false);
+  const [sunPhotoOverlayVisible, setSunPhotoOverlayVisible] = useState(false);
 
   const [moonPhase, setMoonPhase] = useState(false);
   const [moonVisible, setMoonVisible] = useState(false);
@@ -685,20 +821,11 @@ export default function UniverseShell() {
   const [sunSmartAss, setSunSmartAss] = useState(false);
   /** After place — Home leaves 3D and docks to the bottom of the phone */
   const [sunHomeDocked, setSunHomeDocked] = useState(false);
-  /**
-   * Path bookkeeping:
-   * - sawLightLesson: finished Moon→Earth light beat (or mid-light)
-   * - sunFromLight: entered Sun from the Light CTA (not the first branch pick)
-   */
-  const [sawLightLesson, setSawLightLesson] = useState(false);
-  const [sunFromLight, setSunFromLight] = useState(false);
-  /** Post-sun reveal cascade */
+  /** Post-sun reveal cascade (linear: Moon → Light → Sun) */
   const [sunRevealL1, setSunRevealL1] = useState(false);
   const [sunRevealL2, setSunRevealL2] = useState(false);
   const [sunRevealBranch, setSunRevealBranch] = useState(false);
   const [sunRevealBtn, setSunRevealBtn] = useState(false);
-  /** Moon remounted already at teaching distance (Sun → Light) */
-  const [moonPreSettled, setMoonPreSettled] = useState(false);
 
   /** Light lesson — copy steps + Moon→Earth beam */
   const [lightPhase, setLightPhase] = useState(false);
@@ -746,24 +873,46 @@ export default function UniverseShell() {
     }, 2800);
   }, []);
 
-  /** “The Moon ?” — open the NASA truth overlay first */
-  const handlePlaceMoon = useCallback(() => {
-    setSatBridgeVisible(false);
+  /** “The Moon ?” — show “Most pictures lie” on the Earth stage */
+  const handleTheMoon = useCallback(() => {
     setGpsFactVisible(false);
     setFartherVisible(false);
     setPlaceMoonBtnVisible(false);
-    setMoonIntroVisible(true);
+    setMoonLieVisible(true);
+    window.setTimeout(() => setMoonWonderBtnVisible(true), 700);
   }, []);
 
-  /**
-   * “Okay, let’s try.” — overlay already faded out (MoonIntro waits ~900ms).
-   * Soft-start the grayed Moon beat.
-   */
-  const handleMoonIntroContinue = useCallback(() => {
-    setMoonIntroVisible(false);
+  /** “Absolutely” — full opaque NASA photo sheet */
+  const handleWonderAbsolutely = useCallback(() => {
+    setMoonWonderBtnVisible(false);
+    setMoonPhotoOverlayVisible(true);
+  }, []);
+
+  /** “Not really” — skip photo, go straight to try-yourself + Place moon */
+  const handleWonderNotReally = useCallback(() => {
+    setMoonWonderBtnVisible(false);
+    setMoonLieVisible(false);
+    setMoonTryVisible(true);
+    window.setTimeout(() => setMoonPlaceBtnVisible(true), 500);
+  }, []);
+
+  /** Leave photo sheet → try-yourself + Place moon on Earth stage */
+  const handleMoonPhotoNext = useCallback(() => {
+    setMoonPhotoOverlayVisible(false);
+    setMoonLieVisible(false);
+    setMoonTryVisible(true);
+    window.setTimeout(() => setMoonPlaceBtnVisible(true), 500);
+  }, []);
+
+  /** “Place moon” — start grayed Moon + zoom beat */
+  const handlePlaceMoon = useCallback(() => {
+    setSatBridgeVisible(false);
+    setMoonTryVisible(false);
+    setMoonPlaceBtnVisible(false);
+    setMoonLieVisible(false);
+    setMoonWonderBtnVisible(false);
     setMoonPhase(true);
     setMoonVisible(true);
-    // Tiny beat so the overlay unmount doesn’t clash with zoom UI fade-in
     window.setTimeout(() => {
       setZoomControlsVisible(true);
       setZoomFirstVisible(true);
@@ -880,10 +1029,36 @@ export default function UniverseShell() {
   }, [moonLabelVisible, sunPhase, lightPhase]);
 
   /**
-   * Enter Sun placement beat.
-   * @param fromLight — true if coming from Light path CTA
+   * “Let’s go to our solar system” — not straight into zoom.
+   * First: still-lie copy + Absolutely / Not really (same pattern as Moon).
    */
-  const handleExploreSolarSystem = useCallback((fromLight = false) => {
+  const handleSolarSystemInvite = useCallback(() => {
+    setLightSolarBtnOn(false);
+    setLightArriveOn(false);
+    setLightTimerOn(false);
+    setLightBeamActive(false);
+    setLightIntroHidden(true);
+    setLightTitleOn(false);
+    setLightL1On(false);
+    setLightL2On(false);
+    setLightL3On(false);
+    setLightShowBtnOn(false);
+    setLightPhase(false);
+    setSunLieVisible(true);
+    window.setTimeout(() => setSunWonderVisible(true), 700);
+  }, []);
+
+  /** “Absolutely” — NASA Sun photo sheet */
+  const handleSunWonderAbsolutely = useCallback(() => {
+    setSunWonderVisible(false);
+    setSunPhotoOverlayVisible(true);
+  }, []);
+
+  /** “Not really” or photo Next → Now for the Sun (zoom beat) */
+  const handleExploreSolarSystem = useCallback(() => {
+    setSunLieVisible(false);
+    setSunWonderVisible(false);
+    setSunPhotoOverlayVisible(false);
     setMoonNextVisible(false);
     setMoonLabelVisible(false);
     setLightPhase(false);
@@ -892,11 +1067,9 @@ export default function UniverseShell() {
     setLightSolarBtnOn(false);
     setLightArriveOn(false);
     setLightIntroHidden(false);
-    setSunFromLight(fromLight);
     // Drop orbit lesson pieces — invisible / irrelevant at solar scale
     setMoonVisible(false);
     setMoonInteractive(false);
-    setMoonPreSettled(false);
     setMoonPromptVisible(false);
     setSatelliteActive(false);
     setSunPhase(true);
@@ -913,51 +1086,40 @@ export default function UniverseShell() {
     setZoomFirstVisible(true);
     setZoomControlsVisible(true);
     setConfirmHintNudgeKey(0);
-    // Close readable frame: Home pin + grayed Sun
     setCameraZ(ZOOM_Z_SUN_MIN);
   }, []);
 
-  /** “Tell me about light” / “Distance in light” — Earth–Moon frame + copy */
-  const handleTellAboutLight = useCallback(
-    (opts?: { fromSun?: boolean; preSettledMoon?: boolean }) => {
-      const fromSun = opts?.fromSun ?? false;
-      const preSettledMoon = opts?.preSettledMoon ?? false;
+  const handleSunPhotoNext = useCallback(() => {
+    setSunPhotoOverlayVisible(false);
+    setSunLieVisible(false);
+    // Brief beat, then sun zoom UI
+    window.setTimeout(() => handleExploreSolarSystem(), 200);
+  }, [handleExploreSolarSystem]);
 
-      setMoonNextVisible(false);
-      setMoonLabelVisible(false);
-      setSunLabelVisible(false);
-      setSunRevealBtn(false);
-      setSunRevealBranch(false);
+  const handleSunWonderNotReally = useCallback(() => {
+    setSunWonderVisible(false);
+    setSunLieVisible(false);
+    handleExploreSolarSystem();
+  }, [handleExploreSolarSystem]);
 
-      if (fromSun) {
-        // Leave solar framing; restore Earth + settled Moon for the beam
-        setSunPhase(false);
-        setSunVisible(false);
-        setSunHomeDocked(false);
-        setSunInteractive(false);
-        setZoomControlsVisible(false);
-        setMoonVisible(true);
-        setMoonInteractive(false);
-        setMoonPreSettled(preSettledMoon);
-        setEarthRevealed(true);
-      }
-
-      setLightTitleOn(false);
-      setLightL1On(false);
-      setLightL2On(false);
-      setLightL3On(false);
-      setLightShowBtnOn(false);
-      setLightIntroHidden(false);
-      setLightBeamActive(false);
-      setLightTimerOn(false);
-      setLightTimerSec(0);
-      setLightArriveOn(false);
-      setLightSolarBtnOn(false);
-      setCameraZ(ZOOM_Z_MOON_FRAME);
-      setLightPhase(true);
-    },
-    [],
-  );
+  /** Linear step: Moon → Distance in light (Earth–Moon frame + copy) */
+  const handleDistanceInLight = useCallback(() => {
+    setMoonNextVisible(false);
+    setMoonLabelVisible(false);
+    setLightTitleOn(false);
+    setLightL1On(false);
+    setLightL2On(false);
+    setLightL3On(false);
+    setLightShowBtnOn(false);
+    setLightIntroHidden(false);
+    setLightBeamActive(false);
+    setLightTimerOn(false);
+    setLightTimerSec(0);
+    setLightArriveOn(false);
+    setLightSolarBtnOn(false);
+    setCameraZ(ZOOM_Z_MOON_FRAME);
+    setLightPhase(true);
+  }, []);
 
   /** Cascade intro lines, then “Show me” — beam waits for the click */
   useEffect(() => {
@@ -1004,7 +1166,6 @@ export default function UniverseShell() {
 
   const handleLightBeamComplete = useCallback(() => {
     setLightTimerSec(1.3);
-    setSawLightLesson(true);
     // Keep timer under Earth; only advance the story copy + solar CTA
     window.setTimeout(() => {
       setLightArriveOn(true);
@@ -1105,7 +1266,6 @@ export default function UniverseShell() {
                 onSatelliteSettled={handleSatelliteSettled}
                 moonVisible={moonVisible}
                 moonInteractive={moonInteractive}
-                moonPreSettled={moonPreSettled}
                 onMoonSnapStart={handleMoonSnapStart}
                 onMoonSettled={handleMoonSettled}
                 onMoonGrayedTap={handleMoonGrayedTap}
@@ -1141,42 +1301,160 @@ export default function UniverseShell() {
             onPhoneSlotNdc={setPhoneSlotNdcY}
             onRevealPhase={setOpeningReveal}
           />
-          <PromptMessage visible={promptVisible} text={PROMPT_TEXT} />
+          <PromptMessage visible={promptVisible} text={PROMPT_TEXT} tone="p1" />
           <PromptMessage
             visible={promptVisible}
             text={HOME_TEXT}
             placement="bottom"
+            tone="h1"
           />
           {satBridgeVisible && (
             <div className="sat-bridge">
-              <p
-                className={`sat-bridge-copy${gpsFactVisible ? " visible" : ""}`}
-              >
-                {GPS_FACT_TEXT}
-              </p>
-              <p
-                className={`sat-bridge-copy${fartherVisible ? " visible" : ""}`}
-              >
-                {FARTHER_TEXT}
-              </p>
-              <button
-                type="button"
-                className={`ctrl-btn rect sat-bridge-cta${
-                  placeMoonBtnVisible ? " visible" : ""
-                }`}
-                onClick={handlePlaceMoon}
-              >
-                The Moon ?
-              </button>
+              {/*
+                Each step mounts its FULL stack at once; lines/buttons only
+                toggle .visible so layout doesn’t reflow (no jump).
+              */}
+              {/* Step 1: GPS + farther + The Moon ? */}
+              {!moonLieVisible && !moonTryVisible && (
+                <div className="sat-bridge-stack">
+                  <p
+                    className={`sat-bridge-copy u-p1${
+                      gpsFactVisible ? " visible" : ""
+                    }`}
+                  >
+                    {GPS_FACT_TEXT}
+                  </p>
+                  <p
+                    className={`sat-bridge-copy u-h1${
+                      fartherVisible ? " visible" : ""
+                    }`}
+                  >
+                    {FARTHER_TEXT}
+                  </p>
+                  <button
+                    type="button"
+                    className={`ctrl-btn rect sat-bridge-cta${
+                      placeMoonBtnVisible ? " visible" : ""
+                    }`}
+                    disabled={!placeMoonBtnVisible}
+                    onClick={handleTheMoon}
+                  >
+                    The Moon ?
+                  </button>
+                </div>
+              )}
+              {/* Step 2: lie + wonder prompt + Absolutely / Not really */}
+              {moonLieVisible && !moonPhotoOverlayVisible && (
+                <div className="sat-bridge-stack">
+                  <h2 className="sat-bridge-copy u-h1 visible">
+                    {MOON_LIE_TITLE}
+                  </h2>
+                  <p className="sat-bridge-copy u-p1 visible">{MOON_LIE_BODY}</p>
+                  <p
+                    className={`sat-bridge-prompt u-p1${
+                      moonWonderBtnVisible ? " visible" : ""
+                    }`}
+                  >
+                    Wonder what Earth looks like from the Moon?
+                  </p>
+                  <div className="sat-bridge-choice-row">
+                    <button
+                      type="button"
+                      className={`ctrl-btn rect sat-bridge-cta${
+                        moonWonderBtnVisible ? " visible" : ""
+                      }`}
+                      disabled={!moonWonderBtnVisible}
+                      onClick={handleWonderAbsolutely}
+                    >
+                      Absolutely
+                    </button>
+                    <button
+                      type="button"
+                      className={`ctrl-btn rect sat-bridge-cta${
+                        moonWonderBtnVisible ? " visible" : ""
+                      }`}
+                      disabled={!moonWonderBtnVisible}
+                      onClick={handleWonderNotReally}
+                    >
+                      Not really
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Step 3: try yourself + Place moon */}
+              {moonTryVisible && (
+                <div className="sat-bridge-stack">
+                  <p className="sat-bridge-copy u-p1 visible">{MOON_TRY_TEXT}</p>
+                  <button
+                    type="button"
+                    className={`ctrl-btn rect sat-bridge-cta${
+                      moonPlaceBtnVisible ? " visible" : ""
+                    }`}
+                    disabled={!moonPlaceBtnVisible}
+                    onClick={handlePlaceMoon}
+                  >
+                    Place moon
+                  </button>
+                </div>
+              )}
             </div>
           )}
-          <MoonIntroOverlay
-            visible={moonIntroVisible}
-            onContinue={handleMoonIntroContinue}
+          {/* Sun lie — full stack mounted; prompt/buttons only fade in */}
+          {sunLieVisible && !sunPhotoOverlayVisible && (
+            <div className="sat-bridge">
+              <div className="sat-bridge-stack">
+                <h2 className="sat-bridge-copy u-h1 visible">{SUN_LIE_TITLE}</h2>
+                <p className="sat-bridge-copy u-p1 visible">{SUN_LIE_BODY}</p>
+                <p
+                  className={`sat-bridge-prompt u-p1${
+                    sunWonderVisible ? " visible" : ""
+                  }`}
+                >
+                  {SUN_WONDER_PROMPT}
+                </p>
+                <div className="sat-bridge-choice-row">
+                  <button
+                    type="button"
+                    className={`ctrl-btn rect sat-bridge-cta${
+                      sunWonderVisible ? " visible" : ""
+                    }`}
+                    disabled={!sunWonderVisible}
+                    onClick={handleSunWonderAbsolutely}
+                  >
+                    Absolutely
+                  </button>
+                  <button
+                    type="button"
+                    className={`ctrl-btn rect sat-bridge-cta${
+                      sunWonderVisible ? " visible" : ""
+                    }`}
+                    disabled={!sunWonderVisible}
+                    onClick={handleSunWonderNotReally}
+                  >
+                    Not really
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <PhotoSheetOverlay
+            visible={moonPhotoOverlayVisible}
+            onNext={handleMoonPhotoNext}
+            imageSrc={NASA_MOON_PHOTO}
+            imageAlt="Earth and Moon — NASA"
+            creditHref={NASA_MOON_LINK}
+          />
+          <PhotoSheetOverlay
+            visible={sunPhotoOverlayVisible}
+            onNext={handleSunPhotoNext}
+            imageSrc={NASA_SUN_PHOTO}
+            imageAlt="The Sun — NASA"
+            creditHref={NASA_SUN_LINK}
           />
           <PromptMessage
             visible={showPhaseTopPrompt}
             text={phaseTopCopy}
+            tone="p1"
             far={
               farEnoughVisible &&
               (sunPhase ? !sunInteractive : !moonInteractive)
@@ -1187,15 +1465,19 @@ export default function UniverseShell() {
               moonLabelVisible ? " visible" : ""
             }`}
           >
-            {moonSmartAss
-              ? "Impressive. You've just placed the Moon somewhere near Mars."
-              : "Farther than it looks."}
-            <span className="moon-label-sub">
+            <span className="moon-label-lead u-h1">
+              {moonSmartAss
+                ? "Impressive. You've just placed the Moon somewhere near Mars."
+                : "Farther than it looks."}
+            </span>
+            <span className="moon-label-sub u-p1">
               The Moon is actually about 384,000 km away, roughly 30 Earth
               diameters.
             </span>
             <span
-              className={`moon-next-copy${moonNextVisible ? " visible" : ""}`}
+              className={`moon-next-copy u-p1${
+                moonNextVisible ? " visible" : ""
+              }`}
             >
               {MOON_NEXT_TEXT}
             </span>
@@ -1206,61 +1488,48 @@ export default function UniverseShell() {
             aria-hidden={!sunLabelVisible}
           >
             {sunSmartAss && (
-              <p className={`sun-reveal-line${sunRevealL1 ? " is-on" : ""}`}>
+              <p
+                className={`sun-reveal-line u-h1${
+                  sunRevealL1 ? " is-on" : ""
+                }`}
+              >
                 That&apos;s past the Kuiper belt. Ambitious.
               </p>
             )}
-            <p className={`sun-reveal-line${sunRevealL1 ? " is-on" : ""}`}>
+            <p
+              className={`sun-reveal-line u-p1${sunRevealL1 ? " is-on" : ""}`}
+            >
               The Sun is about 150 million kilometres away. That&apos;s 1
               Astronomical Unit — the basic measuring stick of our solar
               system.
             </p>
-            <p className={`sun-reveal-line${sunRevealL2 ? " is-on" : ""}`}>
+            <p
+              className={`sun-reveal-line u-p1${sunRevealL2 ? " is-on" : ""}`}
+            >
               Light from the Sun takes roughly 8 minutes and 20 seconds to reach
               us.
             </p>
-            {!sunFromLight && (
-              <p className={`sun-reveal-line${sunRevealBranch ? " is-on" : ""}`}>
-                We&apos;ve been talking about distance. But distance only really
-                makes sense when you know how light moves. Want to see what light
-                actually does?
-              </p>
-            )}
-            {sunFromLight && (
-              <p className={`sun-reveal-line${sunRevealBranch ? " is-on" : ""}`}>
-                You already watched light cross the gap from the Moon. Now you
-                know it needs more than 8 minutes just to reach us from the Sun.
-                The next step is even larger.
-              </p>
-            )}
-            {!sunFromLight && (
-              <button
-                type="button"
-                className={`ctrl-btn rect sun-reveal-cta${
-                  sunRevealBtn ? " is-on" : ""
-                }`}
-                disabled={!sunRevealBtn}
-                onClick={() =>
-                  handleTellAboutLight({ fromSun: true, preSettledMoon: true })
-                }
-              >
-                Distance in light
-              </button>
-            )}
-            {sunFromLight && (
-              <button
-                type="button"
-                className={`ctrl-btn rect sun-reveal-cta${
-                  sunRevealBtn ? " is-on" : ""
-                }`}
-                disabled={!sunRevealBtn}
-                onClick={() => {
-                  // Reserved for the next, larger solar step
-                }}
-              >
-                Our solar system
-              </button>
-            )}
+            <p
+              className={`sun-reveal-line u-p1${
+                sunRevealBranch ? " is-on" : ""
+              }`}
+            >
+              You already watched light cross the gap from the Moon. Now you
+              know it needs more than 8 minutes just to reach us from the Sun.
+              The next step is even larger.
+            </p>
+            <button
+              type="button"
+              className={`ctrl-btn rect sun-reveal-cta${
+                sunRevealBtn ? " is-on" : ""
+              }`}
+              disabled={!sunRevealBtn}
+              onClick={() => {
+                // Reserved for the next, larger solar step
+              }}
+            >
+              Our solar system
+            </button>
           </div>
           <div
             className={`moon-choice-bar${moonNextVisible ? " visible" : ""}`}
@@ -1270,17 +1539,9 @@ export default function UniverseShell() {
               type="button"
               className="ctrl-btn rect"
               disabled={!moonNextVisible}
-              onClick={() => handleExploreSolarSystem(false)}
+              onClick={handleDistanceInLight}
             >
-              Explore the Solar System ?
-            </button>
-            <button
-              type="button"
-              className="ctrl-btn rect"
-              disabled={!moonNextVisible}
-              onClick={() => handleTellAboutLight()}
-            >
-              Tell me about light
+              Distance in light
             </button>
           </div>
           {lightPhase && (
@@ -1290,18 +1551,32 @@ export default function UniverseShell() {
                   lightIntroHidden ? " is-hidden" : ""
                 }`}
               >
-                <p
-                  className={`light-story-title${lightTitleOn ? " is-on" : ""}`}
+                <h2
+                  className={`light-story-title u-h1${
+                    lightTitleOn ? " is-on" : ""
+                  }`}
                 >
                   Light
-                </p>
-                <p className={`light-story-line${lightL1On ? " is-on" : ""}`}>
+                </h2>
+                <p
+                  className={`light-story-line u-p1${
+                    lightL1On ? " is-on" : ""
+                  }`}
+                >
                   The Moon is far, but light is impatient.
                 </p>
-                <p className={`light-story-line${lightL2On ? " is-on" : ""}`}>
+                <p
+                  className={`light-story-line u-p1${
+                    lightL2On ? " is-on" : ""
+                  }`}
+                >
                   Even across all that empty distance, it does not take long.
                 </p>
-                <p className={`light-story-line${lightL3On ? " is-on" : ""}`}>
+                <p
+                  className={`light-story-line u-p1${
+                    lightL3On ? " is-on" : ""
+                  }`}
+                >
                   It leaves the surface of the Moon and reaches your eyes in
                   only 1.3 seconds.
                 </p>
@@ -1317,7 +1592,7 @@ export default function UniverseShell() {
                 </button>
               </div>
               <p
-                className={`light-story-line arrive${
+                className={`light-story-line arrive u-p1${
                   lightArriveOn ? " is-on" : ""
                 }`}
               >
@@ -1328,7 +1603,7 @@ export default function UniverseShell() {
           )}
           {lightPhase && (
             <div
-              className={`light-timer${lightTimerOn ? " is-on" : ""}`}
+              className={`light-timer u-h1${lightTimerOn ? " is-on" : ""}`}
               aria-hidden={!lightTimerOn}
             >
               {lightTimerSec.toFixed(1)}s
@@ -1343,10 +1618,7 @@ export default function UniverseShell() {
                 type="button"
                 className="ctrl-btn rect"
                 disabled={!lightSolarBtnOn}
-                onClick={() => {
-                  setSawLightLesson(true);
-                  handleExploreSolarSystem(true);
-                }}
+                onClick={handleSolarSystemInvite}
               >
                 Let&apos;s go to our solar system
               </button>

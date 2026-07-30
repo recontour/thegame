@@ -49,7 +49,7 @@ export default function HomeMarker({ visible }: HomeMarkerProps) {
         <div
           style={{
             color: "rgba(180, 220, 255, 0.95)",
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily: 'var(--font-u-btn), "Inter", system-ui, sans-serif',
             fontSize: 10,
             fontWeight: 600,
             letterSpacing: "0.16em",

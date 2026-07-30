@@ -20,11 +20,20 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const firstRectRef = useRef<DOMRect | null>(null);
+  /** True after the user has unlocked playback at least once */
+  const unlockedRef = useRef(false);
+  const mutedRef = useRef(false);
+  /** We paused because the tab/app went away — safe to auto-resume */
+  const pausedByBackgroundRef = useRef(false);
 
   const [phase, setPhase] = useState<"idle" | "flying" | "docked">("idle");
   const [muted, setMuted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -36,6 +45,49 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
     };
     el.addEventListener("error", onErr);
     return () => el.removeEventListener("error", onErr);
+  }, []);
+
+  /**
+   * Pause BGM when the tab is hidden / app is backgrounded;
+   * resume on return only if we paused for that reason and user isn’t muted.
+   */
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const pauseForBackground = () => {
+      if (audio.paused) return;
+      pausedByBackgroundRef.current = true;
+      audio.pause();
+    };
+
+    const resumeIfNeeded = () => {
+      if (!pausedByBackgroundRef.current) return;
+      if (!unlockedRef.current || mutedRef.current) {
+        pausedByBackgroundRef.current = false;
+        return;
+      }
+      pausedByBackgroundRef.current = false;
+      void audio.play().catch(() => {
+        // Autoplay may still block; mute control remains available
+      });
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") pauseForBackground();
+      else resumeIfNeeded();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    // iOS / some WebViews fire these when switching apps
+    window.addEventListener("pagehide", pauseForBackground);
+    window.addEventListener("pageshow", resumeIfNeeded);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", pauseForBackground);
+      window.removeEventListener("pageshow", resumeIfNeeded);
+    };
   }, []);
 
   // After React paints the docked layout, invert & ease home (FLIP)
@@ -111,6 +163,9 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
       audio.volume = 1;
       await audio.play();
 
+      unlockedRef.current = true;
+      pausedByBackgroundRef.current = false;
+
       // Capture center position BEFORE React docks the button
       if (btn) firstRectRef.current = btn.getBoundingClientRect();
 
@@ -132,6 +187,12 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
     const next = !audio.muted;
     audio.muted = next;
     setMuted(next);
+    mutedRef.current = next;
+    // Unmuting while still background-paused: try play
+    if (!next && audio.paused && unlockedRef.current) {
+      pausedByBackgroundRef.current = false;
+      void audio.play().catch(() => {});
+    }
   }, [phase]);
 
   const onButtonClick = () => {
@@ -159,7 +220,7 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
       )}
 
       {phase === "idle" && (
-        <p className="audio-gate-hint audio-gate-hint--label">
+        <p className="audio-gate-hint audio-gate-hint--label u-p1">
           {error ?? (busy ? "Starting…" : "Tap to begin")}
         </p>
       )}

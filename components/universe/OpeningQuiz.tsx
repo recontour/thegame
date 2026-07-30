@@ -198,8 +198,8 @@ export default function OpeningQuiz({
             />
           )}
           <div className="opening-reveal-copy">
-            <p className="opening-reveal-headline">{choice.headline}</p>
-            <p className="opening-reveal-body">{choice.body}</p>
+            <h1 className="opening-reveal-headline u-h1">{choice.headline}</h1>
+            <p className="opening-reveal-body u-p1">{choice.body}</p>
           </div>
         </div>
 
@@ -217,7 +217,7 @@ export default function OpeningQuiz({
                 className="opening-reveal-icon"
                 draggable={false}
               />
-              <span className="opening-reveal-rest-line">{c.listLine}</span>
+              <span className="opening-reveal-rest-line u-p1">{c.listLine}</span>
             </li>
           ))}
         </ul>
@@ -244,23 +244,24 @@ export default function OpeningQuiz({
           questionVisible || optionsVisible ? " has-question" : ""
         }`}
       >
-        <div
-          className={`universe-message prompt-text opening-quiz-copy${
+        {/* First beat: lead fact (h1) + question (p1) — type scale pilot */}
+        <h1
+          className={`universe-message opening-quiz-copy u-h1${
             factVisible ? " visible" : ""
           }`}
           aria-live="polite"
         >
           {FACT_TEXT}
-        </div>
+        </h1>
         {(questionVisible || optionsVisible || fadingQuiz) && (
-          <div
-            className={`universe-message prompt-text opening-quiz-copy${
+          <p
+            className={`universe-message opening-quiz-copy u-p1${
               questionVisible ? " visible" : ""
             }`}
             aria-live="polite"
           >
             {QUESTION_TEXT}
-          </div>
+          </p>
         )}
       </div>
 

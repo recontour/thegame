@@ -14,8 +14,6 @@ type PlanetStageProps = {
   onSatelliteSettled?: () => void;
   moonVisible: boolean;
   moonInteractive: boolean;
-  /** Moon already at teaching distance (Light after Sun) */
-  moonPreSettled?: boolean;
   onMoonSnapStart?: () => void;
   onMoonSettled?: (info: { smartAss: boolean }) => void;
   onMoonGrayedTap?: () => void;
@@ -45,7 +43,6 @@ export default function PlanetStage({
   onSatelliteSettled,
   moonVisible,
   moonInteractive,
-  moonPreSettled = false,
   onMoonSnapStart,
   onMoonSettled,
   onMoonGrayedTap,
@@ -81,7 +78,6 @@ export default function PlanetStage({
             <Moon
               visible={moonVisible}
               interactive={moonInteractive}
-              preSettled={moonPreSettled}
               onSnapStart={onMoonSnapStart}
               onSettled={onMoonSettled}
               onGrayedTap={onMoonGrayedTap}

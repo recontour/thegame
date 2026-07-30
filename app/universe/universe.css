@@ -1,100 +1,66 @@
-/* Moon intro overlay — soft cinematic enter/exit */
-.moon-intro-overlay {
+/* Full opaque NASA photo sheet (after “Wonder what Earth looks like…”) */
+.moon-photo-overlay {
   position: absolute;
   inset: 0;
   z-index: 90;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(28px + env(safe-area-inset-top, 0px))
-    max(16px, var(--universe-mute-clear, 52px))
-    calc(28px + env(safe-area-inset-bottom, 0px));
+  padding: calc(24px + env(safe-area-inset-top, 0px))
+    var(--universe-side-pad, 20px)
+    calc(24px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(0);
-  -webkit-backdrop-filter: blur(0);
+  background: #000000;
   pointer-events: none;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   opacity: 0;
-  transition:
-    opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
-    backdrop-filter 0.9s ease;
+  transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.moon-intro-overlay.is-visible {
+.moon-photo-overlay.is-visible {
   opacity: 1;
   pointer-events: auto;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
-.moon-intro-overlay.is-exiting {
+.moon-photo-overlay.is-exiting {
   opacity: 0;
   pointer-events: none;
-  backdrop-filter: blur(0);
-  -webkit-backdrop-filter: blur(0);
 }
 
-.moon-intro-card {
-  --moon-intro-gap: clamp(18px, 3.2vh, 28px);
+.moon-photo-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--moon-intro-gap);
-  width: min(100%, 360px);
-  min-height: min(100%, 640px);
+  gap: clamp(16px, 3vh, 24px);
+  width: min(100%, 380px);
   text-align: center;
   margin: auto;
-  padding: clamp(8px, 1.5vh, 16px) 0;
-  box-sizing: border-box;
   opacity: 0;
-  transform: translateY(18px) scale(0.97);
+  transform: translateY(14px);
   transition:
-    opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.08s,
-    transform 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.08s;
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.06s,
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.06s;
 }
 
-.moon-intro-overlay.is-visible .moon-intro-card {
+.moon-photo-overlay.is-visible .moon-photo-card {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 
-.moon-intro-overlay.is-exiting .moon-intro-card {
+.moon-photo-overlay.is-exiting .moon-photo-card {
   opacity: 0;
-  transform: translateY(10px) scale(0.98);
+  transform: translateY(8px);
   transition:
-    opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity 0.55s ease,
+    transform 0.55s ease;
 }
 
-.moon-intro-copy {
-  margin: 0;
-  color: rgba(235, 242, 255, 0.9);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.92rem, 3.3vw, 1.08rem);
-  font-weight: 300;
-  letter-spacing: 0.02em;
-  line-height: 1.55;
-  white-space: pre-line;
-  text-shadow: 0 0 14px rgba(180, 210, 255, 0.2);
-  max-width: 32em;
-}
-
-.moon-intro-copy strong {
-  display: block;
-  margin-bottom: 0.45em;
-  font-weight: 500;
-  font-size: 1.08em;
-  color: #f0f4ff;
-  letter-spacing: 0.03em;
-}
-
-.moon-intro-photo {
+.moon-photo-img {
   width: 100%;
-  max-width: min(86vw, 300px);
-  max-height: min(30vh, 220px);
+  max-width: min(100%, 360px);
+  max-height: min(52vh, 380px);
   object-fit: contain;
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
@@ -103,46 +69,34 @@
   flex-shrink: 0;
 }
 
-.moon-intro-credit {
-  margin: 0;
-  color: rgba(200, 214, 240, 0.55);
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.03em;
-  line-height: 1.45;
+/* Credit line — type from .u-p1 */
+.moon-photo-credit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 20em;
 }
 
-.moon-intro-link {
-  color: rgba(160, 200, 255, 0.9);
+.moon-photo-credit-emoji {
+  font-size: 1.35em;
+  line-height: 1;
+}
+
+.moon-photo-link {
+  color: rgba(160, 200, 255, 0.95);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.moon-intro-link:active {
+.moon-photo-link:active {
   color: #fff;
 }
 
-.moon-intro-cta-copy {
-  /* same gap as siblings — no extra margin tricks */
-  margin: 0;
-}
-
-.moon-intro-btn {
-  margin: 0;
-  width: min(100%, 280px);
+.moon-photo-next {
+  margin-top: 4px;
+  width: min(100%, 240px);
   flex-shrink: 0;
-}
-
-/* Slightly taller phones: a bit more air between blocks */
-@media (min-height: 720px) {
-  .moon-intro-card {
-    --moon-intro-gap: clamp(22px, 3.6vh, 32px);
-  }
-
-  .moon-intro-photo {
-    max-height: min(32vh, 240px);
-  }
 }
 
 /* First-load audio unlock — backdrop fades while 🎧 flies to corner */
@@ -240,12 +194,9 @@
 }
 
 .audio-gate-hint {
-  margin: 0;
-  color: rgba(220, 230, 250, 0.7);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: 0.95rem;
-  font-weight: 300;
-  letter-spacing: 0.06em;
+  /* type from .u-p1; position only here */
+  color: rgba(220, 230, 250, 0.75);
+  letter-spacing: 0.04em;
 }
 
 .audio-gate-hint--label {
@@ -262,24 +213,69 @@
   visibility: hidden;
 }
 
-/* Shared inset so top copy doesn’t sit under the mute control */
+/* Shared layout tokens — one side gutter for all Universe copy */
 :root {
-  --universe-mute-clear: 52px;
-  --universe-top-pad: calc(50px + env(safe-area-inset-top, 0px));
+  --universe-side-pad: 20px;
+  /* Top clearance below docked 🎧 (not a side margin) */
+  --universe-top-pad: calc(10dvh + env(safe-area-inset-top, 0px));
+}
+
+/* Font CSS vars are set on `.universe-fonts` via next/font (page.tsx) */
+.universe-fonts {
+  height: 100%;
+  width: 100%;
+}
+
+/*
+ * Universe type scale (apply on copy; layout/animation stay on component classes)
+ *   .u-h1 — Roboto (title / lead)
+ *   .u-p1 — Open Sans (body / secondary)
+ *   .ctrl-btn — Inter (buttons; set on .ctrl-btn)
+ */
+.u-h1 {
+  margin: 0;
+  font-family: var(--font-u-h1), "Roboto", system-ui, sans-serif;
+  font-size: clamp(1.2rem, 4.6vw, 1.5rem);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  color: #f0f4ff;
+  text-align: center;
+  text-shadow: 0 0 18px rgba(180, 210, 255, 0.35);
+}
+
+.u-p1 {
+  margin: 0;
+  font-family: var(--font-u-p1), "Open Sans", system-ui, sans-serif;
+  font-size: clamp(0.95rem, 3.5vw, 1.15rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  color: rgba(235, 242, 255, 0.92);
+  text-align: center;
+  text-shadow: 0 0 14px rgba(180, 210, 255, 0.25);
+}
+
+/* Quiet caption under main copy (fineprint, credits) */
+.u-p1.u-caption {
+  font-size: clamp(0.72rem, 2.6vw, 0.85rem);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  color: rgba(200, 214, 240, 0.55);
+  text-shadow: none;
 }
 
 /* Universe flow UI — zoom / confirm controls (mobile portrait stage) */
 
-/* Zoom guidance — same 50px top pad as other copy */
+/* Zoom guidance — same top pad + shared side gutter as other copy */
 .zoom-mid-copy {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   top: var(--universe-top-pad);
-  transform: translateX(-50%);
-  width: min(88%, 300px);
-  max-width: calc(100% - 2 * var(--universe-mute-clear));
+  width: 100%;
   box-sizing: border-box;
-  padding: 0 8px;
+  padding: 0 var(--universe-side-pad);
   z-index: 20;
   pointer-events: none;
   display: flex;
@@ -290,27 +286,12 @@
 }
 
 .zoom-mid-copy .zoom-mid-title {
-  margin: 0;
-  color: rgba(240, 244, 255, 0.88);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.95rem, 3.5vw, 1.15rem);
-  font-weight: 300;
-  letter-spacing: 0.03em;
-  line-height: 1.45;
-  text-shadow: 0 0 16px rgba(180, 210, 255, 0.3);
+  width: 100%;
 }
 
 .zoom-mid-copy .zoom-mid-fineprint {
-  margin: 0;
-  max-width: 300px;
+  max-width: 100%;
   color: rgba(200, 214, 240, 0.45);
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  line-height: 1.35;
-  text-align: center;
-  /* Color/glow only — no font-size or scale (avoids layout jank with WebGL) */
 }
 
 /* Grayed-moon tap: soft brightness breathe, then settle a touch brighter */
@@ -352,11 +333,11 @@
   align-items: center;
 }
 
-/* Base button */
+/* Base button — Inter on every label */
 .ctrl-btn {
   border: none;
   color: #e8f0ff;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-u-btn), "Inter", system-ui, sans-serif;
   font-weight: 400;
   cursor: pointer;
   user-select: none;
@@ -460,8 +441,8 @@
   flex-direction: column;
   align-items: center;
   padding: var(--universe-top-pad)
-    max(8%, var(--universe-mute-clear))
-    calc(50px + env(safe-area-inset-bottom, 0px));
+    var(--universe-side-pad)
+    calc(6dvh + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   opacity: 1;
   transition: opacity 1.15s cubic-bezier(0.22, 1, 0.36, 1);
@@ -477,7 +458,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0;
-  width: min(92%, 340px);
+  width: min(100%, 340px);
   flex-shrink: 0;
   transition: gap 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -568,8 +549,8 @@
   justify-content: flex-start;
   gap: 18px;
   padding: var(--universe-top-pad)
-    max(8%, var(--universe-mute-clear))
-    calc(28px + env(safe-area-inset-bottom, 0px));
+    var(--universe-side-pad)
+    calc(4dvh + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -647,25 +628,8 @@
   transform: translateY(0);
 }
 
-.opening-reveal-headline {
-  margin: 0;
-  color: #f0f4ff;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: clamp(1.15rem, 4.2vw, 1.45rem);
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  line-height: 1.35;
-  text-shadow: 0 0 16px rgba(180, 210, 255, 0.3);
-}
-
+/* Type from .u-h1 / .u-p1 — body keeps multi-line */
 .opening-reveal-body {
-  margin: 0;
-  color: rgba(220, 230, 250, 0.88);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.9rem, 3.3vw, 1.05rem);
-  font-weight: 300;
-  letter-spacing: 0.02em;
-  line-height: 1.5;
   white-space: pre-line;
 }
 
@@ -738,19 +702,19 @@
   -webkit-user-drag: none;
 }
 
-.opening-reveal-rest-line {
-  color: rgba(230, 238, 255, 0.9);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: clamp(0.85rem, 3.1vw, 0.98rem);
-  font-weight: 300;
-  letter-spacing: 0.02em;
-  line-height: 1.35;
+/* List lines: same Open Sans as p1, left-aligned & slightly denser */
+.opening-reveal-rest-line.u-p1 {
   text-align: left;
+  font-size: clamp(0.85rem, 3.1vw, 0.98rem);
+  font-weight: 400;
+  line-height: 1.35;
+  text-shadow: none;
+  color: rgba(230, 238, 255, 0.9);
 }
 
 .opening-reveal-rest-item.is-correct .opening-reveal-rest-line {
   color: #e4f7eb;
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .opening-reveal-cta {

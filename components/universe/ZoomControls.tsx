@@ -38,11 +38,11 @@ export default function ZoomControls({
     <>
       {showMidCopy && (
         <div className="zoom-mid-copy" aria-live="polite">
-          <p className="zoom-mid-title">{midTitle}</p>
+          <p className="zoom-mid-title u-h1">{midTitle}</p>
           {midFineprint ? (
             <p
               key={fineprintNudgeKey > 0 ? `nudge-${fineprintNudgeKey}` : "idle"}
-              className={`zoom-mid-fineprint${
+              className={`zoom-mid-fineprint u-p1 u-caption${
                 fineprintNudgeKey > 0 ? " nudge" : ""
               }`}
             >
