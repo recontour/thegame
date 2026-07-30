@@ -142,11 +142,12 @@ export default function OpeningQuiz({
     setFactVisible(false);
     setQuestionVisible(false);
     setOptionsVisible(false);
+    // Trigger phone exit immediately, don't wait for the quiz to fade.
+    onRevealPhase?.(true);
 
     // Quiz fade (~1.15s) + short beat of black, then soft result card
     window.setTimeout(() => {
       setPhase("reveal");
-      onRevealPhase?.(true);
       // Double frame so .opening-reveal paints at opacity 0 first
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => setRevealVisible(true));

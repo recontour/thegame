@@ -9,7 +9,7 @@ const PHONE_PNG = "/universe/mobile.png";
 useLoader.preload(THREE.TextureLoader, PHONE_PNG);
 
 type OpeningPhoneProps = {
-  /** Soft exit: scale down + drift back + fade */
+  /** Soft exit: move up and fade out */
   exiting: boolean;
   /** NDC y of the free band center under the quiz options (−1…+1) */
   slotNdcY?: number;
@@ -35,6 +35,7 @@ export default function OpeningPhone({
   const yRef = useRef(0);
   const targetYRef = useRef(0);
   const exitDoneRef = useRef(false);
+  const exitStartY = useRef<number | null>(null);
   const tRef = useRef(0);
 
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
@@ -52,27 +53,16 @@ export default function OpeningPhone({
     tRef.current += dt;
 
     const wantOpacity = exiting ? 0 : 1;
-    const wantScale = exiting ? 0.35 : 1;
-    const wantZ = exiting ? 0.55 : 1.55;
 
     opacityRef.current = THREE.MathUtils.damp(
       opacityRef.current,
       wantOpacity,
-      exiting ? 2.2 : 1.6,
+      exiting ? 2.8 : 1.6, // A balanced fade-out for the exit
       dt,
     );
-    scaleRef.current = THREE.MathUtils.damp(
-      scaleRef.current,
-      wantScale,
-      exiting ? 2.0 : 1.4,
-      dt,
-    );
-    zRef.current = THREE.MathUtils.damp(
-      zRef.current,
-      wantZ,
-      exiting ? 2.0 : 1.4,
-      dt,
-    );
+    // Keep scale and z-depth constant during animation
+    scaleRef.current = THREE.MathUtils.damp(scaleRef.current, 1, 1.4, dt);
+    zRef.current = 1.55;
 
     // Map quiz free-band center → world Y on the phone's depth plane
     ndc.set(0, slotNdcY);
@@ -84,7 +74,24 @@ export default function OpeningPhone({
     if (raycaster.ray.intersectPlane(plane, hit)) {
       targetYRef.current = hit.y;
     }
-    yRef.current = THREE.MathUtils.damp(yRef.current, targetYRef.current, 6, dt);
+
+    let finalTargetY = targetYRef.current;
+    if (exiting) {
+      if (exitStartY.current === null) {
+        // On first exit frame, capture start Y and set a target above it
+        exitStartY.current = yRef.current;
+      }
+      finalTargetY = exitStartY.current + 0.4; // A clear upward movement
+    } else {
+      exitStartY.current = null; // Reset when not exiting
+    }
+
+    yRef.current = THREE.MathUtils.damp(
+      yRef.current,
+      finalTargetY,
+      exiting ? 3.5 : 6, // A smooth speed for the upward movement
+      dt,
+    );
 
     if (matRef.current) {
       matRef.current.opacity = opacityRef.current;
@@ -101,8 +108,7 @@ export default function OpeningPhone({
     if (
       exiting &&
       !exitDoneRef.current &&
-      opacityRef.current < 0.04 &&
-      scaleRef.current < 0.42
+      opacityRef.current < 0.04
     ) {
       exitDoneRef.current = true;
       onExitDone?.();

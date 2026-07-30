@@ -770,6 +770,7 @@ export default function UniverseShell() {
   const [audioReady, setAudioReady] = useState(false);
   const [openingActive, setOpeningActive] = useState(true);
   const [phoneExiting, setPhoneExiting] = useState(false);
+  const [phoneHasExited, setPhoneHasExited] = useState(false);
   const [earthRevealed, setEarthRevealed] = useState(false);
   /** Hide 3D phone while answer-reveal card is up */
   const [openingReveal, setOpeningReveal] = useState(false);
@@ -858,10 +859,16 @@ export default function UniverseShell() {
   }, []);
 
   const handlePhoneExitDone = useCallback(() => {
-    setOpeningActive(false);
-    setSatelliteActive(true);
-    window.setTimeout(() => setPromptVisible(true), 400);
+    setPhoneHasExited(true);
   }, []);
+
+  useEffect(() => {
+    if (phoneHasExited && phoneExiting) {
+      setOpeningActive(false);
+      setSatelliteActive(true);
+      window.setTimeout(() => setPromptVisible(true), 400);
+    }
+  }, [phoneHasExited, phoneExiting]);
 
   const handleSatelliteSettled = useCallback(() => {
     setPromptVisible(false);
@@ -1254,10 +1261,10 @@ export default function UniverseShell() {
                       : EARTH_SCREEN_BIAS
                 }
               />
-              {audioReady && openingActive && !openingReveal && (
+              {audioReady && openingActive && (
                 <Suspense fallback={null}>
                   <OpeningPhone
-                    exiting={phoneExiting}
+                    exiting={phoneExiting || openingReveal}
                     slotNdcY={phoneSlotNdcY}
                     onExitDone={handlePhoneExitDone}
                   />
