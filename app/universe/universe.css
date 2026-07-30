@@ -1,3 +1,67 @@
+/* First-load audio unlock (web needs a user gesture) */
+.audio-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+.audio-gate-btn {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 1px solid rgba(160, 190, 255, 0.22);
+  background: linear-gradient(145deg, #1e2a3a, #151d28);
+  box-shadow:
+    4px 4px 16px rgba(0, 0, 0, 0.5),
+    -2px -2px 8px rgba(80, 120, 180, 0.1),
+    0 0 28px rgba(120, 170, 255, 0.18),
+    inset 0 1px 1px rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.audio-gate-btn:active {
+  transform: scale(0.96);
+  box-shadow:
+    1px 1px 6px rgba(0, 0, 0, 0.45),
+    inset 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.audio-gate-btn:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.audio-gate-emoji {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.audio-gate-hint {
+  margin: 0;
+  color: rgba(220, 230, 250, 0.7);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+}
+
 /* Universe flow UI — zoom / confirm controls (mobile portrait stage) */
 
 /* Zoom guidance — same 50px top pad as other copy */

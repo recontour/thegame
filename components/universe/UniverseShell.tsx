@@ -11,6 +11,7 @@ import {
   ZOOM_Z_MOON_FRAME,
   ZOOM_Z_STEP,
 } from "@/components/universe/constants";
+import AudioGate from "@/components/universe/AudioGate";
 import CameraRig from "@/components/universe/CameraRig";
 import OpeningPhone from "@/components/universe/OpeningPhone";
 import OpeningQuiz from "@/components/universe/OpeningQuiz";
@@ -261,6 +262,8 @@ function PromptMessage({
 export default function UniverseShell() {
   const stageRef = useRef<HTMLDivElement>(null);
 
+  /** Story starts after 🎧 unlock (autoplay needs a click) */
+  const [audioReady, setAudioReady] = useState(false);
   const [openingActive, setOpeningActive] = useState(true);
   const [phoneExiting, setPhoneExiting] = useState(false);
   const [earthRevealed, setEarthRevealed] = useState(false);
@@ -290,7 +293,11 @@ export default function UniverseShell() {
   const [moonSmartAss, setMoonSmartAss] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
-  /** After “Let's see the real distance →” */
+  const handleAudioUnlocked = useCallback(() => {
+    setAudioReady(true);
+  }, []);
+
+  /** After “Let's see what distance really is →” */
   const handleOpeningContinue = useCallback(() => {
     setOpeningReveal(false);
     setPhoneExiting(true);
@@ -414,7 +421,7 @@ export default function UniverseShell() {
               <directionalLight intensity={3.0} position={[5, 3, 5]} />
               <Stars />
               <CameraRig targetZ={cameraZ} />
-              {openingActive && !openingReveal && (
+              {audioReady && openingActive && !openingReveal && (
                 <Suspense fallback={null}>
                   <OpeningPhone
                     exiting={phoneExiting}
@@ -435,8 +442,10 @@ export default function UniverseShell() {
             </Canvas>
           </WebGLErrorBoundary>
 
+          {!audioReady && <AudioGate onUnlocked={handleAudioUnlocked} />}
+
           <OpeningQuiz
-            active={openingActive && !phoneExiting}
+            active={audioReady && openingActive && !phoneExiting}
             onContinue={handleOpeningContinue}
             onPhoneSlotNdc={setPhoneSlotNdcY}
             onRevealPhase={setOpeningReveal}
