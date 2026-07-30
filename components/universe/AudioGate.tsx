@@ -10,13 +10,13 @@ type AudioGateProps = {
 };
 
 /**
- * First-load 🎧 unlock + looping BGM.
- * IMPORTANT: this component must stay mounted after unlock — unmounting
- * kills the <audio> element and stops the music.
+ * First-load 🎧 unlock + looping BGM + small top-left mute toggle.
+ * IMPORTANT: stay mounted after unlock or the <audio> dies.
  */
 export default function AudioGate({ onUnlocked }: AudioGateProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [unlocked, setUnlocked] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,12 +51,9 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
       audio.loop = true;
       audio.muted = false;
       audio.volume = 1;
-
-      // Do NOT call load() here — it can cancel play on some mobile browsers.
-      // Just play() inside the user gesture.
       await audio.play();
-
       setUnlocked(true);
+      setMuted(false);
       setBusy(false);
       onUnlocked();
     } catch (e) {
@@ -66,9 +63,16 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
     }
   }, [busy, unlocked, onUnlocked]);
 
+  const toggleMute = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !unlocked) return;
+    const next = !audio.muted;
+    audio.muted = next;
+    setMuted(next);
+  }, [unlocked]);
+
   return (
     <>
-      {/* Always mounted — survives after the gate UI hides */}
       <audio
         ref={audioRef}
         src={AUDIO_SRC}
@@ -101,6 +105,18 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
             {error ?? (busy ? "Starting…" : "Tap to begin")}
           </p>
         </div>
+      )}
+
+      {unlocked && (
+        <button
+          type="button"
+          className={`audio-mute-btn${muted ? " is-muted" : ""}`}
+          onClick={toggleMute}
+          aria-label={muted ? "Unmute" : "Mute"}
+          aria-pressed={muted}
+        >
+          <span aria-hidden>{muted ? "🔇" : "🎧"}</span>
+        </button>
       )}
     </>
   );

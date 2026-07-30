@@ -88,15 +88,17 @@ const UNIVERSE_LAYOUT_CSS = `
     justify-content: center;
     pointer-events: none;
     z-index: 10;
-    /* Match opening quiz: 50px from top (+ safe area) */
-    padding: calc(50px + env(safe-area-inset-top, 0px)) 8% 0;
+    /* 50px top + side clear for mute button */
+    padding: var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px)))
+      max(8%, var(--universe-mute-clear, 52px)) 0;
   }
 
   .universe-ui.bottom {
     top: auto;
     bottom: 0;
     align-items: flex-end;
-    padding: 0 8% calc(28px + env(safe-area-inset-bottom, 0px));
+    padding: 0 max(8%, var(--universe-mute-clear, 52px))
+      calc(28px + env(safe-area-inset-bottom, 0px));
   }
 
   .universe-message {
@@ -157,6 +159,9 @@ const UNIVERSE_LAYOUT_CSS = `
   .universe-orbit-label.moon-label {
     /* Between Moon (high) and Earth (lower third) — not glued to the disc */
     top: 32%;
+    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    padding: 0 8px;
+    box-sizing: border-box;
   }
 
   .universe-orbit-label .moon-label-sub {
@@ -175,13 +180,15 @@ const UNIVERSE_LAYOUT_CSS = `
     left: 50%;
     top: 0;
     transform: translateX(-50%);
-    width: min(92%, 340px);
+    width: min(92%, 300px);
+    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
     z-index: 20;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 18px;
-    padding: calc(50px + env(safe-area-inset-top, 0px)) 0 0;
+    padding: var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px)))
+      8px 0;
     pointer-events: none;
     box-sizing: border-box;
   }

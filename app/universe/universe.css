@@ -62,15 +62,62 @@
   letter-spacing: 0.06em;
 }
 
+/* Persistent mute — top-left after unlock (clear of centered copy) */
+.audio-mute-btn {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: calc(10px + env(safe-area-inset-left, 0px));
+  z-index: 60;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(160, 190, 255, 0.18);
+  background: linear-gradient(145deg, #1e2a3a, #151d28);
+  box-shadow:
+    3px 3px 10px rgba(0, 0, 0, 0.45),
+    0 0 12px rgba(120, 170, 255, 0.12),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition:
+    transform 0.15s ease,
+    opacity 0.2s ease,
+    box-shadow 0.15s ease;
+}
+
+.audio-mute-btn:active {
+  transform: scale(0.95);
+}
+
+.audio-mute-btn.is-muted {
+  opacity: 0.55;
+}
+
+/* Shared inset so top copy doesn’t sit under the mute control */
+:root {
+  --universe-mute-clear: 52px;
+  --universe-top-pad: calc(50px + env(safe-area-inset-top, 0px));
+}
+
 /* Universe flow UI — zoom / confirm controls (mobile portrait stage) */
 
 /* Zoom guidance — same 50px top pad as other copy */
 .zoom-mid-copy {
   position: absolute;
   left: 50%;
-  top: calc(50px + env(safe-area-inset-top, 0px));
+  top: var(--universe-top-pad);
   transform: translateX(-50%);
-  width: min(88%, 320px);
+  width: min(88%, 300px);
+  max-width: calc(100% - 2 * var(--universe-mute-clear));
+  box-sizing: border-box;
+  padding: 0 8px;
   z-index: 20;
   pointer-events: none;
   display: flex;
@@ -228,7 +275,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: calc(50px + env(safe-area-inset-top, 0px)) 8%
+  padding: var(--universe-top-pad)
+    max(8%, var(--universe-mute-clear))
     calc(50px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   transition: opacity 0.9s ease;
@@ -298,7 +346,8 @@
   align-items: center;
   justify-content: flex-start;
   gap: 18px;
-  padding: calc(50px + env(safe-area-inset-top, 0px)) 8%
+  padding: var(--universe-top-pad)
+    max(8%, var(--universe-mute-clear))
     calc(28px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   overflow-y: auto;
