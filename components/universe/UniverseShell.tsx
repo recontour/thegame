@@ -442,7 +442,8 @@ export default function UniverseShell() {
             </Canvas>
           </WebGLErrorBoundary>
 
-          {!audioReady && <AudioGate onUnlocked={handleAudioUnlocked} />}
+          {/* Always mounted — unmounting would stop the looping <audio> */}
+          <AudioGate onUnlocked={handleAudioUnlocked} />
 
           <OpeningQuiz
             active={audioReady && openingActive && !phoneExiting}
