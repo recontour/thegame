@@ -64,15 +64,14 @@ function projectOnPlane(point: THREE.Vector3): THREE.Vector3 {
 
 /**
  * Textured emissive Sun sphere — map from public/universe/2k_sun.jpg.
+ * Pointer hits go through a separate scaled hit shell (easier when zoomed out).
  */
 function SunSphere({
   opacity,
   grayed,
-  onPointerDown,
 }: {
   opacity: number;
   grayed: boolean;
-  onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const map = useLoader(THREE.TextureLoader, SUN_TEXTURE_URL);
@@ -110,7 +109,7 @@ function SunSphere({
   });
 
   return (
-    <mesh ref={meshRef} onPointerDown={onPointerDown} renderOrder={1}>
+    <mesh ref={meshRef} renderOrder={1}>
       <sphereGeometry args={[SUN_RADIUS, 48, 48]} />
       <meshStandardMaterial
         ref={matRef}
@@ -135,6 +134,18 @@ function SunSphere({
       />
     </mesh>
   );
+}
+
+/**
+ * Invisible grab shell — grows a little as the camera pulls back so the
+ * visual disc can be tiny without becoming un-tappable.
+ * (Capped — only a modest pad, not a huge magnet.)
+ */
+function sunHitRadius(cameraZ: number): number {
+  const zoomRatio = Math.max(1, cameraZ / ZOOM_Z_SUN_MIN);
+  // 1.12× at start → ~1.75× when fully zoomed (gentle, not wild)
+  const scale = THREE.MathUtils.clamp(1.12 + (zoomRatio - 1) * 0.12, 1.12, 1.75);
+  return SUN_RADIUS * scale;
 }
 
 /**
@@ -167,6 +178,8 @@ export default function Sun({
   } | null>(null);
   /** Last grayed park Y — hand off to drag from here after Confirm */
   const parkYRef = useRef<number>(SUN_START.y);
+  /** Invisible grab shell — scales up modestly with zoom */
+  const hitMeshRef = useRef<THREE.Mesh>(null);
 
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), []);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
@@ -325,6 +338,13 @@ export default function Sun({
         displayPos.current.z,
       );
     }
+
+    // Grow hit shell with zoom so a shrunken disc stays grabable
+    const hit = hitMeshRef.current;
+    if (hit) {
+      const r = sunHitRadius(parkCameraZ);
+      hit.scale.setScalar(r);
+    }
   });
 
   if (!visible && opacity < 0.01) return null;
@@ -337,11 +357,22 @@ export default function Sun({
   return (
     <group>
       <group ref={groupRef} position={[SUN_START.x, SUN_START.y, SUN_START.z]}>
-        <SunSphere
-          opacity={opacity}
-          grayed={grayed}
+        <SunSphere opacity={opacity} grayed={grayed} />
+        {/* Unit sphere scaled in useFrame — invisible grab target */}
+        <mesh
+          ref={hitMeshRef}
           onPointerDown={canTap ? onPointerDown : undefined}
-        />
+          renderOrder={2}
+        >
+          <sphereGeometry args={[1, 16, 16]} />
+          <meshBasicMaterial
+            transparent
+            opacity={0}
+            depthWrite={false}
+            depthTest
+            toneMapped={false}
+          />
+        </mesh>
       </group>
     </group>
   );
