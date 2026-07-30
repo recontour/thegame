@@ -5,6 +5,11 @@ type ZoomControlsProps = {
   canZoomIn: boolean;
   canZoomOut: boolean;
   showMidCopy?: boolean;
+  /**
+   * Increment to replay a soft glow on the fineprint
+   * (grayed-moon tap). 0 = no nudge.
+   */
+  fineprintNudgeKey?: number;
   midTitle?: string;
   midFineprint?: string;
   onZoomIn: () => void;
@@ -20,6 +25,7 @@ export default function ZoomControls({
   canZoomIn,
   canZoomOut,
   showMidCopy = true,
+  fineprintNudgeKey = 0,
   midTitle = "You might want to zoom out first.",
   midFineprint = "* You can move the moon once you confirm",
   onZoomIn,
@@ -34,7 +40,14 @@ export default function ZoomControls({
         <div className="zoom-mid-copy" aria-live="polite">
           <p className="zoom-mid-title">{midTitle}</p>
           {midFineprint ? (
-            <p className="zoom-mid-fineprint">{midFineprint}</p>
+            <p
+              key={fineprintNudgeKey > 0 ? `nudge-${fineprintNudgeKey}` : "idle"}
+              className={`zoom-mid-fineprint${
+                fineprintNudgeKey > 0 ? " nudge" : ""
+              }`}
+            >
+              {midFineprint}
+            </p>
           ) : null}
         </div>
       )}

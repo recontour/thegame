@@ -294,6 +294,8 @@ export default function UniverseShell() {
   const [zoomControlsVisible, setZoomControlsVisible] = useState(false);
   const [moonPromptVisible, setMoonPromptVisible] = useState(false);
   const [zoomFirstVisible, setZoomFirstVisible] = useState(false);
+  /** Grayed-moon nudge — remount key restarts a soft CSS glow (no layout thrash) */
+  const [confirmHintNudgeKey, setConfirmHintNudgeKey] = useState(0);
   const [farEnoughVisible, setFarEnoughVisible] = useState(false);
   const [moonLabelVisible, setMoonLabelVisible] = useState(false);
   /** They yeeted the Moon past real distance before the snap */
@@ -362,9 +364,15 @@ export default function UniverseShell() {
     setZoomControlsVisible(false);
     setFarEnoughVisible(false);
     setZoomFirstVisible(false);
+    setConfirmHintNudgeKey(0);
     setMoonPromptVisible(false);
     setMoonInteractive(true);
     window.setTimeout(() => setMoonPromptVisible(true), 200);
+  }, []);
+
+  const handleMoonGrayedTap = useCallback(() => {
+    // Soft brightness flash only — no size change (keeps layout/WebGL smooth)
+    setConfirmHintNudgeKey((k) => k + 1);
   }, []);
 
   /** Moon flies to 30× R; camera zooms out to fit — Earth stays face-on lower third */
@@ -445,6 +453,7 @@ export default function UniverseShell() {
                 moonInteractive={moonInteractive}
                 onMoonSnapStart={handleMoonSnapStart}
                 onMoonSettled={handleMoonSettled}
+                onMoonGrayedTap={handleMoonGrayedTap}
               />
             </Canvas>
           </WebGLErrorBoundary>
@@ -510,6 +519,7 @@ export default function UniverseShell() {
             canZoomIn={canZoomIn}
             canZoomOut={canZoomOut}
             showMidCopy={zoomFirstVisible && !farEnoughVisible}
+            fineprintNudgeKey={confirmHintNudgeKey}
             midTitle={ZOOM_FIRST_TEXT}
             midFineprint={ZOOM_FIRST_FINEPRINT}
             onZoomIn={handleZoomIn}

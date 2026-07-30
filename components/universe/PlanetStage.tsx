@@ -13,6 +13,7 @@ type PlanetStageProps = {
   moonInteractive: boolean;
   onMoonSnapStart?: () => void;
   onMoonSettled?: (info: { smartAss: boolean }) => void;
+  onMoonGrayedTap?: () => void;
 };
 
 /**
@@ -27,6 +28,7 @@ export default function PlanetStage({
   moonInteractive,
   onMoonSnapStart,
   onMoonSettled,
+  onMoonGrayedTap,
 }: PlanetStageProps) {
   return (
     <group>
@@ -42,6 +44,7 @@ export default function PlanetStage({
           interactive={moonInteractive}
           onSnapStart={onMoonSnapStart}
           onSettled={onMoonSettled}
+          onGrayedTap={onMoonGrayedTap}
         />
       </Suspense>
     </group>

@@ -35,6 +35,8 @@ type MoonProps = {
   onSnapStart?: () => void;
   /** smartAss = they dropped it absurdly far (past real Moon distance) */
   onSettled?: (info: { smartAss: boolean }) => void;
+  /** Grayed moon tapped before Confirm — nudge the user to read the hint */
+  onGrayedTap?: () => void;
 };
 
 const FADE_SPEED = 1.8;
@@ -130,6 +132,7 @@ export default function Moon({
   interactive,
   onSnapStart,
   onSettled,
+  onGrayedTap,
 }: MoonProps) {
   const groupRef = useRef<THREE.Group>(null);
   const { camera, gl } = useThree();
@@ -214,6 +217,12 @@ export default function Moon({
   }, [endDrag, gl.domElement, interactive, projectPointer]);
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    // Still grayed — soft nudge toward Confirm, don’t drag
+    if (visible && !interactive) {
+      e.stopPropagation();
+      onGrayedTap?.();
+      return;
+    }
     if (
       !interactive ||
       settledRef.current ||
@@ -285,7 +294,9 @@ export default function Moon({
 
   if (!visible && opacity < 0.01) return null;
 
-  const canGrab = interactive && opacity > 0.2 && !settledRef.current;
+  const canTap =
+    (interactive && opacity > 0.2 && !settledRef.current) ||
+    (visible && !interactive && opacity > 0.2);
   const grayed = visible && !interactive;
 
   return (
@@ -294,7 +305,7 @@ export default function Moon({
         <MoonSphere
           opacity={opacity}
           grayed={grayed}
-          onPointerDown={canGrab ? onPointerDown : undefined}
+          onPointerDown={canTap ? onPointerDown : undefined}
         />
       </group>
     </group>

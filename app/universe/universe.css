@@ -140,13 +140,35 @@
 
 .zoom-mid-copy .zoom-mid-fineprint {
   margin: 0;
-  max-width: 280px;
+  max-width: 300px;
   color: rgba(200, 214, 240, 0.45);
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.02em;
   line-height: 1.35;
+  text-align: center;
+  /* Color/glow only — no font-size or scale (avoids layout jank with WebGL) */
+}
+
+/* Grayed-moon tap: soft brightness breathe, then settle a touch brighter */
+.zoom-mid-copy .zoom-mid-fineprint.nudge {
+  animation: fineprint-glow 1.4s ease-in-out 1 forwards;
+}
+
+@keyframes fineprint-glow {
+  0% {
+    color: rgba(200, 214, 240, 0.45);
+    text-shadow: none;
+  }
+  35% {
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 0 12px rgba(190, 220, 255, 0.35);
+  }
+  100% {
+    color: rgba(230, 240, 255, 0.72);
+    text-shadow: 0 0 6px rgba(180, 210, 255, 0.15);
+  }
 }
 
 /* Buttons only — bottom of the column */

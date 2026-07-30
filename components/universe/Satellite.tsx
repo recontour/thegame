@@ -53,16 +53,23 @@ function projectOnPlane(point: THREE.Vector3): THREE.Vector3 {
 
 /**
  * PNG satellite billboard (faces camera via parent quaternion).
+ * Optional soft shimmer when the user hasn’t dragged yet.
  */
 function SatelliteSprite({
   opacity,
+  shimmer,
   onPointerDown,
 }: {
   opacity: number;
+  /** 0–1 how strong the “you can drag me” shimmer is */
+  shimmer: number;
   onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
 }) {
   const map = useLoader(THREE.TextureLoader, SATELLITE_PNG);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const glowMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+  const tRef = useRef(0);
 
   useEffect(() => {
     map.colorSpace = THREE.SRGBColorSpace;
@@ -70,13 +77,26 @@ function SatelliteSprite({
     map.needsUpdate = true;
   }, [map]);
 
-  useFrame(() => {
+  useFrame((_, dt) => {
+    tRef.current += dt;
+    const wave = 0.5 + 0.5 * Math.sin(tRef.current * 2.4);
+    const wave2 = 0.5 + 0.5 * Math.sin(tRef.current * 3.1 + 1.2);
+
     if (matRef.current) {
-      matRef.current.opacity = opacity;
+      // Subtle brightness shimmer on the craft itself
+      const boost = 1 + shimmer * 0.18 * wave;
+      matRef.current.opacity = Math.min(1, opacity * boost);
+      matRef.current.color.setRGB(boost, boost, boost * 1.02);
+    }
+
+    if (glowMatRef.current && glowRef.current) {
+      const s = shimmer * (0.35 + 0.65 * wave2);
+      glowMatRef.current.opacity = s * 0.45;
+      const sc = 1.15 + 0.2 * wave;
+      glowRef.current.scale.setScalar(sc);
     }
   });
 
-  // Keep aspect from the texture when we know it; fallback ~ square-ish craft
   const img = map.image as { width?: number; height?: number } | undefined;
   const aspect =
     img?.width && img?.height ? img.width / img.height : 1.35;
@@ -84,18 +104,33 @@ function SatelliteSprite({
   const h = w / aspect;
 
   return (
-    <mesh onPointerDown={onPointerDown}>
-      <planeGeometry args={[w, h]} />
-      <meshBasicMaterial
-        ref={matRef}
-        map={map}
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-        side={THREE.DoubleSide}
-        toneMapped={false}
-      />
-    </mesh>
+    <group>
+      {/* Soft halo — reads as “movable” without being loud */}
+      <mesh ref={glowRef} position={[0, 0, -0.002]}>
+        <circleGeometry args={[Math.max(w, h) * 0.72, 32]} />
+        <meshBasicMaterial
+          ref={glowMatRef}
+          color="#cfe0ff"
+          transparent
+          opacity={0}
+          depthWrite={false}
+          toneMapped={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh onPointerDown={onPointerDown}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial
+          ref={matRef}
+          map={map}
+          transparent
+          opacity={opacity}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -171,8 +206,12 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
   const orbitOpacityRef = useRef(0);
 
   const draggingRef = useRef(false);
+  const hasDraggedRef = useRef(false);
   const settledRef = useRef(false);
   const floatTRef = useRef(0);
+  const idleSinceRef = useRef(0);
+  const shimmerRef = useRef(0);
+  const [shimmer, setShimmer] = useState(0);
   const snapRef = useRef<{
     from: THREE.Vector3;
     to: THREE.Vector3;
@@ -258,6 +297,8 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
     e.stopPropagation();
     e.nativeEvent.preventDefault?.();
     draggingRef.current = true;
+    hasDraggedRef.current = true;
+    shimmerRef.current = 0;
     // Capture so move/up keep firing even if pointer leaves the mesh
     (e.target as Element | undefined)?.setPointerCapture?.(e.pointerId);
     const p = projectPointer(e.nativeEvent.clientX, e.nativeEvent.clientY);
@@ -274,6 +315,24 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
         dt,
       );
       setOpacity(opacityRef.current);
+    }
+
+    // After 2.5s idle, soft shimmer invites a drag
+    if (active && !hasDraggedRef.current && !settledRef.current) {
+      idleSinceRef.current += dt;
+      const wantShimmer = idleSinceRef.current > 2.5 ? 1 : 0;
+      shimmerRef.current = THREE.MathUtils.damp(
+        shimmerRef.current,
+        wantShimmer,
+        2.2,
+        dt,
+      );
+    } else {
+      shimmerRef.current = THREE.MathUtils.damp(shimmerRef.current, 0, 4, dt);
+      if (!active) idleSinceRef.current = 0;
+    }
+    if (Math.abs(shimmer - shimmerRef.current) > 0.02) {
+      setShimmer(shimmerRef.current);
     }
 
     const snap = snapRef.current;
@@ -347,6 +406,7 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
       <group ref={groupRef} position={[SAT_START.x, SAT_START.y, SAT_START.z]}>
         <SatelliteSprite
           opacity={opacity}
+          shimmer={shimmer}
           onPointerDown={canGrab ? onPointerDown : undefined}
         />
         {/*
