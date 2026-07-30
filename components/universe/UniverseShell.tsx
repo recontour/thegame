@@ -352,9 +352,12 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translate(-50%, 0);
     z-index: 22;
     pointer-events: none;
-    /* .u-h1 + tabular timer */
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
+    /* Bigger than body/title defaults so the count reads as the hero */
+    font-size: clamp(1.85rem, 7.5vw, 2.6rem) !important;
+    font-weight: 500;
+    line-height: 1.1;
     opacity: 0;
     transition: opacity 0.5s ease;
   }
@@ -1606,7 +1609,7 @@ export default function UniverseShell() {
               className={`light-timer u-h1${lightTimerOn ? " is-on" : ""}`}
               aria-hidden={!lightTimerOn}
             >
-              {lightTimerSec.toFixed(1)}s
+              {lightTimerSec.toFixed(3)}s
             </div>
           )}
           {lightPhase && (
