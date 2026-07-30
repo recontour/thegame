@@ -246,6 +246,228 @@ const UNIVERSE_LAYOUT_CSS = `
     white-space: nowrap;
   }
 
+  /* Light lesson — copy sits mid-upper so the Moon isn’t covered */
+  .light-story {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    width: min(94%, 340px);
+    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    z-index: 22;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    /* Push past the Moon band (Moon sits high on the column) */
+    padding:
+      calc(var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px))) + 12vh)
+      6px 0;
+    pointer-events: none;
+    box-sizing: border-box;
+    text-align: center;
+  }
+
+  .light-story-intro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    opacity: 1;
+    transition: opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .light-story-intro.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+    max-height: 0;
+    gap: 0;
+    overflow: hidden;
+    transition:
+      opacity 0.7s ease,
+      max-height 0.7s ease,
+      gap 0.7s ease;
+  }
+
+  .light-story-title {
+    margin: 0;
+    color: #f5f0e4;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: clamp(1.35rem, 5vw, 1.7rem);
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-shadow: 0 0 20px rgba(255, 210, 120, 0.35);
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 1.3s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .light-story-line {
+    margin: 0;
+    color: rgba(240, 244, 255, 0.92);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: clamp(0.9rem, 3.3vw, 1.08rem);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    line-height: 1.55;
+    max-width: 32em;
+    text-shadow: 0 0 14px rgba(180, 210, 255, 0.25);
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 1.25s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .light-story-line.arrive {
+    color: rgba(255, 255, 255, 0.96);
+    text-shadow: 0 0 14px rgba(200, 220, 255, 0.3);
+  }
+
+  .light-story .is-on {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .light-story-show-btn {
+    margin-top: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.95s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .light-story-show-btn.is-on {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /*
+   * Live timer — sits just under Earth (globe is optically lower third
+   * via view-offset bias). Stays up after the solar CTA appears.
+   */
+  .light-timer {
+    position: absolute;
+    left: 50%;
+    top: 78%;
+    transform: translate(-50%, 0);
+    z-index: 22;
+    pointer-events: none;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: clamp(1.15rem, 4.5vw, 1.45rem);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 0 16px rgba(180, 210, 255, 0.4);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  .light-timer.is-on {
+    opacity: 1;
+  }
+
+  .light-solar-cta {
+    position: absolute;
+    left: 50%;
+    bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
+    transform: translateX(-50%) translateY(10px);
+    z-index: 23;
+    width: min(92%, 300px);
+    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    pointer-events: none;
+    opacity: 0;
+    transition:
+      opacity 1s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1s cubic-bezier(0.22, 1, 0.36, 1);
+    box-sizing: border-box;
+  }
+
+  .light-solar-cta.is-on {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+
+  .light-solar-cta .ctrl-btn {
+    width: 100%;
+  }
+
+  /* Post-sun shared reveal + path branch (same top push as light story) */
+  .sun-reveal {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    width: min(94%, 340px);
+    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    z-index: 22;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    /* Clear the Sun disc — same offset as light beam copy */
+    padding:
+      calc(var(--universe-top-pad, calc(50px + env(safe-area-inset-top, 0px))) + 12vh)
+      6px 0;
+    pointer-events: none;
+    box-sizing: border-box;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.9s ease;
+  }
+
+  .sun-reveal.visible {
+    opacity: 1;
+  }
+
+  .sun-reveal-line {
+    margin: 0;
+    color: rgba(240, 244, 255, 0.92);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: clamp(0.9rem, 3.3vw, 1.08rem);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    line-height: 1.55;
+    max-width: 32em;
+    text-shadow: 0 0 14px rgba(180, 210, 255, 0.25);
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 1.25s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 1.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .sun-reveal-line.is-on {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .sun-reveal-cta {
+    margin-top: 8px;
+    width: min(100%, 280px);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.95s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .sun-reveal-cta.is-on {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
   /* After Sun snaps — Home docks here (fixed screen pin, not 3D) */
   .home-dock {
     position: absolute;
@@ -463,6 +685,34 @@ export default function UniverseShell() {
   const [sunSmartAss, setSunSmartAss] = useState(false);
   /** After place — Home leaves 3D and docks to the bottom of the phone */
   const [sunHomeDocked, setSunHomeDocked] = useState(false);
+  /**
+   * Path bookkeeping:
+   * - sawLightLesson: finished Moon→Earth light beat (or mid-light)
+   * - sunFromLight: entered Sun from the Light CTA (not the first branch pick)
+   */
+  const [sawLightLesson, setSawLightLesson] = useState(false);
+  const [sunFromLight, setSunFromLight] = useState(false);
+  /** Post-sun reveal cascade */
+  const [sunRevealL1, setSunRevealL1] = useState(false);
+  const [sunRevealL2, setSunRevealL2] = useState(false);
+  const [sunRevealBranch, setSunRevealBranch] = useState(false);
+  const [sunRevealBtn, setSunRevealBtn] = useState(false);
+  /** Moon remounted already at teaching distance (Sun → Light) */
+  const [moonPreSettled, setMoonPreSettled] = useState(false);
+
+  /** Light lesson — copy steps + Moon→Earth beam */
+  const [lightPhase, setLightPhase] = useState(false);
+  const [lightTitleOn, setLightTitleOn] = useState(false);
+  const [lightL1On, setLightL1On] = useState(false);
+  const [lightL2On, setLightL2On] = useState(false);
+  const [lightL3On, setLightL3On] = useState(false);
+  const [lightShowBtnOn, setLightShowBtnOn] = useState(false);
+  const [lightIntroHidden, setLightIntroHidden] = useState(false);
+  const [lightBeamActive, setLightBeamActive] = useState(false);
+  const [lightTimerOn, setLightTimerOn] = useState(false);
+  const [lightTimerSec, setLightTimerSec] = useState(0);
+  const [lightArriveOn, setLightArriveOn] = useState(false);
+  const [lightSolarBtnOn, setLightSolarBtnOn] = useState(false);
 
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
@@ -600,23 +850,53 @@ export default function UniverseShell() {
 
   const handleSunSettled = useCallback((info: { smartAss: boolean }) => {
     setSunSmartAss(info.smartAss);
+    setSunRevealL1(false);
+    setSunRevealL2(false);
+    setSunRevealBranch(false);
+    setSunRevealBtn(false);
     window.setTimeout(() => setSunLabelVisible(true), 280);
   }, []);
 
-  /** After the moon distance label lands, wait 5s then offer next branch */
+  /** Shared sun reveal → branch copy → CTA */
   useEffect(() => {
-    if (!moonLabelVisible || sunPhase) return;
+    if (!sunLabelVisible) return;
+    const t1 = window.setTimeout(() => setSunRevealL1(true), 200);
+    const t2 = window.setTimeout(() => setSunRevealL2(true), 1400);
+    const t3 = window.setTimeout(() => setSunRevealBranch(true), 2800);
+    const t4 = window.setTimeout(() => setSunRevealBtn(true), 4000);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.clearTimeout(t4);
+    };
+  }, [sunLabelVisible]);
+
+  /** After the moon distance label lands, wait then offer next branch */
+  useEffect(() => {
+    if (!moonLabelVisible || sunPhase || lightPhase) return;
     const t = window.setTimeout(() => setMoonNextVisible(true), 1700);
     return () => window.clearTimeout(t);
-  }, [moonLabelVisible, sunPhase]);
+  }, [moonLabelVisible, sunPhase, lightPhase]);
 
-  /** “Explore the Solar System ?” — Earth vs Sun only; clear moon/sat clutter */
-  const handleExploreSolarSystem = useCallback(() => {
+  /**
+   * Enter Sun placement beat.
+   * @param fromLight — true if coming from Light path CTA
+   */
+  const handleExploreSolarSystem = useCallback((fromLight = false) => {
     setMoonNextVisible(false);
     setMoonLabelVisible(false);
+    setLightPhase(false);
+    setLightBeamActive(false);
+    setLightTimerOn(false);
+    setLightSolarBtnOn(false);
+    setLightArriveOn(false);
+    setLightIntroHidden(false);
+    setSunFromLight(fromLight);
     // Drop orbit lesson pieces — invisible / irrelevant at solar scale
     setMoonVisible(false);
     setMoonInteractive(false);
+    setMoonPreSettled(false);
     setMoonPromptVisible(false);
     setSatelliteActive(false);
     setSunPhase(true);
@@ -624,6 +904,10 @@ export default function UniverseShell() {
     setSunInteractive(false);
     setSunPromptVisible(false);
     setSunLabelVisible(false);
+    setSunRevealL1(false);
+    setSunRevealL2(false);
+    setSunRevealBranch(false);
+    setSunRevealBtn(false);
     setSunHomeDocked(false);
     setFarEnoughVisible(false);
     setZoomFirstVisible(true);
@@ -633,8 +917,99 @@ export default function UniverseShell() {
     setCameraZ(ZOOM_Z_SUN_MIN);
   }, []);
 
-  const handleTellAboutLight = useCallback(() => {
-    // Branch reserved for light / speed-of-light path
+  /** “Tell me about light” / “Distance in light” — Earth–Moon frame + copy */
+  const handleTellAboutLight = useCallback(
+    (opts?: { fromSun?: boolean; preSettledMoon?: boolean }) => {
+      const fromSun = opts?.fromSun ?? false;
+      const preSettledMoon = opts?.preSettledMoon ?? false;
+
+      setMoonNextVisible(false);
+      setMoonLabelVisible(false);
+      setSunLabelVisible(false);
+      setSunRevealBtn(false);
+      setSunRevealBranch(false);
+
+      if (fromSun) {
+        // Leave solar framing; restore Earth + settled Moon for the beam
+        setSunPhase(false);
+        setSunVisible(false);
+        setSunHomeDocked(false);
+        setSunInteractive(false);
+        setZoomControlsVisible(false);
+        setMoonVisible(true);
+        setMoonInteractive(false);
+        setMoonPreSettled(preSettledMoon);
+        setEarthRevealed(true);
+      }
+
+      setLightTitleOn(false);
+      setLightL1On(false);
+      setLightL2On(false);
+      setLightL3On(false);
+      setLightShowBtnOn(false);
+      setLightIntroHidden(false);
+      setLightBeamActive(false);
+      setLightTimerOn(false);
+      setLightTimerSec(0);
+      setLightArriveOn(false);
+      setLightSolarBtnOn(false);
+      setCameraZ(ZOOM_Z_MOON_FRAME);
+      setLightPhase(true);
+    },
+    [],
+  );
+
+  /** Cascade intro lines, then “Show me” — beam waits for the click */
+  useEffect(() => {
+    if (!lightPhase) return;
+    const t0 = window.setTimeout(() => setLightTitleOn(true), 280);
+    const t1 = window.setTimeout(() => setLightL1On(true), 900);
+    const t2 = window.setTimeout(() => setLightL2On(true), 2000);
+    const t3 = window.setTimeout(() => setLightL3On(true), 3200);
+    const tBtn = window.setTimeout(() => setLightShowBtnOn(true), 4300);
+    return () => {
+      window.clearTimeout(t0);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.clearTimeout(tBtn);
+    };
+  }, [lightPhase]);
+
+  /** Live timer while the photon flies (anim is 2.8s; label maps to 1.3s light-time) */
+  const LIGHT_BEAM_DURATION = 2.8;
+  const LIGHT_TIME_SEC = 1.3;
+  useEffect(() => {
+    if (!lightBeamActive) return;
+    const start = performance.now();
+    let raf = 0;
+    const tick = () => {
+      const e = (performance.now() - start) / 1000;
+      const u = Math.min(e / LIGHT_BEAM_DURATION, 1);
+      setLightTimerSec(LIGHT_TIME_SEC * u);
+      if (u < 1) raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [lightBeamActive]);
+
+  const handleLightShowMe = useCallback(() => {
+    setLightShowBtnOn(false);
+    setLightIntroHidden(true);
+    setLightTimerSec(0);
+    setLightTimerOn(true);
+    // Let intro fade a beat, then fire the beam
+    window.setTimeout(() => setLightBeamActive(true), 400);
+  }, []);
+
+  const handleLightBeamComplete = useCallback(() => {
+    setLightTimerSec(1.3);
+    setSawLightLesson(true);
+    // Keep timer under Earth; only advance the story copy + solar CTA
+    window.setTimeout(() => {
+      setLightArriveOn(true);
+      window.setTimeout(() => setLightSolarBtnOn(true), 900);
+    }, 400);
   }, []);
 
   const zoomMin = sunPhase ? ZOOM_Z_SUN_MIN : ZOOM_Z_MIN;
@@ -730,6 +1105,7 @@ export default function UniverseShell() {
                 onSatelliteSettled={handleSatelliteSettled}
                 moonVisible={moonVisible}
                 moonInteractive={moonInteractive}
+                moonPreSettled={moonPreSettled}
                 onMoonSnapStart={handleMoonSnapStart}
                 onMoonSettled={handleMoonSettled}
                 onMoonGrayedTap={handleMoonGrayedTap}
@@ -741,6 +1117,8 @@ export default function UniverseShell() {
                 onSunSnapStart={handleSunSnapStart}
                 onSunSettled={handleSunSettled}
                 onSunGrayedTap={handleSunGrayedTap}
+                lightBeamActive={lightBeamActive}
+                onLightBeamComplete={handleLightBeamComplete}
               />
             </Canvas>
           </WebGLErrorBoundary>
@@ -823,18 +1201,66 @@ export default function UniverseShell() {
             </span>
           </div>
           <div
-            className={`universe-orbit-label moon-label sun-label${
-              sunLabelVisible ? " visible" : ""
-            }`}
+            className={`sun-reveal${sunLabelVisible ? " visible" : ""}`}
+            aria-live="polite"
+            aria-hidden={!sunLabelVisible}
           >
-            {sunSmartAss
-              ? "That's past the Kuiper belt. Ambitious."
-              : "The Sun is much farther than it feels."}
-            <span className="moon-label-sub">
-              About 150 million km (1 AU). Size is simplified so you can see
-              it — real Sun is ~109× Earth’s width. Distance here is true for
-              this scale (~215 Sun-widths from Home).
-            </span>
+            {sunSmartAss && (
+              <p className={`sun-reveal-line${sunRevealL1 ? " is-on" : ""}`}>
+                That&apos;s past the Kuiper belt. Ambitious.
+              </p>
+            )}
+            <p className={`sun-reveal-line${sunRevealL1 ? " is-on" : ""}`}>
+              The Sun is about 150 million kilometres away. That&apos;s 1
+              Astronomical Unit — the basic measuring stick of our solar
+              system.
+            </p>
+            <p className={`sun-reveal-line${sunRevealL2 ? " is-on" : ""}`}>
+              Light from the Sun takes roughly 8 minutes and 20 seconds to reach
+              us.
+            </p>
+            {!sunFromLight && (
+              <p className={`sun-reveal-line${sunRevealBranch ? " is-on" : ""}`}>
+                We&apos;ve been talking about distance. But distance only really
+                makes sense when you know how light moves. Want to see what light
+                actually does?
+              </p>
+            )}
+            {sunFromLight && (
+              <p className={`sun-reveal-line${sunRevealBranch ? " is-on" : ""}`}>
+                You already watched light cross the gap from the Moon. Now you
+                know it needs more than 8 minutes just to reach us from the Sun.
+                The next step is even larger.
+              </p>
+            )}
+            {!sunFromLight && (
+              <button
+                type="button"
+                className={`ctrl-btn rect sun-reveal-cta${
+                  sunRevealBtn ? " is-on" : ""
+                }`}
+                disabled={!sunRevealBtn}
+                onClick={() =>
+                  handleTellAboutLight({ fromSun: true, preSettledMoon: true })
+                }
+              >
+                Distance in light
+              </button>
+            )}
+            {sunFromLight && (
+              <button
+                type="button"
+                className={`ctrl-btn rect sun-reveal-cta${
+                  sunRevealBtn ? " is-on" : ""
+                }`}
+                disabled={!sunRevealBtn}
+                onClick={() => {
+                  // Reserved for the next, larger solar step
+                }}
+              >
+                Our solar system
+              </button>
+            )}
           </div>
           <div
             className={`moon-choice-bar${moonNextVisible ? " visible" : ""}`}
@@ -844,7 +1270,7 @@ export default function UniverseShell() {
               type="button"
               className="ctrl-btn rect"
               disabled={!moonNextVisible}
-              onClick={handleExploreSolarSystem}
+              onClick={() => handleExploreSolarSystem(false)}
             >
               Explore the Solar System ?
             </button>
@@ -852,11 +1278,80 @@ export default function UniverseShell() {
               type="button"
               className="ctrl-btn rect"
               disabled={!moonNextVisible}
-              onClick={handleTellAboutLight}
+              onClick={() => handleTellAboutLight()}
             >
               Tell me about light
             </button>
           </div>
+          {lightPhase && (
+            <div className="light-story" aria-live="polite">
+              <div
+                className={`light-story-intro${
+                  lightIntroHidden ? " is-hidden" : ""
+                }`}
+              >
+                <p
+                  className={`light-story-title${lightTitleOn ? " is-on" : ""}`}
+                >
+                  Light
+                </p>
+                <p className={`light-story-line${lightL1On ? " is-on" : ""}`}>
+                  The Moon is far, but light is impatient.
+                </p>
+                <p className={`light-story-line${lightL2On ? " is-on" : ""}`}>
+                  Even across all that empty distance, it does not take long.
+                </p>
+                <p className={`light-story-line${lightL3On ? " is-on" : ""}`}>
+                  It leaves the surface of the Moon and reaches your eyes in
+                  only 1.3 seconds.
+                </p>
+                <button
+                  type="button"
+                  className={`ctrl-btn rect light-story-show-btn${
+                    lightShowBtnOn ? " is-on" : ""
+                  }`}
+                  disabled={!lightShowBtnOn || lightIntroHidden}
+                  onClick={handleLightShowMe}
+                >
+                  Show me
+                </button>
+              </div>
+              <p
+                className={`light-story-line arrive${
+                  lightArriveOn ? " is-on" : ""
+                }`}
+              >
+                In the time it takes to breathe in, the light has already
+                arrived.
+              </p>
+            </div>
+          )}
+          {lightPhase && (
+            <div
+              className={`light-timer${lightTimerOn ? " is-on" : ""}`}
+              aria-hidden={!lightTimerOn}
+            >
+              {lightTimerSec.toFixed(1)}s
+            </div>
+          )}
+          {lightPhase && (
+            <div
+              className={`light-solar-cta${lightSolarBtnOn ? " is-on" : ""}`}
+              aria-hidden={!lightSolarBtnOn}
+            >
+              <button
+                type="button"
+                className="ctrl-btn rect"
+                disabled={!lightSolarBtnOn}
+                onClick={() => {
+                  setSawLightLesson(true);
+                  handleExploreSolarSystem(true);
+                }}
+              >
+                Let&apos;s go to our solar system
+              </button>
+            </div>
+          )}
           <ZoomControls
             visible={zoomControlsVisible}
             canZoomIn={canZoomIn}

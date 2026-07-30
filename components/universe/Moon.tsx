@@ -21,8 +21,8 @@ import {
  */
 const MOON_RADIUS = EARTH_RADIUS * 0.32;
 
-const MOON_TEXTURE_URL =
-  "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg";
+/** Local 2K map — public/universe/2k_moon.webp */
+const MOON_TEXTURE_URL = "/universe/2k_moon.webp";
 
 useLoader.preload(THREE.TextureLoader, MOON_TEXTURE_URL);
 
@@ -31,6 +31,11 @@ type MoonProps = {
   visible: boolean;
   /** After Confirm — draggable */
   interactive: boolean;
+  /**
+   * Already placed at true teaching distance (e.g. returning from Sun → Light).
+   * Skips grayed park / drag — bright Moon at MOON_DISTANCE.
+   */
+  preSettled?: boolean;
   /** Fires when the user drops and the fly-to-correct-position starts */
   onSnapStart?: () => void;
   /** smartAss = they dropped it absurdly far (past real Moon distance) */
@@ -130,6 +135,7 @@ function MoonSphere({
 export default function Moon({
   visible,
   interactive,
+  preSettled = false,
   onSnapStart,
   onSettled,
   onGrayedTap,
@@ -137,12 +143,12 @@ export default function Moon({
   const groupRef = useRef<THREE.Group>(null);
   const { camera, gl } = useThree();
 
-  const opacityRef = useRef(0);
-  const [opacity, setOpacity] = useState(0);
+  const opacityRef = useRef(preSettled ? 1 : 0);
+  const [opacity, setOpacity] = useState(preSettled ? 1 : 0);
 
   const draggingRef = useRef(false);
-  const settledRef = useRef(false);
-  const snapStartedRef = useRef(false);
+  const settledRef = useRef(preSettled);
+  const snapStartedRef = useRef(preSettled);
   const floatTRef = useRef(0);
   const smartAssRef = useRef(false);
   const snapRef = useRef<{
@@ -155,12 +161,22 @@ export default function Moon({
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const ndc = useMemo(() => new THREE.Vector2(), []);
   const hit = useMemo(() => new THREE.Vector3(), []);
-  const targetPos = useRef(
-    new THREE.Vector3(MOON_START.x, MOON_START.y, MOON_START.z),
-  );
-  const displayPos = useRef(
-    new THREE.Vector3(MOON_START.x, MOON_START.y, MOON_START.z),
-  );
+  const park = preSettled
+    ? { x: 0, y: MOON_DISTANCE, z: 0 }
+    : MOON_START;
+  const targetPos = useRef(new THREE.Vector3(park.x, park.y, park.z));
+  const displayPos = useRef(new THREE.Vector3(park.x, park.y, park.z));
+
+  // If we remount already placed (Sun → Light), lock settled pose
+  useEffect(() => {
+    if (!preSettled) return;
+    settledRef.current = true;
+    snapStartedRef.current = true;
+    targetPos.current.set(0, MOON_DISTANCE, 0);
+    displayPos.current.set(0, MOON_DISTANCE, 0);
+    opacityRef.current = 1;
+    setOpacity(1);
+  }, [preSettled]);
 
   const projectPointer = useCallback(
     (clientX: number, clientY: number) => {
@@ -240,7 +256,11 @@ export default function Moon({
   };
 
   useFrame((_, dt) => {
-    const want = visible ? (interactive ? 1 : GRAY_OPACITY) : 0;
+    const want = visible
+      ? settledRef.current || interactive
+        ? 1
+        : GRAY_OPACITY
+      : 0;
     if (Math.abs(opacityRef.current - want) > 0.001) {
       opacityRef.current = THREE.MathUtils.damp(
         opacityRef.current,
@@ -296,12 +316,12 @@ export default function Moon({
 
   const canTap =
     (interactive && opacity > 0.2 && !settledRef.current) ||
-    (visible && !interactive && opacity > 0.2);
-  const grayed = visible && !interactive;
+    (visible && !interactive && !settledRef.current && opacity > 0.2);
+  const grayed = visible && !interactive && !settledRef.current;
 
   return (
     <group>
-      <group ref={groupRef} position={[MOON_START.x, MOON_START.y, MOON_START.z]}>
+      <group ref={groupRef} position={[park.x, park.y, park.z]}>
         <MoonSphere
           opacity={opacity}
           grayed={grayed}

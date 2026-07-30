@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import Earth from "@/components/universe/Earth";
 import HomeMarker from "@/components/universe/HomeMarker";
+import LightBeam from "@/components/universe/LightBeam";
 import Moon from "@/components/universe/Moon";
 import Satellite from "@/components/universe/Satellite";
 import Sun from "@/components/universe/Sun";
@@ -13,6 +14,8 @@ type PlanetStageProps = {
   onSatelliteSettled?: () => void;
   moonVisible: boolean;
   moonInteractive: boolean;
+  /** Moon already at teaching distance (Light after Sun) */
+  moonPreSettled?: boolean;
   onMoonSnapStart?: () => void;
   onMoonSettled?: (info: { smartAss: boolean }) => void;
   onMoonGrayedTap?: () => void;
@@ -27,6 +30,9 @@ type PlanetStageProps = {
   onSunSnapStart?: () => void;
   onSunSettled?: (info: { smartAss: boolean }) => void;
   onSunGrayedTap?: () => void;
+  /** Light lesson — Moon → Earth photon hop */
+  lightBeamActive?: boolean;
+  onLightBeamComplete?: () => void;
 };
 
 /**
@@ -39,6 +45,7 @@ export default function PlanetStage({
   onSatelliteSettled,
   moonVisible,
   moonInteractive,
+  moonPreSettled = false,
   onMoonSnapStart,
   onMoonSettled,
   onMoonGrayedTap,
@@ -50,6 +57,8 @@ export default function PlanetStage({
   onSunSnapStart,
   onSunSettled,
   onSunGrayedTap,
+  lightBeamActive = false,
+  onLightBeamComplete,
 }: PlanetStageProps) {
   return (
     <group>
@@ -72,11 +81,17 @@ export default function PlanetStage({
             <Moon
               visible={moonVisible}
               interactive={moonInteractive}
+              preSettled={moonPreSettled}
               onSnapStart={onMoonSnapStart}
               onSettled={onMoonSettled}
               onGrayedTap={onMoonGrayedTap}
             />
           </Suspense>
+          <LightBeam
+            active={lightBeamActive}
+            duration={2.8}
+            onComplete={onLightBeamComplete}
+          />
         </>
       )}
       <Suspense fallback={null}>

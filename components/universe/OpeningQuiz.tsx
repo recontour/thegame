@@ -143,7 +143,7 @@ export default function OpeningQuiz({
     setQuestionVisible(false);
     setOptionsVisible(false);
 
-    // Wait for quiz fade (~1.15s) before mounting the result card
+    // Quiz fade (~1.15s) + short beat of black, then soft result card
     window.setTimeout(() => {
       setPhase("reveal");
       onRevealPhase?.(true);
@@ -151,7 +151,7 @@ export default function OpeningQuiz({
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => setRevealVisible(true));
       });
-    }, 1100);
+    }, 1450);
   };
 
   const handleContinue = () => {

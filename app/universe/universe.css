@@ -575,10 +575,10 @@
   -webkit-overflow-scrolling: touch;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(14px);
   transition:
-    opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 1.45s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .opening-reveal.visible {
@@ -594,16 +594,20 @@
   gap: 14px;
   width: min(100%, 340px);
   text-align: center;
+  /* Starts deep/faded — rises into place slowly */
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(48px) scale(0.88);
+  filter: blur(6px);
   transition:
-    opacity 1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s,
-    transform 1s cubic-bezier(0.22, 1, 0.36, 1) 0.12s;
+    opacity 2.1s cubic-bezier(0.16, 1, 0.3, 1) 0.35s,
+    transform 2.1s cubic-bezier(0.16, 1, 0.3, 1) 0.35s,
+    filter 2s cubic-bezier(0.16, 1, 0.3, 1) 0.35s;
 }
 
 .opening-reveal.visible .opening-reveal-main {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
+  filter: blur(0);
 }
 
 .opening-reveal-hero {
@@ -614,12 +618,33 @@
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
   user-select: none;
   -webkit-user-drag: none;
+  /* Extra lift on the image alone — floats up a beat after the shell */
+  opacity: 0;
+  transform: translateY(28px) scale(0.92);
+  transition:
+    opacity 1.9s cubic-bezier(0.16, 1, 0.3, 1) 0.55s,
+    transform 1.9s cubic-bezier(0.16, 1, 0.3, 1) 0.55s;
+}
+
+.opening-reveal.visible .opening-reveal-hero {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 .opening-reveal-copy {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 1.85s cubic-bezier(0.16, 1, 0.3, 1) 0.85s,
+    transform 1.85s cubic-bezier(0.16, 1, 0.3, 1) 0.85s;
+}
+
+.opening-reveal.visible .opening-reveal-copy {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .opening-reveal-headline {
@@ -652,16 +677,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  opacity: 0;
-  transform: translateY(12px);
-  transition:
-    opacity 1s cubic-bezier(0.22, 1, 0.36, 1) 0.32s,
-    transform 1s cubic-bezier(0.22, 1, 0.36, 1) 0.32s;
-}
-
-.opening-reveal.visible .opening-reveal-rest {
+  /* List shell always present — items stagger in one-by-one */
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 
 .opening-reveal-rest-item {
@@ -672,6 +690,28 @@
   border-radius: 12px;
   background: rgba(20, 28, 40, 0.55);
   border: 1px solid rgba(160, 190, 255, 0.1);
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Stack: wait for hero+copy to land, then each block in sequence */
+.opening-reveal.visible .opening-reveal-rest-item:nth-child(1) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 2.35s;
+}
+.opening-reveal.visible .opening-reveal-rest-item:nth-child(2) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 3.05s;
+}
+.opening-reveal.visible .opening-reveal-rest-item:nth-child(3) {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 3.75s;
 }
 
 /* Correct answer — soft green “result” tile, not a button */
@@ -720,8 +760,8 @@
   opacity: 0;
   transform: translateY(12px);
   transition:
-    opacity 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.55s,
-    transform 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.55s,
+    opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1) 4.35s,
+    transform 1.1s cubic-bezier(0.22, 1, 0.36, 1) 4.35s,
     box-shadow 0.15s ease,
     background 0.15s ease;
 }
