@@ -13,6 +13,7 @@ import {
 } from "@/components/universe/constants";
 import AudioGate from "@/components/universe/AudioGate";
 import CameraRig from "@/components/universe/CameraRig";
+import MoonIntroOverlay from "@/components/universe/MoonIntroOverlay";
 import OpeningPhone from "@/components/universe/OpeningPhone";
 import OpeningQuiz from "@/components/universe/OpeningQuiz";
 import PlanetStage from "@/components/universe/PlanetStage";
@@ -287,6 +288,8 @@ export default function UniverseShell() {
   const [gpsFactVisible, setGpsFactVisible] = useState(false);
   const [fartherVisible, setFartherVisible] = useState(false);
   const [placeMoonBtnVisible, setPlaceMoonBtnVisible] = useState(false);
+  /** NASA “pictures lie” overlay before moon zoom UI */
+  const [moonIntroVisible, setMoonIntroVisible] = useState(false);
 
   const [moonPhase, setMoonPhase] = useState(false);
   const [moonVisible, setMoonVisible] = useState(false);
@@ -332,11 +335,18 @@ export default function UniverseShell() {
     }, 2800);
   }, []);
 
+  /** “The Moon ?” — open the NASA truth overlay first */
   const handlePlaceMoon = useCallback(() => {
     setSatBridgeVisible(false);
     setGpsFactVisible(false);
     setFartherVisible(false);
     setPlaceMoonBtnVisible(false);
+    setMoonIntroVisible(true);
+  }, []);
+
+  /** “Okay, let’s try.” — start zoom + grayed Moon beat */
+  const handleMoonIntroContinue = useCallback(() => {
+    setMoonIntroVisible(false);
     setMoonPhase(true);
     setMoonVisible(true);
     setZoomControlsVisible(true);
@@ -492,10 +502,14 @@ export default function UniverseShell() {
                 }`}
                 onClick={handlePlaceMoon}
               >
-                Place the Moon →
+                The Moon ?
               </button>
             </div>
           )}
+          <MoonIntroOverlay
+            visible={moonIntroVisible}
+            onContinue={handleMoonIntroContinue}
+          />
           <PromptMessage
             visible={showMoonTopPrompt}
             text={moonTopCopy}
