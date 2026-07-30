@@ -160,8 +160,10 @@ const UNIVERSE_LAYOUT_CSS = `
   .universe-orbit-label.moon-label {
     /* Between Moon (high) and Earth (lower third) — not glued to the disc */
     top: 32%;
-    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
-    padding: 0 8px;
+    /* Edge-hugging copy — only a few px from the sides */
+    max-width: 100%;
+    width: 100%;
+    padding: 0 4px;
     box-sizing: border-box;
   }
 
@@ -173,6 +175,66 @@ const UNIVERSE_LAYOUT_CSS = `
     letter-spacing: 0.02em;
     color: rgba(220, 230, 250, 0.82);
     line-height: 1.45;
+  }
+
+  /* After “Farther than it looks” — next branch copy under the label */
+  .moon-next-copy {
+    display: block;
+    margin-top: 0;
+    max-height: 0;
+    overflow: hidden;
+    font-size: clamp(0.85rem, 3.1vw, 1rem);
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    color: rgba(230, 238, 255, 0.9);
+    line-height: 1.5;
+    white-space: pre-line;
+    text-shadow: 0 0 14px rgba(180, 210, 255, 0.28);
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 1.2s ease,
+      transform 1.2s ease,
+      max-height 1.2s ease,
+      margin-top 1.2s ease;
+  }
+
+  .moon-next-copy.visible {
+    margin-top: 22px;
+    max-height: 28em;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Bottom choices under Earth: solar system vs light */
+  .moon-choice-bar {
+    position: absolute;
+    bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: min(92%, 300px);
+    max-width: calc(100% - 2 * var(--universe-mute-clear, 52px));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s ease, transform 1s ease;
+    box-sizing: border-box;
+  }
+
+  .moon-choice-bar.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+
+  .moon-choice-bar .ctrl-btn {
+    width: 100%;
+    max-width: 280px;
+    white-space: nowrap;
   }
 
   /* After GPS sat settles — fact + “Place the Moon” */
@@ -241,6 +303,8 @@ const MOON_PLACE_TEXT = "Drag the Moon where you think it belongs.";
 const ZOOM_FIRST_TEXT = "You might want to zoom out for this one first.";
 const ZOOM_FIRST_FINEPRINT =
   "Once you hit Confirm, you can drag the Moon into place.";
+const MOON_NEXT_TEXT =
+  "Now that you've felt the real distance\nbetween Earth and the Moon…\nWould you like to keep going outward,\nor shall we talk about light?\nLight travels 299,792 km every second.\nEven that number becomes strange\nonce you start looking closely.";
 
 function PromptMessage({
   visible,
@@ -301,6 +365,8 @@ export default function UniverseShell() {
   const [confirmHintNudgeKey, setConfirmHintNudgeKey] = useState(0);
   const [farEnoughVisible, setFarEnoughVisible] = useState(false);
   const [moonLabelVisible, setMoonLabelVisible] = useState(false);
+  /** 5s after “Farther than it looks” — branch copy + bottom choices */
+  const [moonNextVisible, setMoonNextVisible] = useState(false);
   /** They yeeted the Moon past real distance before the snap */
   const [moonSmartAss, setMoonSmartAss] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
@@ -394,6 +460,21 @@ export default function UniverseShell() {
   const handleMoonSettled = useCallback((info: { smartAss: boolean }) => {
     setMoonSmartAss(info.smartAss);
     window.setTimeout(() => setMoonLabelVisible(true), 200);
+  }, []);
+
+  /** After the moon distance label lands, wait 5s then offer next branch */
+  useEffect(() => {
+    if (!moonLabelVisible) return;
+    const t = window.setTimeout(() => setMoonNextVisible(true), 5000);
+    return () => window.clearTimeout(t);
+  }, [moonLabelVisible]);
+
+  const handleExploreSolarSystem = useCallback(() => {
+    // Branch reserved for solar-system exploration
+  }, []);
+
+  const handleTellAboutLight = useCallback(() => {
+    // Branch reserved for light / speed-of-light path
   }, []);
 
   const canZoomOut = cameraZ < ZOOM_Z_MAX - 0.001;
@@ -527,6 +608,32 @@ export default function UniverseShell() {
               The Moon is actually about 384,000 km away, roughly 30 Earth
               diameters.
             </span>
+            <span
+              className={`moon-next-copy${moonNextVisible ? " visible" : ""}`}
+            >
+              {MOON_NEXT_TEXT}
+            </span>
+          </div>
+          <div
+            className={`moon-choice-bar${moonNextVisible ? " visible" : ""}`}
+            aria-hidden={!moonNextVisible}
+          >
+            <button
+              type="button"
+              className="ctrl-btn rect"
+              disabled={!moonNextVisible}
+              onClick={handleExploreSolarSystem}
+            >
+              Explore the Solar System ?
+            </button>
+            <button
+              type="button"
+              className="ctrl-btn rect"
+              disabled={!moonNextVisible}
+              onClick={handleTellAboutLight}
+            >
+              Tell me about light
+            </button>
           </div>
           <ZoomControls
             visible={zoomControlsVisible}
