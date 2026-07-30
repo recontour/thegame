@@ -166,7 +166,7 @@ export default function Sun({
     t: number;
   } | null>(null);
   /** Last grayed park Y — hand off to drag from here after Confirm */
-  const parkYRef = useRef(SUN_START.y);
+  const parkYRef = useRef<number>(SUN_START.y);
 
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), []);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
