@@ -550,6 +550,18 @@
 }
 
 .sat-bridge {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--universe-top-pad)
+    var(--universe-side-pad)
+    calc(6dvh + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
   opacity: 0;
   transform: translateY(14px);
   transition:
@@ -566,6 +578,36 @@
   opacity: 0;
   transform: translateY(-12px);
   pointer-events: none;
+}
+
+.sat-bridge-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 340px);
+  height: 100%;
+  text-align: center;
+  pointer-events: none;
+}
+
+.sat-bridge-cta {
+  margin-top: auto;
+  width: min(100%, 300px);
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition:
+    opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.sat-bridge-cta.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .satellite-hero-drop {
@@ -746,8 +788,8 @@
   opacity: 0;
   transform: translateY(24px) scale(0.94);
   transition:
-    opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.4s,
-    transform 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.4s;
+    opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .opening-reveal.visible .opening-reveal-hero {
@@ -766,8 +808,8 @@
   opacity: 0;
   transform: translateY(16px);
   transition:
-    opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.8s,
-    transform 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.8s;
+    opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.3s,
+    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.3s;
 }
 
 .opening-reveal.visible .opening-reveal-headline {
@@ -780,8 +822,8 @@
   opacity: 0;
   transform: translateY(16px);
   transition:
-    opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1) 2.4s,
-    transform 1.4s cubic-bezier(0.16, 1, 0.3, 1) 2.4s;
+    opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1) 1.5s,
+    transform 1.2s cubic-bezier(0.16, 1, 0.3, 1) 1.5s;
 }
 
 .opening-reveal.visible .opening-reveal-body {
@@ -807,16 +849,20 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 14px;
-  border-radius: 6px;
+  padding: 11px 16px;
+  border-radius: 10px;
   background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.04),
-    rgba(255, 255, 255, 0.01)
+    145deg,
+    rgba(15, 23, 42, 0.78),
+    rgba(8, 13, 24, 0.85)
   );
-  border: none;
-  border-left: 3px solid rgba(160, 190, 255, 0.25);
-  box-shadow: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(160, 190, 255, 0.18);
+  border-left: 3px solid rgba(96, 165, 250, 0.6);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.08);
   pointer-events: none;
   user-select: none;
   opacity: 0;
@@ -845,13 +891,17 @@
 
 /* Correct answer — glowing emerald indicator bar */
 .opening-reveal-rest-item.is-correct {
-  border-left-color: #34d399;
+  border-left: 3px solid #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
   background: linear-gradient(
-    90deg,
-    rgba(16, 185, 129, 0.14),
-    rgba(6, 78, 59, 0.04)
+    145deg,
+    rgba(6, 78, 59, 0.72),
+    rgba(15, 23, 42, 0.82)
   );
-  box-shadow: 0 0 16px rgba(52, 211, 153, 0.12);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 0 18px rgba(52, 211, 153, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12);
   cursor: default;
   pointer-events: none;
 }

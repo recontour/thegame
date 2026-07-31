@@ -145,13 +145,13 @@ export default function OpeningQuiz({
     // Trigger phone exit immediately
     onRevealPhase?.(true);
 
-    // Patient, cinematic exit (800ms) before reveal card mounts
+    // As soon as phone disappears (350ms), animate next PNG hero immediately
     window.setTimeout(() => {
       setPhase("reveal");
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => setRevealVisible(true));
       });
-    }, 800);
+    }, 350);
   };
 
   const handleContinue = () => {

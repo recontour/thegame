@@ -81,15 +81,13 @@ export default function NorthPoleQuiz({ active, onNext }: NorthPoleQuizProps) {
       return;
     }
 
-    // Rebel Artist sequence: outer frame (600ms) -> majestic bar growth (2000ms) -> button reveal (5000ms)
+    // Synchronized pair sequence: outer frame (600ms) -> column & button pairs animate together sequentially (1600ms)
     const t1 = window.setTimeout(() => setVisible(true), 600);
-    const t2 = window.setTimeout(() => setBarsGrown(true), 2000);
-    const t3 = window.setTimeout(() => setButtonsVisible(true), 5000);
+    const t2 = window.setTimeout(() => setBarsGrown(true), 1600);
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
-      clearTimeout(t3);
     };
   }, [active]);
 
@@ -284,7 +282,7 @@ export default function NorthPoleQuiz({ active, onNext }: NorthPoleQuizProps) {
               const finalHeight = Math.round(scaleRatio * MAX_BAR_HEIGHT_PX);
               const isSelected = selected === c.id;
               const currentHeight = barsGrown ? finalHeight : 0;
-              const barDelay = `${idx * 0.55}s`;
+              const pairDelay = `${idx * 0.7}s`;
 
               return (
                 <div
@@ -316,7 +314,7 @@ export default function NorthPoleQuiz({ active, onNext }: NorthPoleQuizProps) {
                         ? "0 0 24px rgba(56, 189, 248, 0.85), inset 0 1px 2px rgba(255,255,255,0.6)"
                         : "0 0 12px rgba(96, 165, 250, 0.35)",
                       border: "1px solid rgba(255, 255, 255, 0.25)",
-                      transition: `height 1.6s cubic-bezier(0.16, 1, 0.3, 1) ${barDelay}, background 0.25s ease, boxShadow 0.25s ease`,
+                      transition: `height 1.5s cubic-bezier(0.16, 1, 0.3, 1) ${pairDelay}, background 0.25s ease, boxShadow 0.25s ease`,
                     }}
                   />
                 </div>
@@ -336,7 +334,7 @@ export default function NorthPoleQuiz({ active, onNext }: NorthPoleQuizProps) {
           >
             {CHOICES.map((c, idx) => {
               const isSelected = selected === c.id;
-              const btnDelay = `${idx * 0.35}s`;
+              const pairDelay = `${idx * 0.7}s`;
               return (
                 <button
                   key={c.id}
@@ -344,30 +342,30 @@ export default function NorthPoleQuiz({ active, onNext }: NorthPoleQuizProps) {
                   disabled={!!selected}
                   onClick={() => handlePick(c.id)}
                   className={`ctrl-btn ${isSelected ? "selected" : ""}`}
-                    style={{
-                      flex: 1,
-                      aspectRatio: "1 / 1",
-                      maxHeight: "54px",
-                      maxWidth: "60px",
-                      minWidth: "0",
-                      padding: 0,
-                      borderRadius: "10px",
-                      fontSize: "0.78rem",
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      opacity: buttonsVisible ? 1 : 0,
-                      transform: buttonsVisible
-                        ? "translateY(0) scale(1)"
-                        : "translateY(10px) scale(0.92)",
-                      background: isSelected
-                        ? "linear-gradient(180deg, rgba(56, 189, 248, 0.9), rgba(2, 132, 199, 0.95))"
-                        : "linear-gradient(180deg, rgba(30, 42, 58, 0.9), rgba(21, 29, 40, 0.95))",
-                      backdropFilter: "blur(8px)",
-                      WebkitBackdropFilter: "blur(8px)",
-                      transition: `opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${btnDelay}, transform 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${btnDelay}, background 0.2s ease, box-shadow 0.2s ease`,
-                    }}
+                  style={{
+                    flex: 1,
+                    aspectRatio: "1 / 1",
+                    maxHeight: "54px",
+                    maxWidth: "60px",
+                    minWidth: "0",
+                    padding: 0,
+                    borderRadius: "10px",
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: barsGrown ? 1 : 0,
+                    transform: barsGrown
+                      ? "translateY(0) scale(1)"
+                      : "translateY(12px) scale(0.92)",
+                    background: isSelected
+                      ? "linear-gradient(180deg, rgba(56, 189, 248, 0.9), rgba(2, 132, 199, 0.95))"
+                      : "linear-gradient(180deg, rgba(30, 42, 58, 0.9), rgba(21, 29, 40, 0.95))",
+                    backdropFilter: "blur(8px)",
+                    WebkitBackdropFilter: "blur(8px)",
+                    transition: `opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1) ${pairDelay}, transform 1.2s cubic-bezier(0.16, 1, 0.3, 1) ${pairDelay}, background 0.2s ease, box-shadow 0.2s ease`,
+                  }}
                 >
                   <span>{c.label}</span>
                 </button>

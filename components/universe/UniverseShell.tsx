@@ -295,12 +295,17 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translateY(0);
   }
 
-  /* Show me — solid rise-in (same as sat-bridge / Our solar system CTAs) */
+  /* Release the Photon button — fixed pin at bottom matching all other action CTAs */
   .ctrl-btn.light-story-show-btn {
-    margin-top: 6px;
+    position: fixed;
+    bottom: calc(6dvh + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    width: min(calc(100vw - 40px), 300px);
+    height: 52px;
+    z-index: 50;
     pointer-events: none;
     opacity: 0;
-    transform: translateY(16px);
     background: linear-gradient(145deg, #1e2a3a, #151d28);
     border: 1px solid rgba(160, 190, 255, 0.15);
     box-shadow:
@@ -311,35 +316,28 @@ const UNIVERSE_LAYOUT_CSS = `
     color: #e8f0ff;
     cursor: default;
     transition:
-      opacity 1.05s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 1.05s cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 0.15s ease;
+      opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.15s ease,
+      background 0.15s ease;
   }
 
   .ctrl-btn.light-story-show-btn.is-on {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(-50%) translateY(0);
     pointer-events: auto;
     cursor: pointer;
   }
 
   .ctrl-btn.light-story-show-btn:disabled {
     opacity: 0;
-    background: linear-gradient(145deg, #1e2a3a, #151d28);
-    border: 1px solid rgba(160, 190, 255, 0.15);
-    box-shadow:
-      4px 4px 10px rgba(0, 0, 0, 0.45),
-      -2px -2px 6px rgba(80, 120, 180, 0.08),
-      inset 0 1px 1px rgba(255, 255, 255, 0.05),
-      0 0 14px rgba(120, 170, 255, 0.12);
-    color: #e8f0ff;
-    cursor: default;
-    transform: translateY(16px);
+    pointer-events: none;
+    transform: translateX(-50%) translateY(16px);
   }
 
   .ctrl-btn.light-story-show-btn.is-on:disabled {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(-50%) translateY(0);
   }
 
   /*
@@ -368,18 +366,18 @@ const UNIVERSE_LAYOUT_CSS = `
   }
 
   .light-solar-cta {
-    position: absolute;
+    position: fixed;
+    bottom: calc(6dvh + env(safe-area-inset-bottom, 0px));
     left: 50%;
-    bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
-    transform: translateX(-50%) translateY(10px);
-    z-index: 23;
-    width: min(100%, 300px);
-    max-width: calc(100% - 2 * var(--universe-side-pad, 20px));
+    transform: translateX(-50%) translateY(16px);
+    z-index: 50;
+    width: min(calc(100vw - 40px), 300px);
+    height: 52px;
     pointer-events: none;
     opacity: 0;
     transition:
-      opacity 1s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 1s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-sizing: border-box;
   }
 
@@ -391,35 +389,32 @@ const UNIVERSE_LAYOUT_CSS = `
 
   .light-solar-cta .ctrl-btn {
     width: 100%;
+    height: 100%;
   }
 
-  /* Post-sun shared reveal + path branch (same top push as light story) */
+  /* Post-sun shared reveal + path branch (standard full-screen overlay) */
   .sun-reveal {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    transform: none;
-    width: 100%;
-    max-width: 100%;
-    z-index: 22;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
-    /* Clear the Sun disc — same offset as light beam copy */
+    justify-content: flex-start;
     padding:
-      calc(var(--universe-top-pad, calc(10dvh + env(safe-area-inset-top, 0px))) + 12vh)
-      var(--universe-side-pad, 20px) 0;
+      var(--universe-top-pad, calc(10dvh + env(safe-area-inset-top, 0px)))
+      var(--universe-side-pad, 20px)
+      calc(6dvh + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
     box-sizing: border-box;
     text-align: center;
     opacity: 0;
-    transition: opacity 0.9s ease;
+    transition: opacity 0.6s ease;
   }
 
   .sun-reveal.visible {
     opacity: 1;
+    pointer-events: auto;
   }
 
   .sun-reveal-line {
@@ -559,20 +554,16 @@ const UNIVERSE_LAYOUT_CSS = `
    */
   .sat-bridge {
     position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    /* Lower ~42% reserved for globe + sat orbit */
-    bottom: 0;
+    inset: 0;
     z-index: 20;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     padding:
       var(--universe-top-pad, calc(10dvh + env(safe-area-inset-top, 0px)))
       var(--universe-side-pad, 20px)
-      12px;
+      calc(6dvh + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
     box-sizing: border-box;
   }
@@ -582,12 +573,11 @@ const UNIVERSE_LAYOUT_CSS = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 18px;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    padding: 0;
+    justify-content: space-between;
+    width: min(100%, 340px);
+    height: 100%;
+    text-align: center;
+    pointer-events: none;
   }
 
   .sat-bridge-copy {
@@ -606,24 +596,18 @@ const UNIVERSE_LAYOUT_CSS = `
     transform: translateY(0);
   }
 
-  /*
-   * Stage CTAs — solid look the whole time; only opacity + rise.
-   * (Don’t use :disabled gray during entrance or they flash transparent.)
-   */
   .ctrl-btn.sat-bridge-cta {
+    margin-top: auto;
     pointer-events: none;
     opacity: 0;
     transform: translateY(16px);
-    max-width: min(100%, 300px);
-    width: auto;
-    padding-left: 18px;
-    padding-right: 18px;
-    white-space: normal;
+    width: min(100%, 300px);
+    height: 52px;
+    padding: 0 28px;
+    border-radius: 12px;
+    font-size: 16px;
+    letter-spacing: 0.04em;
     text-align: center;
-    line-height: 1.3;
-    height: auto;
-    min-height: 52px;
-    /* Keep full solid chrome even while hidden / :disabled */
     background: linear-gradient(145deg, #1e2a3a, #151d28);
     border: 1px solid rgba(160, 190, 255, 0.15);
     box-shadow:
@@ -646,18 +630,8 @@ const UNIVERSE_LAYOUT_CSS = `
     cursor: pointer;
   }
 
-  /* Beat the global .ctrl-btn:disabled { opacity: 0.35 } while waiting to appear */
   .ctrl-btn.sat-bridge-cta:disabled {
     opacity: 0;
-    background: linear-gradient(145deg, #1e2a3a, #151d28);
-    border: 1px solid rgba(160, 190, 255, 0.15);
-    box-shadow:
-      4px 4px 10px rgba(0, 0, 0, 0.45),
-      -2px -2px 6px rgba(80, 120, 180, 0.08),
-      inset 0 1px 1px rgba(255, 255, 255, 0.05),
-      0 0 14px rgba(120, 170, 255, 0.12);
-    color: #e8f0ff;
-    cursor: default;
     transform: translateY(16px);
   }
 
@@ -801,10 +775,17 @@ export default function UniverseShell() {
   const [moonPhotoOverlayVisible, setMoonPhotoOverlayVisible] =
     useState(false);
   const [moonTryVisible, setMoonTryVisible] = useState(false);
+  const [moonTryTextVisible, setMoonTryTextVisible] = useState(false);
   const [moonPlaceBtnVisible, setMoonPlaceBtnVisible] = useState(false);
+  const [moonLieH1Visible, setMoonLieH1Visible] = useState(false);
+  const [moonLieBodyVisible, setMoonLieBodyVisible] = useState(false);
+  const [moonLieImgVisible, setMoonLieImgVisible] = useState(false);
 
   /** After light → before Sun zoom: “pictures still lie” + optional NASA sun photo */
   const [sunLieVisible, setSunLieVisible] = useState(false);
+  const [sunLieH1Visible, setSunLieH1Visible] = useState(false);
+  const [sunLieBodyVisible, setSunLieBodyVisible] = useState(false);
+  const [sunLieImgVisible, setSunLieImgVisible] = useState(false);
   const [sunWonderVisible, setSunWonderVisible] = useState(false);
   const [sunPhotoOverlayVisible, setSunPhotoOverlayVisible] = useState(false);
 
@@ -857,6 +838,10 @@ export default function UniverseShell() {
   const [sunLightTimerOn, setSunLightTimerOn] = useState(false);
   const [sunLightTimerDisplay, setSunLightTimerDisplay] = useState("0m 00.0s");
   const [sunLightArriveOn, setSunLightArriveOn] = useState(false);
+  const [sunLightArriveH1Visible, setSunLightArriveH1Visible] = useState(false);
+  const [sunLightArriveBodyVisible, setSunLightArriveBodyVisible] = useState(false);
+  const [sunLightArriveSubVisible, setSunLightArriveSubVisible] = useState(false);
+  const [sunLightArriveBtnVisible, setSunLightArriveBtnVisible] = useState(false);
 
   const [northPoleActive, setNorthPoleActive] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
@@ -948,29 +933,52 @@ export default function UniverseShell() {
     setGpsFactVisible(false);
     setFartherVisible(false);
     setPlaceMoonBtnVisible(false);
-    setMoonLieVisible(true);
+    setSatBridgeVisible(false);
+
+    window.setTimeout(() => {
+      setMoonLieVisible(true);
+      setSatBridgeVisible(true);
+      window.setTimeout(() => setMoonLieH1Visible(true), 400);
+      window.setTimeout(() => setMoonLieBodyVisible(true), 1800);
+      window.setTimeout(() => setMoonLieImgVisible(true), 3400);
+    }, 400);
   }, []);
 
   /** Click on NASA Moon photo → go to try-yourself + Place moon stage */
   const handleMoonPhotoClick = useCallback(() => {
-    setMoonLieVisible(false);
-    setMoonTryVisible(true);
-    window.setTimeout(() => setMoonPlaceBtnVisible(true), 500);
+    setSatBridgeVisible(false);
+    window.setTimeout(() => {
+      setMoonLieVisible(false);
+      setMoonLieH1Visible(false);
+      setMoonLieBodyVisible(false);
+      setMoonLieImgVisible(false);
+      setMoonTryVisible(true);
+      setSatBridgeVisible(true);
+
+      // Beat 1: "Now try it yourself..." text glides in softly (400ms)
+      window.setTimeout(() => setMoonTryTextVisible(true), 400);
+
+      // Beat 2: "Place moon 🌑" CTA button glides into place (2400ms)
+      window.setTimeout(() => setMoonPlaceBtnVisible(true), 2400);
+    }, 400);
   }, []);
 
   /** “Place moon” — start grayed Moon + zoom beat */
   const handlePlaceMoon = useCallback(() => {
     setSatBridgeVisible(false);
-    setMoonTryVisible(false);
-    setMoonPlaceBtnVisible(false);
-    setMoonLieVisible(false);
-    setMoonWonderBtnVisible(false);
-    setMoonPhase(true);
-    setMoonVisible(true);
     window.setTimeout(() => {
-      setZoomControlsVisible(true);
-      setZoomFirstVisible(true);
-    }, 180);
+      setMoonTryVisible(false);
+      setMoonTryTextVisible(false);
+      setMoonPlaceBtnVisible(false);
+      setMoonLieVisible(false);
+      setMoonWonderBtnVisible(false);
+      setMoonPhase(true);
+      setMoonVisible(true);
+      window.setTimeout(() => {
+        setZoomControlsVisible(true);
+        setZoomFirstVisible(true);
+      }, 180);
+    }, 400);
   }, []);
 
   const handleZoomOut = useCallback(() => {
@@ -1063,10 +1071,10 @@ export default function UniverseShell() {
   /** Shared sun reveal → branch copy → CTA */
   useEffect(() => {
     if (!sunLabelVisible) return;
-    const t1 = window.setTimeout(() => setSunRevealL1(true), 200);
-    const t2 = window.setTimeout(() => setSunRevealL2(true), 1400);
-    const t3 = window.setTimeout(() => setSunRevealBranch(true), 2800);
-    const t4 = window.setTimeout(() => setSunRevealBtn(true), 4000);
+    const t1 = window.setTimeout(() => setSunRevealL1(true), 400);
+    const t2 = window.setTimeout(() => setSunRevealL2(true), 2000);
+    const t3 = window.setTimeout(() => setSunRevealBranch(true), 3600);
+    const t4 = window.setTimeout(() => setSunRevealBtn(true), 5400);
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
@@ -1084,7 +1092,7 @@ export default function UniverseShell() {
 
   /**
    * “Let’s go to our solar system” — not straight into zoom.
-   * First: still-lie copy + Absolutely / Not really (same pattern as Moon).
+   * First: still-lie copy + NASA Sun photo (same pattern as Moon).
    */
   const handleSolarSystemInvite = useCallback(() => {
     setLightSolarBtnOn(false);
@@ -1098,42 +1106,56 @@ export default function UniverseShell() {
     setLightL3On(false);
     setLightShowBtnOn(false);
     setLightPhase(false);
-    setSunLieVisible(true);
+    setSatBridgeVisible(false);
+
+    window.setTimeout(() => {
+      setSunLieVisible(true);
+      setSatBridgeVisible(true);
+      window.setTimeout(() => setSunLieH1Visible(true), 400);
+      window.setTimeout(() => setSunLieBodyVisible(true), 1800);
+      window.setTimeout(() => setSunLieImgVisible(true), 3400);
+    }, 400);
   }, []);
 
   /** Click on NASA Sun photo → Now for the Sun (zoom beat) */
   const handleExploreSolarSystem = useCallback(() => {
-    setSunLieVisible(false);
-    setSunWonderVisible(false);
-    setSunPhotoOverlayVisible(false);
-    setMoonNextVisible(false);
-    setMoonLabelVisible(false);
-    setLightPhase(false);
-    setLightBeamActive(false);
-    setLightTimerOn(false);
-    setLightSolarBtnOn(false);
-    setLightArriveOn(false);
-    setLightIntroHidden(false);
-    // Drop orbit lesson pieces — invisible / irrelevant at solar scale
-    setMoonVisible(false);
-    setMoonInteractive(false);
-    setMoonPromptVisible(false);
-    setSatelliteActive(false);
-    setSunPhase(true);
-    setSunVisible(true);
-    setSunInteractive(false);
-    setSunPromptVisible(false);
-    setSunLabelVisible(false);
-    setSunRevealL1(false);
-    setSunRevealL2(false);
-    setSunRevealBranch(false);
-    setSunRevealBtn(false);
-    setSunHomeDocked(false);
-    setFarEnoughVisible(false);
-    setZoomFirstVisible(true);
-    setZoomControlsVisible(true);
-    setConfirmHintNudgeKey(0);
-    setCameraZ(ZOOM_Z_SUN_MIN);
+    setSatBridgeVisible(false);
+    window.setTimeout(() => {
+      setSunLieVisible(false);
+      setSunLieH1Visible(false);
+      setSunLieBodyVisible(false);
+      setSunLieImgVisible(false);
+      setSunWonderVisible(false);
+      setSunPhotoOverlayVisible(false);
+      setMoonNextVisible(false);
+      setMoonLabelVisible(false);
+      setLightPhase(false);
+      setLightBeamActive(false);
+      setLightTimerOn(false);
+      setLightSolarBtnOn(false);
+      setLightArriveOn(false);
+      setLightIntroHidden(false);
+      // Drop orbit lesson pieces — invisible / irrelevant at solar scale
+      setMoonVisible(false);
+      setMoonInteractive(false);
+      setMoonPromptVisible(false);
+      setSatelliteActive(false);
+      setSunPhase(true);
+      setSunVisible(true);
+      setSunInteractive(false);
+      setSunPromptVisible(false);
+      setSunLabelVisible(false);
+      setSunRevealL1(false);
+      setSunRevealL2(false);
+      setSunRevealBranch(false);
+      setSunRevealBtn(false);
+      setSunHomeDocked(false);
+      setFarEnoughVisible(false);
+      setZoomFirstVisible(true);
+      setZoomControlsVisible(true);
+      setConfirmHintNudgeKey(0);
+      setCameraZ(ZOOM_Z_SUN_MIN);
+    }, 400);
   }, []);
 
   /** Click "Release the Solar Photon! ☀️" — launch 3D photon from Sun to Earth with 7s timer */
@@ -1172,6 +1194,10 @@ export default function UniverseShell() {
     setSunLightTimerDisplay("8m 20.0s");
     window.setTimeout(() => {
       setSunLightArriveOn(true);
+      window.setTimeout(() => setSunLightArriveH1Visible(true), 200);
+      window.setTimeout(() => setSunLightArriveBodyVisible(true), 1800);
+      window.setTimeout(() => setSunLightArriveSubVisible(true), 3400);
+      window.setTimeout(() => setSunLightArriveBtnVisible(true), 4800);
     }, 300);
   }, []);
 
@@ -1420,19 +1446,7 @@ export default function UniverseShell() {
               */}
               {/* Step 1: GPS + farther + The Moon ? */}
               {!moonLieVisible && !moonTryVisible && (
-                <div
-                  className="sat-bridge-stack"
-                  style={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                    maxWidth: "340px",
-                    textAlign: "center",
-                  }}
-                >
+                <div className="sat-bridge-stack">
                   <div>
                     <p
                       className={`sat-bridge-copy u-p1${
@@ -1456,18 +1470,18 @@ export default function UniverseShell() {
                             "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
                         }}
                       >
-                        <h2
+                        <h1
                           className="u-h1"
                           style={{
-                            fontSize: "clamp(1.05rem, 3.8vw, 1.25rem)",
-                            letterSpacing: "0.12em",
-                            textTransform: "uppercase",
+                            fontSize: "clamp(1.15rem, 4vw, 1.35rem)",
+                            letterSpacing: "0.08em",
                             marginBottom: "6px",
-                            color: "rgba(255, 255, 255, 0.98)",
+                            color: "#60a5fa",
+                            textShadow: "0 0 18px rgba(96, 165, 250, 0.45)",
                           }}
                         >
                           {LUNA_TITLE_TEXT}
-                        </h2>
+                        </h1>
                         <p
                           className="u-p1"
                           style={{
@@ -1486,16 +1500,6 @@ export default function UniverseShell() {
                     className={`ctrl-btn rect sat-bridge-cta${
                       placeMoonBtnVisible ? " visible" : ""
                     }`}
-                    style={{
-                      transform: placeMoonBtnVisible
-                        ? "translateY(0)"
-                        : "translateY(16px)",
-                      width: "min(100%, 300px)",
-                      opacity: placeMoonBtnVisible ? 1 : 0,
-                      pointerEvents: placeMoonBtnVisible ? "auto" : "none",
-                      transition:
-                        "opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1), transform 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
-                    }}
                     disabled={!placeMoonBtnVisible}
                     onClick={handleTheMoon}
                   >
@@ -1505,33 +1509,73 @@ export default function UniverseShell() {
               )}
               {/* Step 2: "Most pictures lie" + embedded interactive NASA Moon image */}
               {moonLieVisible && (
-                <div className="sat-bridge-stack" style={{ alignItems: "center" }}>
-                  <h1 className="sat-bridge-copy u-h1 visible">
-                    {MOON_LIE_TITLE}
-                  </h1>
-                  <p className="sat-bridge-copy u-p1 visible" style={{ marginTop: "8px" }}>
-                    {MOON_LIE_BODY}
-                  </p>
+                <div className="sat-bridge-stack">
+                  <div>
+                    <h1
+                      className="u-h1"
+                      style={{
+                        opacity: moonLieH1Visible ? 1 : 0,
+                        transform: moonLieH1Visible ? "translateY(0)" : "translateY(14px)",
+                        transition:
+                          "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                        color: "#60a5fa",
+                        textShadow: "0 0 18px rgba(96, 165, 250, 0.45)",
+                        fontSize: "clamp(1.15rem, 4vw, 1.35rem)",
+                        letterSpacing: "0.08em",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      {MOON_LIE_TITLE}
+                    </h1>
+                    <p
+                      className="u-p1"
+                      style={{
+                        opacity: moonLieBodyVisible ? 1 : 0,
+                        transform: moonLieBodyVisible ? "translateY(0)" : "translateY(14px)",
+                        transition:
+                          "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                        fontSize: "clamp(0.9rem, 3.2vw, 1.0rem)",
+                        lineHeight: 1.5,
+                        color: "rgba(230, 240, 255, 0.92)",
+                      }}
+                    >
+                      {MOON_LIE_BODY}
+                    </p>
+                  </div>
                   <div
                     style={{
-                      marginTop: "16px",
-                      pointerEvents: "auto",
+                      flex: 1,
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: moonLieImgVisible ? 1 : 0,
+                      transform: moonLieImgVisible ? "translateY(0) scale(1)" : "translateY(16px) scale(0.96)",
+                      transition:
+                        "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                      pointerEvents: moonLieImgVisible ? "auto" : "none",
                       cursor: "pointer",
                     }}
                     onClick={handleMoonPhotoClick}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Explore NASA photo"
                   >
                     <img
                       src={NASA_MOON_PHOTO}
                       alt="Earth and Moon — NASA"
                       style={{
-                        width: "calc(100vw - 6vw)",
-                        maxWidth: "360px",
-                        maxHeight: "min(36vh, 260px)",
-                        objectFit: "contain",
-                        borderRadius: "12px",
-                        boxShadow: "0 12px 36px rgba(0, 0, 0, 0.65)",
-                        border: "1px solid rgba(160, 190, 255, 0.2)",
-                        transition: "transform 0.15s ease",
+                        width: "calc(100vw - 48px)",
+                        maxWidth: "340px",
+                        maxHeight: "min(36vh, 250px)",
+                        objectFit: "cover",
+                        borderRadius: "14px",
+                        boxShadow:
+                          "0 14px 40px rgba(0, 0, 0, 0.75), 0 0 28px rgba(96, 165, 250, 0.22)",
+                        border: "1px solid rgba(160, 190, 255, 0.3)",
+                        display: "block",
+                        transition: "transform 0.25s ease, box-shadow 0.25s ease",
                       }}
                       draggable={false}
                     />
@@ -1540,19 +1584,22 @@ export default function UniverseShell() {
               )}
               {/* Step 3: try yourself + Place moon */}
               {moonTryVisible && (
-                <div
-                  className="sat-bridge-stack"
-                  style={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                  }}
-                >
+                <div className="sat-bridge-stack">
                   <div>
-                    <p className="sat-bridge-copy u-p1 visible">{MOON_TRY_TEXT}</p>
+                    <p
+                      className="u-p1"
+                      style={{
+                        opacity: moonTryTextVisible ? 1 : 0,
+                        transform: moonTryTextVisible ? "translateY(0)" : "translateY(14px)",
+                        transition:
+                          "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                        fontSize: "clamp(1.0rem, 3.6vw, 1.18rem)",
+                        lineHeight: 1.5,
+                        color: "rgba(230, 240, 255, 0.95)",
+                      }}
+                    >
+                      {MOON_TRY_TEXT}
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -1571,31 +1618,73 @@ export default function UniverseShell() {
           {/* Sun lie — embedded interactive NASA Sun photo */}
           {sunLieVisible && (
             <div className={`sat-bridge${sunLieVisible ? " visible" : ""}`}>
-              <div className="sat-bridge-stack" style={{ alignItems: "center" }}>
-                <h1 className="sat-bridge-copy u-h1 visible">{SUN_LIE_TITLE}</h1>
-                <p className="sat-bridge-copy u-p1 visible" style={{ marginTop: "8px" }}>
-                  {SUN_LIE_BODY}
-                </p>
+              <div className="sat-bridge-stack">
+                <div>
+                  <h1
+                    className="u-h1"
+                    style={{
+                      opacity: sunLieH1Visible ? 1 : 0,
+                      transform: sunLieH1Visible ? "translateY(0)" : "translateY(14px)",
+                      transition:
+                        "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                      color: "#60a5fa",
+                      textShadow: "0 0 18px rgba(96, 165, 250, 0.45)",
+                      fontSize: "clamp(1.15rem, 4vw, 1.35rem)",
+                      letterSpacing: "0.08em",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    {SUN_LIE_TITLE}
+                  </h1>
+                  <p
+                    className="u-p1"
+                    style={{
+                      opacity: sunLieBodyVisible ? 1 : 0,
+                      transform: sunLieBodyVisible ? "translateY(0)" : "translateY(14px)",
+                      transition:
+                        "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                      fontSize: "clamp(0.9rem, 3.2vw, 1.0rem)",
+                      lineHeight: 1.5,
+                      color: "rgba(230, 240, 255, 0.92)",
+                    }}
+                  >
+                    {SUN_LIE_BODY}
+                  </p>
+                </div>
                 <div
                   style={{
-                    marginTop: "16px",
-                    pointerEvents: "auto",
+                    flex: 1,
+                    width: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: sunLieImgVisible ? 1 : 0,
+                    transform: sunLieImgVisible ? "translateY(0) scale(1)" : "translateY(16px) scale(0.96)",
+                    transition:
+                      "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                    pointerEvents: sunLieImgVisible ? "auto" : "none",
                     cursor: "pointer",
                   }}
                   onClick={handleExploreSolarSystem}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Explore NASA Sun photo"
                 >
                   <img
                     src={NASA_SUN_PHOTO}
                     alt="The Sun — NASA"
                     style={{
-                      width: "calc(100vw - 6vw)",
-                      maxWidth: "360px",
-                      maxHeight: "min(36vh, 260px)",
-                      objectFit: "contain",
-                      borderRadius: "12px",
-                      boxShadow: "0 12px 36px rgba(0, 0, 0, 0.65)",
-                      border: "1px solid rgba(255, 210, 120, 0.25)",
-                      transition: "transform 0.15s ease",
+                      width: "calc(100vw - 48px)",
+                      maxWidth: "340px",
+                      maxHeight: "min(36vh, 250px)",
+                      objectFit: "cover",
+                      borderRadius: "14px",
+                      boxShadow:
+                        "0 14px 40px rgba(0, 0, 0, 0.75), 0 0 28px rgba(255, 180, 60, 0.25)",
+                      border: "1px solid rgba(255, 210, 120, 0.35)",
+                      display: "block",
+                      transition: "transform 0.25s ease, box-shadow 0.25s ease",
                     }}
                     draggable={false}
                   />
@@ -1636,62 +1725,112 @@ export default function UniverseShell() {
           </div>
           <div
             className={`sun-reveal${sunLabelVisible ? " visible" : ""}`}
-            style={{
-              position: "fixed",
-              top: "40%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "calc(100vw - 32px)",
-              maxWidth: "360px",
-              zIndex: 50,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "16px",
-              textAlign: "center",
-              boxSizing: "border-box",
-              pointerEvents: sunLabelVisible ? "auto" : "none",
-              opacity: sunLabelVisible ? 1 : 0,
-              transition: "opacity 0.6s ease",
-            }}
             aria-live="polite"
             aria-hidden={!sunLabelVisible}
           >
-            {sunSmartAss && (
-              <h1 className="u-h1" style={{ display: sunRevealL1 ? "block" : "none" }}>
-                You just evicted the Sun past Pluto! 🥶 It&apos;s freezing out there.
-              </h1>
-            )}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "min(100%, 340px)",
+                height: "100%",
+                textAlign: "center",
+                pointerEvents: "none",
+              }}
+            >
+              <div>
+                {sunSmartAss && (
+                  <h1
+                    className="u-h1"
+                    style={{
+                      opacity: sunRevealL1 ? 1 : 0,
+                      transform: sunRevealL1 ? "translateY(0)" : "translateY(14px)",
+                      transition:
+                        "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                      fontSize: "clamp(1.05rem, 3.8vw, 1.25rem)",
+                      color: "#60a5fa",
+                      textShadow: "0 0 18px rgba(96, 165, 250, 0.45)",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    You just evicted the Sun past Pluto! 🥶 It&apos;s freezing out there.
+                  </h1>
+                )}
 
-            {sunRevealL1 && (
-              <p className="u-p1">
-                The Sun sits 150 million kilometres away (1 Astronomical Unit). At this point, kilometres become completely useless for human brains.
-              </p>
-            )}
+                <p
+                  className="u-p1"
+                  style={{
+                    opacity: sunRevealL1 ? 1 : 0,
+                    transform: sunRevealL1 ? "translateY(0)" : "translateY(14px)",
+                    transition:
+                      "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                    fontSize: "clamp(0.92rem, 3.3vw, 1.05rem)",
+                    lineHeight: 1.55,
+                    color: "rgba(235, 242, 255, 0.95)",
+                    marginBottom: "14px",
+                  }}
+                >
+                  The Sun sits 150 million kilometres away (1 Astronomical Unit). At this point, kilometres become completely useless for human brains.
+                </p>
 
-            {sunRevealL2 && (
-              <p className="u-p1">
-                So astronomers cheat: they measure distance in TIME.
-              </p>
-            )}
+                <p
+                  className="u-p1"
+                  style={{
+                    opacity: sunRevealL2 ? 1 : 0,
+                    transform: sunRevealL2 ? "translateY(0)" : "translateY(14px)",
+                    transition:
+                      "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                    fontSize: "clamp(0.92rem, 3.3vw, 1.05rem)",
+                    lineHeight: 1.55,
+                    color: "rgba(235, 242, 255, 0.95)",
+                    marginBottom: "14px",
+                  }}
+                >
+                  So astronomers cheat: they measure distance in TIME.
+                </p>
 
-            {sunRevealBranch && (
-              <p className="u-p1">
-                Instead of writing 40,000,000,000,000 km to reach the next star, we just say it&apos;s 4.2 light-years away. Time becomes our tape measure!
-              </p>
-            )}
+                <p
+                  className="u-p1"
+                  style={{
+                    opacity: sunRevealBranch ? 1 : 0,
+                    transform: sunRevealBranch ? "translateY(0)" : "translateY(14px)",
+                    transition:
+                      "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                    fontSize: "clamp(0.92rem, 3.3vw, 1.05rem)",
+                    lineHeight: 1.55,
+                    color: "rgba(235, 242, 255, 0.95)",
+                  }}
+                >
+                  Instead of writing 40,000,000,000,000 km to reach the next star, we just say it&apos;s 4.2 light-years away. Time becomes our tape measure!
+                </p>
+              </div>
 
-            {sunRevealBtn && (
               <button
                 type="button"
                 className="ctrl-btn rect"
-                style={{ width: "min(100%, 300px)", marginTop: "8px" }}
+                style={{
+                  position: "fixed",
+                  bottom: "calc(6dvh + env(safe-area-inset-bottom, 0px))",
+                  left: "50%",
+                  transform: sunRevealBtn
+                    ? "translateX(-50%) translateY(0)"
+                    : "translateX(-50%) translateY(16px)",
+                  width: "min(calc(100vw - 40px), 300px)",
+                  height: "52px",
+                  zIndex: 50,
+                  opacity: sunRevealBtn ? 1 : 0,
+                  pointerEvents: sunRevealBtn ? "auto" : "none",
+                  transition:
+                    "opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1), transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s ease, background 0.15s ease",
+                }}
+                disabled={!sunRevealBtn}
                 onClick={handleReleaseSolarPhoton}
               >
                 Release the Solar Photon! ☀️
               </button>
-            )}
+            </div>
           </div>
 
           {/* Solar Light Photon Timer & Arrival Message */}
@@ -1700,7 +1839,7 @@ export default function UniverseShell() {
               className={`light-timer u-h1${sunLightTimerOn ? " is-on" : ""}`}
               style={{
                 position: "fixed",
-                top: "42%",
+                top: "22%",
                 left: "50%",
                 transform: "translate(-50%, -50%)",
                 fontSize: "clamp(2rem, 8vw, 3.2rem)",
@@ -1727,7 +1866,7 @@ export default function UniverseShell() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: "12px",
+                gap: "14px",
                 pointerEvents: "auto",
               }}
             >
@@ -1738,16 +1877,24 @@ export default function UniverseShell() {
                   textShadow: "0 0 20px rgba(251, 191, 36, 0.5)",
                   margin: 0,
                   fontSize: "clamp(1.3rem, 4.5vw, 1.6rem)",
+                  opacity: sunLightArriveH1Visible ? 1 : 0,
+                  transform: sunLightArriveH1Visible ? "translateY(0)" : "translateY(14px)",
+                  transition:
+                    "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
               >
-                  
+                8 minutes into the past.
               </h2>
               <p
                 className="u-p1"
                 style={{
                   color: "rgba(254, 240, 138, 0.95)",
                   margin: 0,
-                  lineHeight: 1.45,
+                  lineHeight: 1.5,
+                  opacity: sunLightArriveBodyVisible ? 1 : 0,
+                  transform: sunLightArriveBodyVisible ? "translateY(0)" : "translateY(14px)",
+                  transition:
+                    "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
               >
                 If the Sun suddenly exploded right this second, you wouldn&apos;t know for 8 full minutes. You could finish your tea in warm, golden sunshine! You are literally looking 8 minutes into the past.
@@ -1756,9 +1903,13 @@ export default function UniverseShell() {
                 className="u-p1"
                 style={{
                   color: "#94a3b8",
-                  marginTop: "6px",
-                  fontSize: "0.85rem",
+                  marginTop: "4px",
+                  fontSize: "0.88rem",
                   lineHeight: 1.4,
+                  opacity: sunLightArriveSubVisible ? 1 : 0,
+                  transform: sunLightArriveSubVisible ? "translateY(0)" : "translateY(14px)",
+                  transition:
+                    "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
                 }}
               >
                 Ready to ride deeper through the planets?
@@ -1766,7 +1917,16 @@ export default function UniverseShell() {
               <button
                 type="button"
                 className="ctrl-btn rect"
-                style={{ width: "min(100%, 280px)", marginTop: "4px" }}
+                style={{
+                  width: "min(100%, 280px)",
+                  marginTop: "8px",
+                  opacity: sunLightArriveBtnVisible ? 1 : 0,
+                  transform: sunLightArriveBtnVisible ? "translateY(0)" : "translateY(16px)",
+                  pointerEvents: sunLightArriveBtnVisible ? "auto" : "none",
+                  transition:
+                    "opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1), transform 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
+                disabled={!sunLightArriveBtnVisible}
                 onClick={() => {
                   // Ready for Vertical Solar Elevator step
                 }}
