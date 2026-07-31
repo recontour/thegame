@@ -344,25 +344,30 @@ export default function NorthPoleQuiz({ active, onNext }: NorthPoleQuizProps) {
                   disabled={!!selected}
                   onClick={() => handlePick(c.id)}
                   className={`ctrl-btn ${isSelected ? "selected" : ""}`}
-                  style={{
-                    flex: 1,
-                    aspectRatio: "1 / 1",
-                    maxHeight: "54px",
-                    maxWidth: "60px",
-                    minWidth: "0",
-                    padding: 0,
-                    borderRadius: "10px",
-                    fontSize: "0.78rem",
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    opacity: buttonsVisible ? 1 : 0,
-                    transform: buttonsVisible
-                      ? "translateY(0) scale(1)"
-                      : "translateY(10px) scale(0.92)",
-                    transition: `opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${btnDelay}, transform 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${btnDelay}, background 0.2s ease, box-shadow 0.2s ease`,
-                  }}
+                    style={{
+                      flex: 1,
+                      aspectRatio: "1 / 1",
+                      maxHeight: "54px",
+                      maxWidth: "60px",
+                      minWidth: "0",
+                      padding: 0,
+                      borderRadius: "10px",
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: buttonsVisible ? 1 : 0,
+                      transform: buttonsVisible
+                        ? "translateY(0) scale(1)"
+                        : "translateY(10px) scale(0.92)",
+                      background: isSelected
+                        ? "linear-gradient(180deg, rgba(56, 189, 248, 0.9), rgba(2, 132, 199, 0.95))"
+                        : "linear-gradient(180deg, rgba(30, 42, 58, 0.9), rgba(21, 29, 40, 0.95))",
+                      backdropFilter: "blur(8px)",
+                      WebkitBackdropFilter: "blur(8px)",
+                      transition: `opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${btnDelay}, transform 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${btnDelay}, background 0.2s ease, box-shadow 0.2s ease`,
+                    }}
                 >
                   <span>{c.label}</span>
                 </button>
