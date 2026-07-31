@@ -1,24 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const AUDIO_SRC = "/universe/audio/newmain.mp3";
 
-/** Soft organic ease into the corner */
-const DOCK_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
-const DOCK_MS = 1000;
+/** Slow, smooth organic ease into the top-left corner */
+const DOCK_EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
+const DOCK_MS = 1250;
 
 type AudioGateProps = {
   onUnlocked: () => void;
 };
 
 /**
- * Center 🎧 unlocks audio, then FLIP-animates into the top-left mute control.
- * Same DOM node the whole time — smooth, not choppy.
+ * Landing intro gate with two audio choices.
+ * Clicking EITHER button slowly animates the selected button directly into the
+ * persistent top-left mute control via FLIP animation, while the intro fades.
  */
 export default function AudioGate({ onUnlocked }: AudioGateProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const dockedBtnRef = useRef<HTMLButtonElement | null>(null);
   const firstRectRef = useRef<DOMRect | null>(null);
   /** True after the user has unlocked playback at least once */
   const unlockedRef = useRef(false);
@@ -79,7 +80,6 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
     };
 
     document.addEventListener("visibilitychange", onVisibility);
-    // iOS / some WebViews fire these when switching apps
     window.addEventListener("pagehide", pauseForBackground);
     window.addEventListener("pageshow", resumeIfNeeded);
 
@@ -90,95 +90,99 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
     };
   }, []);
 
-  // After React paints the docked layout, invert & ease home (FLIP)
+  // After React paints the docked top-left button, invert & ease home (FLIP)
   useLayoutEffect(() => {
     if (phase !== "flying") return;
-    const btn = btnRef.current;
+    const dockedBtn = dockedBtnRef.current;
     const first = firstRectRef.current;
-    if (!btn || !first) {
+    if (!dockedBtn || !first) {
       setPhase("docked");
       return;
     }
 
-    const last = btn.getBoundingClientRect();
+    const last = dockedBtn.getBoundingClientRect();
     const dx = first.left - last.left;
     const dy = first.top - last.top;
     const sx = first.width / Math.max(1, last.width);
     const sy = first.height / Math.max(1, last.height);
 
-    btn.style.transition = "none";
-    btn.style.transformOrigin = "top left";
-    btn.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+    dockedBtn.style.transition = "none";
+    dockedBtn.style.transformOrigin = "top left";
+    dockedBtn.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
 
-    // Next frame: release into the corner
     let finished = false;
     const finish = () => {
       if (finished) return;
       finished = true;
-      btn.style.transition = "";
-      btn.style.transform = "";
-      btn.style.transformOrigin = "";
+      dockedBtn.style.transition = "";
+      dockedBtn.style.transform = "";
+      dockedBtn.style.transformOrigin = "";
       firstRectRef.current = null;
       setPhase("docked");
     };
 
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        btn.style.transition = `transform ${DOCK_MS}ms ${DOCK_EASE}`;
-        btn.style.transform = "translate(0px, 0px) scale(1, 1)";
+        dockedBtn.style.transition = `transform ${DOCK_MS}ms ${DOCK_EASE}`;
+        dockedBtn.style.transform = "translate(0px, 0px) scale(1, 1)";
       });
     });
 
     const onEnd = (e: TransitionEvent) => {
       if (e.propertyName !== "transform") return;
-      btn.removeEventListener("transitionend", onEnd);
+      dockedBtn.removeEventListener("transitionend", onEnd);
       finish();
     };
-    btn.addEventListener("transitionend", onEnd);
+    dockedBtn.addEventListener("transitionend", onEnd);
     const fallback = window.setTimeout(finish, DOCK_MS + 100);
 
     return () => {
       cancelAnimationFrame(raf);
-      btn.removeEventListener("transitionend", onEnd);
+      dockedBtn.removeEventListener("transitionend", onEnd);
       clearTimeout(fallback);
     };
   }, [phase]);
 
-  const handleStart = useCallback(async () => {
-    if (busy || phase !== "idle") return;
-    setBusy(true);
-    setError(null);
+  const handleStart = useCallback(
+    async (withSound: boolean, e: React.MouseEvent<HTMLButtonElement>) => {
+      if (busy || phase !== "idle") return;
+      setBusy(true);
+      setError(null);
 
-    const audio = audioRef.current;
-    const btn = btnRef.current;
-    if (!audio) {
-      setError("Player not ready");
-      setBusy(false);
-      return;
-    }
+      const audio = audioRef.current;
+      if (!audio) {
+        setError("Player not ready");
+        setBusy(false);
+        return;
+      }
 
-    try {
-      audio.loop = true;
-      audio.muted = false;
-      audio.volume = 1;
-      await audio.play();
+      // Capture exact position of whichever button was clicked BEFORE phase changes
+      const targetBtn = e.currentTarget;
+      if (targetBtn) {
+        firstRectRef.current = targetBtn.getBoundingClientRect();
+      }
 
-      unlockedRef.current = true;
-      pausedByBackgroundRef.current = false;
+      try {
+        audio.loop = true;
+        audio.muted = !withSound;
+        audio.volume = 1;
+        await audio.play();
 
-      // Capture center position BEFORE React docks the button
-      if (btn) firstRectRef.current = btn.getBoundingClientRect();
+        unlockedRef.current = true;
+        pausedByBackgroundRef.current = false;
 
-      setMuted(false);
-      setBusy(false);
-      onUnlocked();
-      setPhase("flying"); // backdrop fades; button layout → corner + FLIP
-    } catch (e) {
-      console.warn("[AudioGate] play failed", e);
-      setError("Tap again to enable sound");
-      setBusy(false);
-    }
-  }, [busy, phase, onUnlocked]);
+        setMuted(!withSound);
+        setBusy(false);
+        onUnlocked();
+        setPhase("flying"); // backdrop fades; button FLIP animates to top-left corner
+      } catch (err) {
+        console.warn("[AudioGate] play failed", err);
+        setError("Tap again to begin");
+        setBusy(false);
+      }
+    },
+    [busy, phase, onUnlocked]
+  );
 
   const toggleMute = useCallback(() => {
     if (phase !== "docked") return;
@@ -188,17 +192,11 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
     audio.muted = next;
     setMuted(next);
     mutedRef.current = next;
-    // Unmuting while still background-paused: try play
     if (!next && audio.paused && unlockedRef.current) {
       pausedByBackgroundRef.current = false;
       void audio.play().catch(() => {});
     }
   }, [phase]);
-
-  const onButtonClick = () => {
-    if (phase === "idle") void handleStart();
-    else if (phase === "docked") toggleMute();
-  };
 
   const showGateChrome = phase === "idle" || phase === "flying";
 
@@ -216,35 +214,78 @@ export default function AudioGate({ onUnlocked }: AudioGateProps) {
         <div
           className={`audio-gate${phase === "flying" ? " is-fading" : ""}`}
           aria-hidden={phase !== "idle"}
-        />
-      )}
+        >
+          {phase === "idle" && (
+            <div className="audio-gate-content">
+              <div className="audio-gate-header">
+                <h1 className="audio-gate-title u-h1">THE UNIVERSE</h1>
+                <p className="audio-gate-desc u-p1">
+                  A journey from the phone in your hand to the edge of the solar system. Ready to lose your sense of scale?
+                </p>
+              </div>
 
-      {phase === "idle" && (
-        <p className="audio-gate-hint audio-gate-hint--label u-p1">
-          {error ?? (busy ? "Starting…" : "Tap to begin")}
-        </p>
+              {error && (
+                <p className="audio-gate-error u-p1">{error}</p>
+              )}
+
+              <div className="audio-gate-btn-group">
+                <div className="audio-choice-column">
+                  <button
+                    type="button"
+                    className="audio-headphone-circle-btn primary"
+                    onClick={(e) => handleStart(true, e)}
+                    disabled={busy}
+                    aria-label="Start with Audio"
+                  >
+                    <span className="audio-headphone-emoji" aria-hidden>
+                      🎧
+                    </span>
+                  </button>
+                  <span className="audio-choice-main">Start with Audio</span>
+                  <span className="audio-choice-sub">Best experienced with headphones</span>
+                </div>
+
+                <div className="audio-choice-column">
+                  <button
+                    type="button"
+                    className="audio-headphone-circle-btn secondary"
+                    onClick={(e) => handleStart(false, e)}
+                    disabled={busy}
+                    aria-label="Start Muted"
+                  >
+                    <span className="audio-headphone-emoji" aria-hidden>
+                      🔇
+                    </span>
+                  </button>
+                  <span className="audio-choice-main">Start Muted</span>
+                  <span className="audio-choice-sub">Play in silence</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <button
-        ref={btnRef}
+        ref={dockedBtnRef}
         type="button"
         className={[
           "audio-headphone-btn",
-          phase === "idle" ? "is-center" : "is-docked",
+          "is-docked",
           phase === "flying" ? "is-flying" : "",
           muted ? "is-muted" : "",
         ]
           .filter(Boolean)
           .join(" ")}
-        onClick={onButtonClick}
-        disabled={busy && phase === "idle"}
-        aria-label={
-          phase === "docked" ? (muted ? "Unmute" : "Mute") : "Play music"
-        }
-        aria-pressed={phase === "docked" ? muted : undefined}
+        onClick={toggleMute}
+        style={{
+          display: phase === "docked" || phase === "flying" ? "flex" : "none",
+        }}
+        aria-label={muted ? "Unmute" : "Mute"}
+        aria-pressed={muted}
       >
         <span className="audio-headphone-emoji" aria-hidden>
-          {muted && phase === "docked" ? "🔇" : "🎧"}
+          {muted ? "🔇" : "🎧"}
         </span>
       </button>
     </>

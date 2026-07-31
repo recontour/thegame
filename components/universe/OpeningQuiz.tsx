@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const FACT_TEXT = "An average phone is about 15 cm long.";
-const QUESTION_TEXT = "Roughly how many phones would fit in one kilometre?";
+const FACT_TEXT = "The smartphone in your hand is roughly 15 cm long.";
+const QUESTION_TEXT = "If you stacked phones end-to-end, how many would it take to stretch 1 kilometre?";
 
 type ChoiceId = "1000" | "5500" | "6700" | "59000";
 
@@ -29,8 +29,8 @@ const CHOICES: Choice[] = [
     icon: "/universe/pyramid.png",
     order: 1,
     hero: "/universe/pyramid.png",
-    headline: "Not quite.",
-    body: "1,000 phones stacked end to end would only reach about the height of the Great Pyramid of Giza.",
+    headline: "Pyramid Scheme!",
+    body: "1,000 phones only gets you to the top of the Great Pyramid of Giza (~138m). Ancient pharaohs would be impressed, but we're going way higher.",
     listLine: "1,000 phones ≈ the Great Pyramid of Giza",
   },
   {
@@ -39,8 +39,8 @@ const CHOICES: Choice[] = [
     icon: "/universe/burj-khalifa.png",
     order: 2,
     hero: "/universe/burj-khalifa.png",
-    headline: "Close.",
-    body: "5,500 phones is roughly the height of the Burj Khalifa — the tallest building on Earth. Still a little short of a kilometre.",
+    headline: "Burj-level thinking!",
+    body: "5,500 phones reaches the tip of the Burj Khalifa (~828m)—the tallest skyscraper on Earth. You're scraping the clouds, but not quite at a full kilometre.",
     listLine: "5,500 phones ≈ the Burj Khalifa",
   },
   {
@@ -48,8 +48,8 @@ const CHOICES: Choice[] = [
     label: "6,700",
     icon: "/universe/mobile.png",
     order: 3,
-    headline: "Spot on.",
-    body: "6,700 average phones lined up end to end = one kilometre.",
+    headline: "Bullseye! 🎯",
+    body: "6,700 phones lined up end-to-end equals exactly 1 kilometre. Remember this number, because space is about to make 1 km look microscopic.",
     listLine: "6,700 phones = one kilometre",
   },
   {
@@ -58,8 +58,8 @@ const CHOICES: Choice[] = [
     icon: "/universe/mountain.png",
     order: 4,
     hero: "/universe/mountain.png",
-    headline: "Haha — that's Mount Everest.",
-    body: "59,000 phones would stretch about as high as Everest. Impressive… but way past one kilometre.",
+    headline: "Woah, calm down Everest! 🏔️",
+    body: "59,000 phones would stack all the way up to the summit of Mount Everest (8.8 km)! You'd freeze your fingers off way before reaching that high.",
     listLine: "59,000 phones ≈ Mount Everest",
   },
 ];
@@ -94,10 +94,10 @@ export default function OpeningQuiz({
   useEffect(() => {
     if (!active) return;
 
-    // Gentle cascade: fact → pause → question + options
-    const factIn = window.setTimeout(() => setFactVisible(true), 650);
-    const questionIn = window.setTimeout(() => setQuestionVisible(true), 2400);
-    const optionsIn = window.setTimeout(() => setOptionsVisible(true), 3100);
+    // Gentle cascade: H1 + 3D phone -> pause -> P1 question -> pause -> options
+    const factIn = window.setTimeout(() => setFactVisible(true), 400);
+    const questionIn = window.setTimeout(() => setQuestionVisible(true), 1800);
+    const optionsIn = window.setTimeout(() => setOptionsVisible(true), 3000);
 
     return () => {
       clearTimeout(factIn);
@@ -142,17 +142,16 @@ export default function OpeningQuiz({
     setFactVisible(false);
     setQuestionVisible(false);
     setOptionsVisible(false);
-    // Trigger phone exit immediately, don't wait for the quiz to fade.
+    // Trigger phone exit immediately
     onRevealPhase?.(true);
 
-    // Quiz fade (~1.15s) + short beat of black, then soft result card
+    // Patient, cinematic exit (800ms) before reveal card mounts
     window.setTimeout(() => {
       setPhase("reveal");
-      // Double frame so .opening-reveal paints at opacity 0 first
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => setRevealVisible(true));
       });
-    }, 1450);
+    }, 800);
   };
 
   const handleContinue = () => {
@@ -241,7 +240,7 @@ export default function OpeningQuiz({
           style={{ width: "min(100%, 300px)", marginTop: "0" }}
           onClick={handleContinue}
         >
-          Let&apos;s see what distance really is →
+          Let&apos;s See Real Scale 🌍
         </button>
       </div>
     );
@@ -253,12 +252,8 @@ export default function OpeningQuiz({
       ref={rootRef}
       className={`opening-quiz${fadingQuiz ? " fading" : ""}`}
     >
-      <div
-        className={`opening-quiz-copy-stack${
-          questionVisible || optionsVisible ? " has-question" : ""
-        }`}
-      >
-        {/* First beat: lead fact (h1) + question (p1) — type scale pilot */}
+      <div className="opening-quiz-copy-stack">
+        {/* First beat: lead fact (h1) */}
         <h1
           className={`universe-message opening-quiz-copy u-h1${
             factVisible ? " visible" : ""
@@ -267,16 +262,16 @@ export default function OpeningQuiz({
         >
           {FACT_TEXT}
         </h1>
-        {(questionVisible || optionsVisible || fadingQuiz) && (
-          <p
-            className={`universe-message opening-quiz-copy u-p1${
-              questionVisible ? " visible" : ""
-            }`}
-            aria-live="polite"
-          >
-            {QUESTION_TEXT}
-          </p>
-        )}
+
+        {/* Second beat: question (p1) — pre-rendered in layout for zero reflow/pop */}
+        <p
+          className={`universe-message opening-quiz-copy u-p1${
+            questionVisible ? " visible" : ""
+          }`}
+          aria-live="polite"
+        >
+          {QUESTION_TEXT}
+        </p>
       </div>
 
       <div ref={slotRef} className="opening-quiz-phone-slot" aria-hidden />

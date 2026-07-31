@@ -57,7 +57,7 @@ export default function OpeningPhone({
     opacityRef.current = THREE.MathUtils.damp(
       opacityRef.current,
       wantOpacity,
-      exiting ? 2.8 : 1.6, // A balanced fade-out for the exit
+      exiting ? 4.2 : 1.6, // Crisp smooth fade-out (~0.5s)
       dt,
     );
     // Keep scale and z-depth constant during animation
@@ -81,7 +81,7 @@ export default function OpeningPhone({
         // On first exit frame, capture start Y and set a target above it
         exitStartY.current = yRef.current;
       }
-      finalTargetY = exitStartY.current + 0.4; // A clear upward movement
+      finalTargetY = exitStartY.current + 0.45; // Upward glide momentum
     } else {
       exitStartY.current = null; // Reset when not exiting
     }
@@ -89,7 +89,7 @@ export default function OpeningPhone({
     yRef.current = THREE.MathUtils.damp(
       yRef.current,
       finalTargetY,
-      exiting ? 3.5 : 6, // A smooth speed for the upward movement
+      exiting ? 4.8 : 6, // Smooth upward glide
       dt,
     );
 

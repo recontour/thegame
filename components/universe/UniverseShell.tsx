@@ -703,13 +703,13 @@ const HOME_TEXT = "Here's our home.";
 const PROMPT_TEXT =
   "GPS satellites keep your maps working.\nDrag the satellite to where you think they actually orbit.";
 const GPS_FACT_TEXT =
-  "Most people put it much higher.\nGPS satellites actually orbit only about 20,200 km above Earth.";
+  "Plot twist! Most people launch it into deep space.\nGPS satellites actually sit in a neat middle orbit about 20,200 km above Earth.";
 const LUNA_TITLE_TEXT = "This is Low Earth Orbit.";
 const LUNA_SUB_TEXT =
   "GPS is just around the corner. Next, let's see where our natural satellite, Luna, is.";
-const MOON_LIE_TITLE = "Most pictures lie.";
+const MOON_LIE_TITLE = "Textbooks have been lying to you. 📚";
 const MOON_LIE_BODY =
-  "The usual images of Earth and the Moon\nsqueeze them close so they fit on a page.\nThat quiet compression slowly shrinks\nwhat we believe is possible.";
+  "Every standard diagram squeezes Earth and the Moon together\nso they fit neatly on a printed page.\nThat quiet compression ruins our sense of true cosmic scale.";
 const MOON_TRY_TEXT =
   "Now try it yourself,\nplace the Moon where you actually think it belongs.";
 const SUN_LIE_TITLE = "Most pictures still lie.";
@@ -723,19 +723,19 @@ const NASA_SUN_PHOTO = "/universe/photos/sun.webp";
 const NASA_SUN_LINK =
   "https://science.nasa.gov/image-detail/amf-gsfc_20171208_archive_e001435/";
 const FAR_ENOUGH_TEXT =
-  "Okay, that's far enough.\nThe Moon isn't in another galaxy.";
+  "Whoa there, Captain Cosmos!\nThe Moon isn't in another galaxy.";
 const MOON_PLACE_TEXT = "Drag the Moon where you think it belongs.";
 const ZOOM_FIRST_TEXT = "You might want to zoom out for this one first.";
 const ZOOM_FIRST_FINEPRINT =
   "Once you hit Confirm, you can drag the Moon into place.";
 const MOON_NEXT_TEXT =
-  "Now that you've felt the real distance\nbetween Earth and the Moon…\nLight travels 299,792 km every second.\nEven that number becomes strange\nonce you start looking closely.";
+  "Now that you've felt the real distance\nbetween Earth and the Moon…\nLight travels 299,792 km every single second.\nYet even that mind-melting speed takes time out here.";
 const SUN_ZOOM_FIRST_TEXT =
   "Now for the Sun.\nZoom out a bit, then Confirm.";
 const SUN_ZOOM_FIRST_FINEPRINT =
   "Once you hit Confirm, you can drag the Sun into place.";
 const SUN_FAR_ENOUGH_TEXT =
-  "Okay, that's far enough.\nHome is that tiny blue pin.";
+  "Okay, that's far enough.\nHome is just that tiny blue pin.";
 const SUN_PLACE_TEXT = "Drag the Sun where you think it belongs.";
 
 function PromptMessage({
@@ -782,6 +782,10 @@ export default function UniverseShell() {
 
   const [satelliteActive, setSatelliteActive] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
+  const [homePromptVisible, setHomePromptVisible] = useState(false);
+  const [satHeroVisible, setSatHeroVisible] = useState(false);
+  const [topH1Visible, setTopH1Visible] = useState(false);
+  const [topP1Visible, setTopP1Visible] = useState(false);
 
   /** Post-sat bridge: GPS fact → farther line → Place Moon button */
   const [satBridgeVisible, setSatBridgeVisible] = useState(false);
@@ -848,6 +852,12 @@ export default function UniverseShell() {
   const [lightArriveOn, setLightArriveOn] = useState(false);
   const [lightSolarBtnOn, setLightSolarBtnOn] = useState(false);
 
+  /** Solar light photon release (Sun → Earth / Home) */
+  const [sunLightBeamActive, setSunLightBeamActive] = useState(false);
+  const [sunLightTimerOn, setSunLightTimerOn] = useState(false);
+  const [sunLightTimerDisplay, setSunLightTimerDisplay] = useState("0m 00.0s");
+  const [sunLightArriveOn, setSunLightArriveOn] = useState(false);
+
   const [northPoleActive, setNorthPoleActive] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
@@ -873,28 +883,64 @@ export default function UniverseShell() {
     setCameraZ(CAMERA_Z);
     setOpeningActive(false);
     setSatelliteActive(true);
-    window.setTimeout(() => setPromptVisible(true), 400);
+
+    setHomePromptVisible(false);
+    setSatHeroVisible(false);
+    setTopH1Visible(false);
+    setTopP1Visible(false);
+
+    // 1. "Here's our home." bottom prompt slowly fades in over Earth (400ms)
+    window.setTimeout(() => setHomePromptVisible(true), 400);
+
+    // 2. Satellite PNG populates on top and slowly drops into place from above (-40px -> 0) over 1.6s
+    window.setTimeout(() => setSatHeroVisible(true), 1200);
+
+    // 3. Once satellite has dropped into place, H1 reveals underneath (2800ms)
+    window.setTimeout(() => setTopH1Visible(true), 2800);
+
+    // 4. Once H1 is revealed, P1 subtext reveals below H1 (4200ms)
+    window.setTimeout(() => setTopP1Visible(true), 4200);
   }, []);
 
   useEffect(() => {
     if (phoneHasExited && phoneExiting && !northPoleActive) {
       setOpeningActive(false);
       setSatelliteActive(true);
-      window.setTimeout(() => setPromptVisible(true), 400);
+
+      setHomePromptVisible(false);
+      setSatHeroVisible(false);
+      setTopH1Visible(false);
+      setTopP1Visible(false);
+
+      window.setTimeout(() => setHomePromptVisible(true), 400);
+      window.setTimeout(() => setSatHeroVisible(true), 1200);
+      window.setTimeout(() => setTopH1Visible(true), 2800);
+      window.setTimeout(() => setTopP1Visible(true), 4200);
     }
   }, [phoneHasExited, phoneExiting, northPoleActive]);
 
   const handleSatelliteSettled = useCallback(() => {
+    setHomePromptVisible(false);
+    setSatHeroVisible(false);
+    setTopH1Visible(false);
+    setTopP1Visible(false);
     setPromptVisible(false);
+
+    // Beat 1: Plot twist text (400ms)
     window.setTimeout(() => {
       setSatBridgeVisible(true);
       setGpsFactVisible(true);
     }, 400);
-    // Short pause, then invite the Moon beat
+
+    // Beat 2: Luna context subtext (2800ms)
     window.setTimeout(() => {
       setFartherVisible(true);
-      setPlaceMoonBtnVisible(true);
     }, 2800);
+
+    // Beat 3: Bottom CTA button glides into place after text has settled (5200ms)
+    window.setTimeout(() => {
+      setPlaceMoonBtnVisible(true);
+    }, 5200);
   }, []);
 
   /** “The Moon ?” — show “Most pictures lie” on the Earth stage */
@@ -1053,16 +1099,9 @@ export default function UniverseShell() {
     setLightShowBtnOn(false);
     setLightPhase(false);
     setSunLieVisible(true);
-    window.setTimeout(() => setSunWonderVisible(true), 700);
   }, []);
 
-  /** “Absolutely” — NASA Sun photo sheet */
-  const handleSunWonderAbsolutely = useCallback(() => {
-    setSunWonderVisible(false);
-    setSunPhotoOverlayVisible(true);
-  }, []);
-
-  /** “Not really” or photo Next → Now for the Sun (zoom beat) */
+  /** Click on NASA Sun photo → Now for the Sun (zoom beat) */
   const handleExploreSolarSystem = useCallback(() => {
     setSunLieVisible(false);
     setSunWonderVisible(false);
@@ -1095,6 +1134,45 @@ export default function UniverseShell() {
     setZoomControlsVisible(true);
     setConfirmHintNudgeKey(0);
     setCameraZ(ZOOM_Z_SUN_MIN);
+  }, []);
+
+  /** Click "Release the Solar Photon! ☀️" — launch 3D photon from Sun to Earth with 7s timer */
+  const handleReleaseSolarPhoton = useCallback(() => {
+    setSunLabelVisible(false);
+    setSunLightBeamActive(true);
+    setSunLightTimerOn(true);
+    setSunLightTimerDisplay("0m 00.0s");
+    setSunLightArriveOn(false);
+
+    const startTime = performance.now();
+    const DURATION_MS = 7000; // 7 seconds wall-clock time
+    const TOTAL_SUN_LIGHT_SECONDS = 500; // 8 minutes 20 seconds = 500 seconds
+
+    const interval = window.setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / DURATION_MS, 1);
+      const simulatedSecs = progress * TOTAL_SUN_LIGHT_SECONDS;
+
+      const mins = Math.floor(simulatedSecs / 60);
+      const secs = Math.floor(simulatedSecs % 60);
+      const tenths = Math.floor((simulatedSecs % 1) * 10);
+
+      setSunLightTimerDisplay(
+        `${mins}m ${secs.toString().padStart(2, "0")}.${tenths}s`
+      );
+
+      if (progress >= 1) {
+        window.clearInterval(interval);
+      }
+    }, 30);
+  }, []);
+
+  const handleSunLightBeamComplete = useCallback(() => {
+    setSunLightBeamActive(false);
+    setSunLightTimerDisplay("8m 20.0s");
+    window.setTimeout(() => {
+      setSunLightArriveOn(true);
+    }, 300);
   }, []);
 
   const handleSunPhotoNext = useCallback(() => {
@@ -1288,6 +1366,8 @@ export default function UniverseShell() {
                 onSunGrayedTap={handleSunGrayedTap}
                 lightBeamActive={lightBeamActive}
                 onLightBeamComplete={handleLightBeamComplete}
+                sunLightBeamActive={sunLightBeamActive}
+                onSunLightBeamComplete={handleSunLightBeamComplete}
               />
             </Canvas>
           </WebGLErrorBoundary>
@@ -1311,14 +1391,14 @@ export default function UniverseShell() {
             onRevealPhase={setOpeningReveal}
           />
           <NorthPoleQuiz active={northPoleActive} onNext={handleNorthPoleNext} />
-          {promptVisible && (
+          {(topH1Visible || topP1Visible) && (
             <div className="universe-ui">
               <div style={{ textAlign: "center", maxWidth: "34em" }}>
-                <h1 className={`universe-message u-h1${promptVisible ? " visible" : ""}`}>
+                <h1 className={`universe-message u-h1${topH1Visible ? " visible" : ""}`}>
                   GPS satellites keep your maps working.
                 </h1>
                 <p
-                  className={`universe-message u-p1${promptVisible ? " visible" : ""}`}
+                  className={`universe-message u-p1${topP1Visible ? " visible" : ""}`}
                   style={{ marginTop: "8px" }}
                 >
                   Drag the satellite to where you think they actually orbit.
@@ -1327,35 +1407,64 @@ export default function UniverseShell() {
             </div>
           )}
           <PromptMessage
-            visible={promptVisible}
+            visible={homePromptVisible}
             text={HOME_TEXT}
             placement="bottom"
             tone="h1"
           />
           {satBridgeVisible && (
-            <div className="sat-bridge">
+            <div className={`sat-bridge${satBridgeVisible ? " visible" : ""}`}>
               {/*
                 Each step mounts its FULL stack at once; lines/buttons only
                 toggle .visible so layout doesn’t reflow (no jump).
               */}
               {/* Step 1: GPS + farther + The Moon ? */}
               {!moonLieVisible && !moonTryVisible && (
-                <div className="sat-bridge-stack">
+                <div
+                  className="sat-bridge-stack"
+                  style={{ maxWidth: "340px", textAlign: "center" }}
+                >
                   <p
                     className={`sat-bridge-copy u-p1${
                       gpsFactVisible ? " visible" : ""
                     }`}
+                    style={{
+                      fontSize: "clamp(0.95rem, 3.4vw, 1.08rem)",
+                      lineHeight: 1.5,
+                      color: "rgba(230, 240, 255, 0.95)",
+                    }}
                   >
                     {GPS_FACT_TEXT}
                   </p>
                   {fartherVisible && (
-                    <div style={{ textAlign: "center", marginTop: "12px" }}>
-                      <h1 className="sat-bridge-copy u-h1 visible">
+                    <div
+                      style={{
+                        marginTop: "16px",
+                        opacity: fartherVisible ? 1 : 0,
+                        transform: fartherVisible ? "translateY(0)" : "translateY(14px)",
+                        transition:
+                          "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                      }}
+                    >
+                      <h2
+                        className="u-h1"
+                        style={{
+                          fontSize: "clamp(1.05rem, 3.8vw, 1.25rem)",
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          marginBottom: "6px",
+                          color: "rgba(255, 255, 255, 0.98)",
+                        }}
+                      >
                         {LUNA_TITLE_TEXT}
-                      </h1>
+                      </h2>
                       <p
-                        className="sat-bridge-copy u-p1 visible"
-                        style={{ marginTop: "6px" }}
+                        className="u-p1"
+                        style={{
+                          fontSize: "clamp(0.9rem, 3.2vw, 1.0rem)",
+                          lineHeight: 1.45,
+                          color: "rgba(200, 220, 255, 0.85)",
+                        }}
                       >
                         {LUNA_SUB_TEXT}
                       </p>
@@ -1370,14 +1479,20 @@ export default function UniverseShell() {
                       position: "fixed",
                       bottom: "calc(6dvh + env(safe-area-inset-bottom, 0px))",
                       left: "50%",
-                      transform: "translateX(-50%)",
+                      transform: placeMoonBtnVisible
+                        ? "translateX(-50%) translateY(0)"
+                        : "translateX(-50%) translateY(16px)",
                       width: "min(100%, 300px)",
                       zIndex: 30,
+                      opacity: placeMoonBtnVisible ? 1 : 0,
+                      pointerEvents: placeMoonBtnVisible ? "auto" : "none",
+                      transition:
+                        "opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1), transform 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
                     }}
                     disabled={!placeMoonBtnVisible}
                     onClick={handleTheMoon}
                   >
-                    Target: The moon →
+                    Target: The moon 🌑
                   </button>
                 </div>
               )}
@@ -1434,52 +1549,41 @@ export default function UniverseShell() {
               )}
             </div>
           )}
-          {/* Sun lie — full stack mounted; prompt/buttons only fade in */}
-          {sunLieVisible && !sunPhotoOverlayVisible && (
-            <div className="sat-bridge">
-              <div className="sat-bridge-stack">
-                <h2 className="sat-bridge-copy u-h1 visible">{SUN_LIE_TITLE}</h2>
-                <p className="sat-bridge-copy u-p1 visible">{SUN_LIE_BODY}</p>
-                <p
-                  className={`sat-bridge-prompt u-p1${
-                    sunWonderVisible ? " visible" : ""
-                  }`}
-                >
-                  {SUN_WONDER_PROMPT}
+          {/* Sun lie — embedded interactive NASA Sun photo */}
+          {sunLieVisible && (
+            <div className={`sat-bridge${sunLieVisible ? " visible" : ""}`}>
+              <div className="sat-bridge-stack" style={{ alignItems: "center" }}>
+                <h1 className="sat-bridge-copy u-h1 visible">{SUN_LIE_TITLE}</h1>
+                <p className="sat-bridge-copy u-p1 visible" style={{ marginTop: "8px" }}>
+                  {SUN_LIE_BODY}
                 </p>
-                <div className="sat-bridge-choice-row">
-                  <button
-                    type="button"
-                    className={`ctrl-btn rect sat-bridge-cta${
-                      sunWonderVisible ? " visible" : ""
-                    }`}
-                    disabled={!sunWonderVisible}
-                    onClick={handleSunWonderAbsolutely}
-                  >
-                    Absolutely
-                  </button>
-                  <button
-                    type="button"
-                    className={`ctrl-btn rect sat-bridge-cta${
-                      sunWonderVisible ? " visible" : ""
-                    }`}
-                    disabled={!sunWonderVisible}
-                    onClick={handleSunWonderNotReally}
-                  >
-                    Not really
-                  </button>
+                <div
+                  style={{
+                    marginTop: "16px",
+                    pointerEvents: "auto",
+                    cursor: "pointer",
+                  }}
+                  onClick={handleExploreSolarSystem}
+                >
+                  <img
+                    src={NASA_SUN_PHOTO}
+                    alt="The Sun — NASA"
+                    style={{
+                      width: "calc(100vw - 6vw)",
+                      maxWidth: "360px",
+                      maxHeight: "min(36vh, 260px)",
+                      objectFit: "contain",
+                      borderRadius: "12px",
+                      boxShadow: "0 12px 36px rgba(0, 0, 0, 0.65)",
+                      border: "1px solid rgba(255, 210, 120, 0.25)",
+                      transition: "transform 0.15s ease",
+                    }}
+                    draggable={false}
+                  />
                 </div>
               </div>
             </div>
           )}
-
-          <PhotoSheetOverlay
-            visible={sunPhotoOverlayVisible}
-            onNext={handleSunPhotoNext}
-            imageSrc={NASA_SUN_PHOTO}
-            imageAlt="The Sun — NASA"
-            creditHref={NASA_SUN_LINK}
-          />
           <PromptMessage
             visible={showPhaseTopPrompt}
             text={phaseTopCopy}
@@ -1496,11 +1600,11 @@ export default function UniverseShell() {
           >
             <span className="moon-label-lead u-h1">
               {moonSmartAss
-                ? "Impressive. You've just placed the Moon somewhere near Mars."
+                ? "Whoa there, Captain Cosmos! You just parked the Moon somewhere past Mars."
                 : "Farther than it looks."}
             </span>
             <span className="moon-label-sub u-p1">
-              The Moon is actually about 384,000 km away, roughly 30 Earth
+              The Moon is actually about 384,000 km away — roughly 30 Earth
               diameters.
             </span>
             <span
@@ -1513,53 +1617,145 @@ export default function UniverseShell() {
           </div>
           <div
             className={`sun-reveal${sunLabelVisible ? " visible" : ""}`}
+            style={{
+              position: "fixed",
+              top: "40%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "calc(100vw - 32px)",
+              maxWidth: "360px",
+              zIndex: 50,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "16px",
+              textAlign: "center",
+              boxSizing: "border-box",
+              pointerEvents: sunLabelVisible ? "auto" : "none",
+              opacity: sunLabelVisible ? 1 : 0,
+              transition: "opacity 0.6s ease",
+            }}
             aria-live="polite"
             aria-hidden={!sunLabelVisible}
           >
             {sunSmartAss && (
-              <p
-                className={`sun-reveal-line u-h1${
-                  sunRevealL1 ? " is-on" : ""
-                }`}
-              >
-                That&apos;s past the Kuiper belt. Ambitious.
+              <h1 className="u-h1" style={{ display: sunRevealL1 ? "block" : "none" }}>
+                You just evicted the Sun past Pluto! 🥶 It&apos;s freezing out there.
+              </h1>
+            )}
+
+            {sunRevealL1 && (
+              <p className="u-p1">
+                The Sun sits 150 million kilometres away (1 Astronomical Unit). At this point, kilometres become completely useless for human brains.
               </p>
             )}
-            <p
-              className={`sun-reveal-line u-p1${sunRevealL1 ? " is-on" : ""}`}
+
+            {sunRevealL2 && (
+              <p className="u-p1">
+                So astronomers cheat: they measure distance in TIME.
+              </p>
+            )}
+
+            {sunRevealBranch && (
+              <p className="u-p1">
+                Instead of writing 40,000,000,000,000 km to reach the next star, we just say it&apos;s 4.2 light-years away. Time becomes our tape measure!
+              </p>
+            )}
+
+            {sunRevealBtn && (
+              <button
+                type="button"
+                className="ctrl-btn rect"
+                style={{ width: "min(100%, 300px)", marginTop: "8px" }}
+                onClick={handleReleaseSolarPhoton}
+              >
+                Release the Solar Photon! ☀️
+              </button>
+            )}
+          </div>
+
+          {/* Solar Light Photon Timer & Arrival Message */}
+          {sunLightTimerOn && (
+            <div
+              className={`light-timer u-h1${sunLightTimerOn ? " is-on" : ""}`}
+              style={{
+                position: "fixed",
+                top: "42%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                fontSize: "clamp(2rem, 8vw, 3.2rem)",
+                color: "#fbbf24",
+                textShadow: "0 0 28px rgba(251, 191, 36, 0.7)",
+                zIndex: 60,
+              }}
+              aria-live="polite"
             >
-              The Sun is about 150 million kilometres away. That&apos;s 1
-              Astronomical Unit — the basic measuring stick of our solar
-              system.
-            </p>
-            <p
-              className={`sun-reveal-line u-p1${sunRevealL2 ? " is-on" : ""}`}
-            >
-              Light from the Sun takes roughly 8 minutes and 20 seconds to reach
-              us.
-            </p>
-            <p
-              className={`sun-reveal-line u-p1${
-                sunRevealBranch ? " is-on" : ""
-              }`}
-            >
-              You already watched light cross the gap from the Moon. Now you
-              know it needs more than 8 minutes just to reach us from the Sun.
-              The next step is even larger.
-            </p>
-            <button
-              type="button"
-              className={`ctrl-btn rect sun-reveal-cta${
-                sunRevealBtn ? " is-on" : ""
-              }`}
-              disabled={!sunRevealBtn}
-              onClick={() => {
-                // Reserved for the next, larger solar step
+              {sunLightTimerDisplay}
+            </div>
+          )}
+
+          {sunLightArriveOn && (
+            <div
+              style={{
+                position: "fixed",
+                top: "58%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "min(92vw, 360px)",
+                textAlign: "center",
+                zIndex: 60,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "12px",
+                pointerEvents: "auto",
               }}
             >
-              Our solar system
-            </button>
-          </div>
+              <h2
+                className="u-h1"
+                style={{
+                  color: "#fbbf24",
+                  textShadow: "0 0 20px rgba(251, 191, 36, 0.5)",
+                  margin: 0,
+                  fontSize: "clamp(1.3rem, 4.5vw, 1.6rem)",
+                }}
+              >
+                8 Minutes and 20 Seconds! 🤯
+              </h2>
+              <p
+                className="u-p1"
+                style={{
+                  color: "rgba(254, 240, 138, 0.95)",
+                  margin: 0,
+                  lineHeight: 1.45,
+                }}
+              >
+                If the Sun suddenly exploded right this second, you wouldn&apos;t know for 8 full minutes. You could finish your tea in warm, golden sunshine! You are literally looking 8 minutes into the past.
+              </p>
+              <p
+                className="u-p1"
+                style={{
+                  color: "#94a3b8",
+                  marginTop: "6px",
+                  fontSize: "0.85rem",
+                  lineHeight: 1.4,
+                }}
+              >
+                Ready to ride deeper through the planets?
+              </p>
+              <button
+                type="button"
+                className="ctrl-btn rect"
+                style={{ width: "min(100%, 280px)", marginTop: "4px" }}
+                onClick={() => {
+                  // Ready for Vertical Solar Elevator step
+                }}
+              >
+                The Solar Elevator 🪐
+              </button>
+            </div>
+          )}
           <div
             className={`moon-choice-bar${moonNextVisible ? " visible" : ""}`}
             aria-hidden={!moonNextVisible}
@@ -1570,7 +1766,7 @@ export default function UniverseShell() {
               disabled={!moonNextVisible}
               onClick={handleDistanceInLight}
             >
-              Distance in light
+              How Fast is Light, Really? ⚡
             </button>
           </div>
           {lightPhase && (
@@ -1599,15 +1795,14 @@ export default function UniverseShell() {
                     lightL2On ? " is-on" : ""
                   }`}
                 >
-                  Even across all that empty distance, it does not take long.
+                  Light travels at 299,792 km EVERY SECOND — the ultimate cosmic speed demon.
                 </p>
                 <p
                   className={`light-story-line u-p1${
                     lightL3On ? " is-on" : ""
                   }`}
                 >
-                  It leaves the surface of the Moon and reaches your eyes in
-                  only 1.3 seconds.
+                  Yet across this vast gap, it still takes 1.3 seconds to reach your eyes.
                 </p>
                 <button
                   type="button"
@@ -1617,7 +1812,7 @@ export default function UniverseShell() {
                   disabled={!lightShowBtnOn || lightIntroHidden}
                   onClick={handleLightShowMe}
                 >
-                  Show me
+                  Release the Photon! 💫
                 </button>
               </div>
               <p
@@ -1625,8 +1820,7 @@ export default function UniverseShell() {
                   lightArriveOn ? " is-on" : ""
                 }`}
               >
-                In the time it takes to breathe in, the light has already
-                arrived.
+                In less time than a single deep breath, the photon completes its journey.
               </p>
             </div>
           )}
@@ -1649,7 +1843,7 @@ export default function UniverseShell() {
                 disabled={!lightSolarBtnOn}
                 onClick={handleSolarSystemInvite}
               >
-                Let&apos;s go to our solar system
+                Next Stop: The Sun ☀️
               </button>
             </div>
           )}

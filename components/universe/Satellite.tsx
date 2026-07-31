@@ -226,8 +226,15 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
     new THREE.Vector3(SAT_START.x, SAT_START.y, SAT_START.z),
   );
   const displayPos = useRef(
-    new THREE.Vector3(SAT_START.x, SAT_START.y, SAT_START.z),
+    new THREE.Vector3(SAT_START.x, 2.4, SAT_START.z),
   );
+
+  useEffect(() => {
+    if (active && !hasDraggedRef.current) {
+      displayPos.current.set(SAT_START.x, 2.4, SAT_START.z);
+      targetPos.current.set(SAT_START.x, SAT_START.y, SAT_START.z);
+    }
+  }, [active]);
 
   const projectPointer = useCallback(
     (clientX: number, clientY: number) => {
@@ -359,7 +366,8 @@ export default function Satellite({ active, onSettled }: SatelliteProps) {
       // Snappy follow while dragging — full free placement
       displayPos.current.lerp(targetPos.current, 1 - Math.exp(-18 * dt));
     } else {
-      displayPos.current.lerp(targetPos.current, 1 - Math.exp(-12 * dt));
+      const lerpSpeed = hasDraggedRef.current ? 12 : 3.2;
+      displayPos.current.lerp(targetPos.current, 1 - Math.exp(-lerpSpeed * dt));
     }
 
     // Soft float while waiting to be dragged (parked between copy + Earth)

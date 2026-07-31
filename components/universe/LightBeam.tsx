@@ -6,10 +6,14 @@ import * as THREE from "three";
 import { MOON_DISTANCE } from "@/components/universe/constants";
 
 type LightBeamProps = {
-  /** When true, plays Moon → Earth once */
+  /** When true, plays photon beam hop */
   active: boolean;
-  /** Seconds for the hop (real Moon light-time ≈ 1.3) */
+  /** Seconds for the hop animation */
   duration?: number;
+  /** Starting Y position in world units */
+  fromY?: number;
+  /** Ending Y position in world units */
+  toY?: number;
   onComplete?: () => void;
 };
 
@@ -20,18 +24,20 @@ function smoothstep(t: number): number {
 }
 
 /**
- * Glowing photon + fading comet-tail points from settled Moon → Earth.
+ * Glowing photon + fading comet-tail points from origin to target.
  */
 export default function LightBeam({
   active,
   duration = 2.8,
+  fromY = MOON_DISTANCE,
+  toY = 0,
   onComplete,
 }: LightBeamProps) {
   const groupRef = useRef<THREE.Group>(null);
   const photonRef = useRef<THREE.Mesh>(null);
 
-  const from = useMemo(() => new THREE.Vector3(0, MOON_DISTANCE, 0), []);
-  const to = useMemo(() => new THREE.Vector3(0, 0, 0), []);
+  const from = useMemo(() => new THREE.Vector3(0, fromY, 0), [fromY]);
+  const to = useMemo(() => new THREE.Vector3(0, toY, 0), [toY]);
 
   const trailPositions = useMemo(
     () => new Float32Array(MAX_TRAIL_POINTS * 3),

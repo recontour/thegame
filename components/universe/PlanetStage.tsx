@@ -7,6 +7,7 @@ import LightBeam from "@/components/universe/LightBeam";
 import Moon from "@/components/universe/Moon";
 import Satellite from "@/components/universe/Satellite";
 import Sun from "@/components/universe/Sun";
+import { SUN_DISTANCE } from "@/components/universe/constants";
 
 type PlanetStageProps = {
   earthRevealed: boolean;
@@ -32,6 +33,9 @@ type PlanetStageProps = {
   /** Light lesson — Moon → Earth photon hop */
   lightBeamActive?: boolean;
   onLightBeamComplete?: () => void;
+  /** Solar light lesson — Sun → Earth photon hop */
+  sunLightBeamActive?: boolean;
+  onSunLightBeamComplete?: () => void;
 };
 
 /**
@@ -58,6 +62,8 @@ export default function PlanetStage({
   onSunGrayedTap,
   lightBeamActive = false,
   onLightBeamComplete,
+  sunLightBeamActive = false,
+  onSunLightBeamComplete,
 }: PlanetStageProps) {
   return (
     <group>
@@ -102,6 +108,13 @@ export default function PlanetStage({
           onGrayedTap={onSunGrayedTap}
         />
       </Suspense>
+      <LightBeam
+        active={sunLightBeamActive}
+        fromY={SUN_DISTANCE}
+        toY={0}
+        duration={7.0}
+        onComplete={onSunLightBeamComplete}
+      />
     </group>
   );
 }
