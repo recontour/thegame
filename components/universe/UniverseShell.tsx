@@ -26,6 +26,7 @@ import PhotoSheetOverlay from "@/components/universe/PhotoSheetOverlay";
 import PlanetStage from "@/components/universe/PlanetStage";
 import Stars from "@/components/universe/Stars";
 import ZoomControls from "@/components/universe/ZoomControls";
+import NorthPoleQuiz from "@/components/universe/NorthPoleQuiz";
 
 /**
  * Full-bleed portrait column. WebGL covers the whole stage (stars included).
@@ -703,7 +704,9 @@ const PROMPT_TEXT =
   "GPS satellites keep your maps working.\nDrag the satellite to where you think they actually orbit.";
 const GPS_FACT_TEXT =
   "Most people put it much higher.\nGPS satellites actually orbit only about 20,200 km above Earth.";
-const FARTHER_TEXT = "Now let's try something much farther.";
+const LUNA_TITLE_TEXT = "This is Low Earth Orbit.";
+const LUNA_SUB_TEXT =
+  "GPS is just around the corner. Next, let's see where our natural satellite, Luna, is.";
 const MOON_LIE_TITLE = "Most pictures lie.";
 const MOON_LIE_BODY =
   "The usual images of Earth and the Moon\nsqueeze them close so they fit on a page.\nThat quiet compression slowly shrinks\nwhat we believe is possible.";
@@ -845,6 +848,7 @@ export default function UniverseShell() {
   const [lightArriveOn, setLightArriveOn] = useState(false);
   const [lightSolarBtnOn, setLightSolarBtnOn] = useState(false);
 
+  const [northPoleActive, setNorthPoleActive] = useState(false);
   const [cameraZ, setCameraZ] = useState(CAMERA_Z);
 
   const handleAudioUnlocked = useCallback(() => {
@@ -856,19 +860,29 @@ export default function UniverseShell() {
     setOpeningReveal(false);
     setPhoneExiting(true);
     setEarthRevealed(true);
+    setNorthPoleActive(true);
+    setCameraZ(CAMERA_Z * 0.3); // Zoomed-in close-up view of Earth
   }, []);
 
   const handlePhoneExitDone = useCallback(() => {
     setPhoneHasExited(true);
   }, []);
 
+  const handleNorthPoleNext = useCallback(() => {
+    setNorthPoleActive(false);
+    setCameraZ(CAMERA_Z);
+    setOpeningActive(false);
+    setSatelliteActive(true);
+    window.setTimeout(() => setPromptVisible(true), 400);
+  }, []);
+
   useEffect(() => {
-    if (phoneHasExited && phoneExiting) {
+    if (phoneHasExited && phoneExiting && !northPoleActive) {
       setOpeningActive(false);
       setSatelliteActive(true);
       window.setTimeout(() => setPromptVisible(true), 400);
     }
-  }, [phoneHasExited, phoneExiting]);
+  }, [phoneHasExited, phoneExiting, northPoleActive]);
 
   const handleSatelliteSettled = useCallback(() => {
     setPromptVisible(false);
@@ -889,26 +903,10 @@ export default function UniverseShell() {
     setFartherVisible(false);
     setPlaceMoonBtnVisible(false);
     setMoonLieVisible(true);
-    window.setTimeout(() => setMoonWonderBtnVisible(true), 700);
   }, []);
 
-  /** “Absolutely” — full opaque NASA photo sheet */
-  const handleWonderAbsolutely = useCallback(() => {
-    setMoonWonderBtnVisible(false);
-    setMoonPhotoOverlayVisible(true);
-  }, []);
-
-  /** “Not really” — skip photo, go straight to try-yourself + Place moon */
-  const handleWonderNotReally = useCallback(() => {
-    setMoonWonderBtnVisible(false);
-    setMoonLieVisible(false);
-    setMoonTryVisible(true);
-    window.setTimeout(() => setMoonPlaceBtnVisible(true), 500);
-  }, []);
-
-  /** Leave photo sheet → try-yourself + Place moon on Earth stage */
-  const handleMoonPhotoNext = useCallback(() => {
-    setMoonPhotoOverlayVisible(false);
+  /** Click on NASA Moon photo → go to try-yourself + Place moon stage */
+  const handleMoonPhotoClick = useCallback(() => {
     setMoonLieVisible(false);
     setMoonTryVisible(true);
     window.setTimeout(() => setMoonPlaceBtnVisible(true), 500);
@@ -1272,6 +1270,7 @@ export default function UniverseShell() {
               )}
               <PlanetStage
                 earthRevealed={earthRevealed}
+                northPoleFocus={northPoleActive}
                 satelliteActive={satelliteActive}
                 onSatelliteSettled={handleSatelliteSettled}
                 moonVisible={moonVisible}
@@ -1311,7 +1310,22 @@ export default function UniverseShell() {
             onPhoneSlotNdc={setPhoneSlotNdcY}
             onRevealPhase={setOpeningReveal}
           />
-          <PromptMessage visible={promptVisible} text={PROMPT_TEXT} tone="p1" />
+          <NorthPoleQuiz active={northPoleActive} onNext={handleNorthPoleNext} />
+          {promptVisible && (
+            <div className="universe-ui">
+              <div style={{ textAlign: "center", maxWidth: "34em" }}>
+                <h1 className={`universe-message u-h1${promptVisible ? " visible" : ""}`}>
+                  GPS satellites keep your maps working.
+                </h1>
+                <p
+                  className={`universe-message u-p1${promptVisible ? " visible" : ""}`}
+                  style={{ marginTop: "8px" }}
+                >
+                  Drag the satellite to where you think they actually orbit.
+                </p>
+              </div>
+            </div>
+          )}
           <PromptMessage
             visible={promptVisible}
             text={HOME_TEXT}
@@ -1334,60 +1348,71 @@ export default function UniverseShell() {
                   >
                     {GPS_FACT_TEXT}
                   </p>
-                  <p
-                    className={`sat-bridge-copy u-h1${
-                      fartherVisible ? " visible" : ""
-                    }`}
-                  >
-                    {FARTHER_TEXT}
-                  </p>
+                  {fartherVisible && (
+                    <div style={{ textAlign: "center", marginTop: "12px" }}>
+                      <h1 className="sat-bridge-copy u-h1 visible">
+                        {LUNA_TITLE_TEXT}
+                      </h1>
+                      <p
+                        className="sat-bridge-copy u-p1 visible"
+                        style={{ marginTop: "6px" }}
+                      >
+                        {LUNA_SUB_TEXT}
+                      </p>
+                    </div>
+                  )}
                   <button
                     type="button"
                     className={`ctrl-btn rect sat-bridge-cta${
                       placeMoonBtnVisible ? " visible" : ""
                     }`}
+                    style={{
+                      position: "fixed",
+                      bottom: "calc(6dvh + env(safe-area-inset-bottom, 0px))",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      width: "min(100%, 300px)",
+                      zIndex: 30,
+                    }}
                     disabled={!placeMoonBtnVisible}
                     onClick={handleTheMoon}
                   >
-                    The Moon ?
+                    Target: The moon →
                   </button>
                 </div>
               )}
-              {/* Step 2: lie + wonder prompt + Absolutely / Not really */}
-              {moonLieVisible && !moonPhotoOverlayVisible && (
-                <div className="sat-bridge-stack">
-                  <h2 className="sat-bridge-copy u-h1 visible">
+              {/* Step 2: "Most pictures lie" + embedded interactive NASA Moon image */}
+              {moonLieVisible && (
+                <div className="sat-bridge-stack" style={{ alignItems: "center" }}>
+                  <h1 className="sat-bridge-copy u-h1 visible">
                     {MOON_LIE_TITLE}
-                  </h2>
-                  <p className="sat-bridge-copy u-p1 visible">{MOON_LIE_BODY}</p>
-                  <p
-                    className={`sat-bridge-prompt u-p1${
-                      moonWonderBtnVisible ? " visible" : ""
-                    }`}
-                  >
-                    Wonder what Earth looks like from the Moon?
+                  </h1>
+                  <p className="sat-bridge-copy u-p1 visible" style={{ marginTop: "8px" }}>
+                    {MOON_LIE_BODY}
                   </p>
-                  <div className="sat-bridge-choice-row">
-                    <button
-                      type="button"
-                      className={`ctrl-btn rect sat-bridge-cta${
-                        moonWonderBtnVisible ? " visible" : ""
-                      }`}
-                      disabled={!moonWonderBtnVisible}
-                      onClick={handleWonderAbsolutely}
-                    >
-                      Absolutely
-                    </button>
-                    <button
-                      type="button"
-                      className={`ctrl-btn rect sat-bridge-cta${
-                        moonWonderBtnVisible ? " visible" : ""
-                      }`}
-                      disabled={!moonWonderBtnVisible}
-                      onClick={handleWonderNotReally}
-                    >
-                      Not really
-                    </button>
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      pointerEvents: "auto",
+                      cursor: "pointer",
+                    }}
+                    onClick={handleMoonPhotoClick}
+                  >
+                    <img
+                      src={NASA_MOON_PHOTO}
+                      alt="Earth and Moon — NASA"
+                      style={{
+                        width: "calc(100vw - 6vw)",
+                        maxWidth: "360px",
+                        maxHeight: "min(36vh, 260px)",
+                        objectFit: "contain",
+                        borderRadius: "12px",
+                        boxShadow: "0 12px 36px rgba(0, 0, 0, 0.65)",
+                        border: "1px solid rgba(160, 190, 255, 0.2)",
+                        transition: "transform 0.15s ease",
+                      }}
+                      draggable={false}
+                    />
                   </div>
                 </div>
               )}
@@ -1447,13 +1472,7 @@ export default function UniverseShell() {
               </div>
             </div>
           )}
-          <PhotoSheetOverlay
-            visible={moonPhotoOverlayVisible}
-            onNext={handleMoonPhotoNext}
-            imageSrc={NASA_MOON_PHOTO}
-            imageAlt="Earth and Moon — NASA"
-            creditHref={NASA_MOON_LINK}
-          />
+
           <PhotoSheetOverlay
             visible={sunPhotoOverlayVisible}
             onNext={handleSunPhotoNext}

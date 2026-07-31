@@ -10,6 +10,7 @@ import Sun from "@/components/universe/Sun";
 
 type PlanetStageProps = {
   earthRevealed: boolean;
+  northPoleFocus?: boolean;
   satelliteActive: boolean;
   onSatelliteSettled?: () => void;
   moonVisible: boolean;
@@ -39,6 +40,7 @@ type PlanetStageProps = {
  */
 export default function PlanetStage({
   earthRevealed,
+  northPoleFocus = false,
   satelliteActive,
   onSatelliteSettled,
   moonVisible,
@@ -62,7 +64,7 @@ export default function PlanetStage({
       {/* Full Earth globe for early lessons; solar beat swaps to Home pin */}
       {!sunMode && (
         <Suspense fallback={null}>
-          <Earth revealed={earthRevealed} />
+          <Earth revealed={earthRevealed} northPoleFocus={northPoleFocus} />
         </Suspense>
       )}
       <HomeMarker visible={sunMode && !sunHomeDocked} />

@@ -237,11 +237,11 @@
   font-family: var(--font-u-h1), "Roboto", system-ui, sans-serif;
   font-size: clamp(1.2rem, 4.6vw, 1.5rem);
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   line-height: 1.35;
-  color: #f0f4ff;
+  color: #60a5fa;
   text-align: center;
-  text-shadow: 0 0 18px rgba(180, 210, 255, 0.35);
+  text-shadow: 0 0 18px rgba(96, 165, 250, 0.45);
 }
 
 .u-p1 {

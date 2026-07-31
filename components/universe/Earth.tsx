@@ -14,23 +14,36 @@ type EarthProps = {
    * When false, stays hidden / scaled down.
    */
   revealed?: boolean;
+  /**
+   * When true, tilts the Earth to face the North Pole towards the camera.
+   */
+  northPoleFocus?: boolean;
 };
 
 /**
  * Gentle spinning Earth — fades/scales in after the phone opening.
  * (Solar beat uses HomeMarker instead of this globe.)
  */
-export default function Earth({ revealed = true }: EarthProps) {
+export default function Earth({ revealed = true, northPoleFocus = false }: EarthProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
   const map = useLoader(THREE.TextureLoader, EARTH_TEXTURE_URL);
   const revealRef = useRef(revealed ? 1 : 0);
+  const tiltRef = useRef(0);
 
   useFrame((_, dt) => {
     const mesh = meshRef.current;
     if (!mesh) return;
 
     mesh.rotation.y += 0.0012;
+
+    tiltRef.current = THREE.MathUtils.damp(
+      tiltRef.current,
+      0,
+      2.5,
+      dt
+    );
+    mesh.rotation.x = tiltRef.current;
 
     revealRef.current = THREE.MathUtils.damp(
       revealRef.current,

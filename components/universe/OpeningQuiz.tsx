@@ -188,6 +188,18 @@ export default function OpeningQuiz({
       <div
         className={`opening-reveal${revealVisible ? " visible" : ""}`}
         aria-live="polite"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          alignItems: "center",
+          height: "100%",
+          boxSizing: "border-box",
+          paddingTop: "calc(10dvh + env(safe-area-inset-top, 0px))",
+          paddingBottom: "calc(6dvh + env(safe-area-inset-bottom, 0px))",
+          paddingLeft: "var(--universe-side-pad, 20px)",
+          paddingRight: "var(--universe-side-pad, 20px)",
+        }}
       >
         <div className="opening-reveal-main">
           {choice.hero && (
@@ -204,7 +216,7 @@ export default function OpeningQuiz({
           </div>
         </div>
 
-        <ul className="opening-reveal-rest" aria-label="Scale of phones">
+        <ul className="opening-reveal-rest" aria-label="Scale of phones" style={{ margin: "12px 0" }}>
           {restLadder.map((c) => (
             <li
               key={c.id}
@@ -226,6 +238,7 @@ export default function OpeningQuiz({
         <button
           type="button"
           className="ctrl-btn rect opening-reveal-cta"
+          style={{ width: "min(100%, 300px)", marginTop: "0" }}
           onClick={handleContinue}
         >
           Let&apos;s see what distance really is →
