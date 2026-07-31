@@ -563,7 +563,7 @@ const UNIVERSE_LAYOUT_CSS = `
     right: 0;
     top: 0;
     /* Lower ~42% reserved for globe + sat orbit */
-    bottom: 42%;
+    bottom: 0;
     z-index: 20;
     display: flex;
     flex-direction: column;
@@ -707,7 +707,7 @@ const GPS_FACT_TEXT =
 const LUNA_TITLE_TEXT = "This is Low Earth Orbit.";
 const LUNA_SUB_TEXT =
   "GPS is just around the corner. Next, let's see where our natural satellite, Luna, is.";
-const MOON_LIE_TITLE = "Textbooks have been lying to you. 📚";
+const MOON_LIE_TITLE = "Textbooks have been lying to you.";
 const MOON_LIE_BODY =
   "Every standard diagram squeezes Earth and the Moon together\nso they fit neatly on a printed page.\nThat quiet compression ruins our sense of true cosmic scale.";
 const MOON_TRY_TEXT =
@@ -1422,68 +1422,75 @@ export default function UniverseShell() {
               {!moonLieVisible && !moonTryVisible && (
                 <div
                   className="sat-bridge-stack"
-                  style={{ maxWidth: "340px", textAlign: "center" }}
+                  style={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    width: "100%",
+                    maxWidth: "340px",
+                    textAlign: "center",
+                  }}
                 >
-                  <p
-                    className={`sat-bridge-copy u-p1${
-                      gpsFactVisible ? " visible" : ""
-                    }`}
-                    style={{
-                      fontSize: "clamp(0.95rem, 3.4vw, 1.08rem)",
-                      lineHeight: 1.5,
-                      color: "rgba(230, 240, 255, 0.95)",
-                    }}
-                  >
-                    {GPS_FACT_TEXT}
-                  </p>
-                  {fartherVisible && (
-                    <div
+                  <div>
+                    <p
+                      className={`sat-bridge-copy u-p1${
+                        gpsFactVisible ? " visible" : ""
+                      }`}
                       style={{
-                        marginTop: "16px",
-                        opacity: fartherVisible ? 1 : 0,
-                        transform: fartherVisible ? "translateY(0)" : "translateY(14px)",
-                        transition:
-                          "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
+                        fontSize: "clamp(0.95rem, 3.4vw, 1.08rem)",
+                        lineHeight: 1.5,
+                        color: "rgba(230, 240, 255, 0.95)",
                       }}
                     >
-                      <h2
-                        className="u-h1"
+                      {GPS_FACT_TEXT}
+                    </p>
+                    {fartherVisible && (
+                      <div
                         style={{
-                          fontSize: "clamp(1.05rem, 3.8vw, 1.25rem)",
-                          letterSpacing: "0.12em",
-                          textTransform: "uppercase",
-                          marginBottom: "6px",
-                          color: "rgba(255, 255, 255, 0.98)",
+                          marginTop: "16px",
+                          opacity: fartherVisible ? 1 : 0,
+                          transform: fartherVisible ? "translateY(0)" : "translateY(14px)",
+                          transition:
+                            "opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.4s cubic-bezier(0.16, 1, 0.3, 1)",
                         }}
                       >
-                        {LUNA_TITLE_TEXT}
-                      </h2>
-                      <p
-                        className="u-p1"
-                        style={{
-                          fontSize: "clamp(0.9rem, 3.2vw, 1.0rem)",
-                          lineHeight: 1.45,
-                          color: "rgba(200, 220, 255, 0.85)",
-                        }}
-                      >
-                        {LUNA_SUB_TEXT}
-                      </p>
-                    </div>
-                  )}
+                        <h2
+                          className="u-h1"
+                          style={{
+                            fontSize: "clamp(1.05rem, 3.8vw, 1.25rem)",
+                            letterSpacing: "0.12em",
+                            textTransform: "uppercase",
+                            marginBottom: "6px",
+                            color: "rgba(255, 255, 255, 0.98)",
+                          }}
+                        >
+                          {LUNA_TITLE_TEXT}
+                        </h2>
+                        <p
+                          className="u-p1"
+                          style={{
+                            fontSize: "clamp(0.9rem, 3.2vw, 1.0rem)",
+                            lineHeight: 1.45,
+                            color: "rgba(200, 220, 255, 0.85)",
+                          }}
+                        >
+                          {LUNA_SUB_TEXT}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="button"
                     className={`ctrl-btn rect sat-bridge-cta${
                       placeMoonBtnVisible ? " visible" : ""
                     }`}
                     style={{
-                      position: "fixed",
-                      bottom: "calc(6dvh + env(safe-area-inset-bottom, 0px))",
-                      left: "50%",
                       transform: placeMoonBtnVisible
-                        ? "translateX(-50%) translateY(0)"
-                        : "translateX(-50%) translateY(16px)",
+                        ? "translateY(0)"
+                        : "translateY(16px)",
                       width: "min(100%, 300px)",
-                      zIndex: 30,
                       opacity: placeMoonBtnVisible ? 1 : 0,
                       pointerEvents: placeMoonBtnVisible ? "auto" : "none",
                       transition:
@@ -1533,8 +1540,20 @@ export default function UniverseShell() {
               )}
               {/* Step 3: try yourself + Place moon */}
               {moonTryVisible && (
-                <div className="sat-bridge-stack">
-                  <p className="sat-bridge-copy u-p1 visible">{MOON_TRY_TEXT}</p>
+                <div
+                  className="sat-bridge-stack"
+                  style={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    width: "100%",
+                  }}
+                >
+                  <div>
+                    <p className="sat-bridge-copy u-p1 visible">{MOON_TRY_TEXT}</p>
+                  </div>
                   <button
                     type="button"
                     className={`ctrl-btn rect sat-bridge-cta${
@@ -1543,7 +1562,7 @@ export default function UniverseShell() {
                     disabled={!moonPlaceBtnVisible}
                     onClick={handlePlaceMoon}
                   >
-                    Place moon
+                    Place moon 🌑
                   </button>
                 </div>
               )}
@@ -1721,7 +1740,7 @@ export default function UniverseShell() {
                   fontSize: "clamp(1.3rem, 4.5vw, 1.6rem)",
                 }}
               >
-                8 Minutes and 20 Seconds! 🤯
+                  
               </h2>
               <p
                 className="u-p1"
@@ -1752,7 +1771,7 @@ export default function UniverseShell() {
                   // Ready for Vertical Solar Elevator step
                 }}
               >
-                The Solar Elevator 🪐
+                More coming soon 🪐
               </button>
             </div>
           )}
